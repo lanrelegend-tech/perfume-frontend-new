@@ -22,8 +22,10 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showPassword2, setShowPassword2] = useState(false);
   const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState([]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -35,6 +37,10 @@ export default function SignupPage() {
 
     if (error) {
       setError("");
+    }
+
+    if (name === "password") {
+      setPasswordErrors([]);
     }
   };
 
@@ -92,7 +98,9 @@ export default function SignupPage() {
             typeof message === "object" &&
             message !== null
           ) {
-            value = Object.values(message).flat().join(", ");
+            value = Object.values(message)
+              .flat()
+              .join(", ");
           } else {
             value = String(message);
           }
@@ -156,6 +164,7 @@ export default function SignupPage() {
 
     setError("");
     setSuccess("");
+    setPasswordErrors([]);
 
     const firstName = form.first_name.trim();
     const lastName = form.last_name.trim();
@@ -173,7 +182,9 @@ export default function SignupPage() {
     }
 
     if (form.password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setPasswordErrors([
+        "Password must be at least 8 characters.",
+      ]);
       return;
     }
 
@@ -196,15 +207,8 @@ export default function SignupPage() {
       result = await registerUser(username);
 
       /*
-       * If username already exists, automatically try:
-       *
-       * john
-       * john2
-       * john3
-       * john4
-       *
-       * This means the customer never needs to see or choose
-       * a username.
+       * Automatically create another username
+       * if the generated username already exists.
        */
       if (
         !result.response.ok &&
@@ -244,7 +248,20 @@ export default function SignupPage() {
         }
 
         if (!registered && !result.response.ok) {
-          
+          /*
+           * Show password validation errors
+           * clearly if the backend returned them.
+           */
+          if (
+            result.data?.password &&
+            Array.isArray(result.data.password)
+          ) {
+            setPasswordErrors(
+              result.data.password.map(String)
+            );
+
+            return;
+          }
 
           throw new Error(
             getErrorMessage(result.data) ||
@@ -254,6 +271,9 @@ export default function SignupPage() {
         }
       }
 
+      /*
+       * Handle registration errors.
+       */
       if (!result.response.ok) {
         console.error(
           "REGISTER STATUS:",
@@ -269,6 +289,61 @@ export default function SignupPage() {
           "REGISTER RAW RESPONSE:",
           result.rawText
         );
+
+        /*
+         * PASSWORD ERRORS
+         *
+         * Example:
+         *
+         * {
+         *   "password": [
+         *     "This password is too common.",
+         *     "This password is entirely numeric."
+         *   ]
+         * }
+         */
+        if (
+          result.data?.password &&
+          Array.isArray(result.data.password)
+        ) {
+          setPasswordErrors(
+            result.data.password.map(String)
+          );
+
+          return;
+        }
+
+        /*
+         * PASSWORD2 ERRORS
+         */
+        if (
+          result.data?.password2 &&
+          Array.isArray(result.data.password2)
+        ) {
+          setError(
+            result.data.password2
+              .map(String)
+              .join(" ")
+          );
+
+          return;
+        }
+
+        /*
+         * EMAIL ERRORS
+         */
+        if (
+          result.data?.email &&
+          Array.isArray(result.data.email)
+        ) {
+          setError(
+            result.data.email
+              .map(String)
+              .join(" ")
+          );
+
+          return;
+        }
 
         throw new Error(
           getErrorMessage(result.data) ||
@@ -357,8 +432,6 @@ export default function SignupPage() {
         router.push("/login");
       }, 700);
     } catch (err) {
-      c
-
       setError(
         err?.message ||
           "Unable to create your account. Please try again."
@@ -372,7 +445,7 @@ export default function SignupPage() {
     <main className="min-h-screen bg-white text-black">
       <div className="min-h-screen flex">
 
-        {/* LEFT SIDE */}
+        {/* LEFT DESKTOP PANEL */}
         <div className="hidden lg:flex lg:w-1/2 bg-black text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_35%)]" />
 
@@ -398,8 +471,9 @@ export default function SignupPage() {
               </h1>
 
               <p className="mt-8 text-white/60 max-w-md leading-7">
-                Create your ORENTEMIST account and keep your orders,
-                profile, wishlist and shopping experience in one place.
+                Create your ORENTEMIST account and keep your
+                orders, profile, wishlist and shopping
+                experience in one place.
               </p>
             </div>
 
@@ -409,45 +483,46 @@ export default function SignupPage() {
           </div>
         </div>
 
-        {/* RIGHT SIDE */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center px-5 py-10 sm:px-8">
+        {/* FORM SIDE */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center px-5 py-8 sm:px-8 sm:py-12">
           <div className="w-full max-w-md">
 
             {/* MOBILE LOGO */}
-            <div className="lg:hidden mb-12">
+            <div className="lg:hidden mb-10 text-center">
               <Link
                 href="/"
-                className="text-xl tracking-[0.3em] font-medium"
+                className="text-xl sm:text-2xl tracking-[0.3em] font-medium"
               >
                 ORENTEMIST
               </Link>
             </div>
 
-            <div className="mb-10">
-              <p className="text-xs uppercase tracking-[0.3em] text-black/40 mb-4">
+            {/* HEADER */}
+            <div className="mb-8 sm:mb-10">
+              <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-black/40 mb-3 sm:mb-4">
                 Create account
               </p>
 
-              <h2 className="text-3xl sm:text-4xl font-light tracking-tight">
+              <h2 className="text-2xl sm:text-4xl font-light tracking-tight">
                 Welcome to ORENTEMIST
               </h2>
 
-              <p className="mt-3 text-sm text-black/50">
-                Create your account to manage your orders and discover
-                your next signature fragrance.
+              <p className="mt-3 text-sm leading-6 text-black/50">
+                Create your account to manage your orders
+                and discover your next signature fragrance.
               </p>
             </div>
 
-            {/* ERROR */}
+            {/* GENERAL ERROR */}
             {error && (
-              <div className="mb-6 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 leading-6">
+              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-6 text-red-700">
                 {error}
               </div>
             )}
 
             {/* SUCCESS */}
             {success && (
-              <div className="mb-6 border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 leading-6">
+              <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3.5 text-sm leading-6 text-green-700">
                 {success}
               </div>
             )}
@@ -463,7 +538,7 @@ export default function SignupPage() {
                 <div>
                   <label
                     htmlFor="first_name"
-                    className="block text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                    className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
                   >
                     First name
                   </label>
@@ -477,14 +552,14 @@ export default function SignupPage() {
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="First name"
-                    className="w-full border-b border-black/20 bg-transparent px-0 py-3 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                    className="w-full border-b border-black/20 bg-transparent px-0 py-3.5 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="last_name"
-                    className="block text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                    className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
                   >
                     Last name
                   </label>
@@ -498,7 +573,7 @@ export default function SignupPage() {
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="Last name"
-                    className="w-full border-b border-black/20 bg-transparent px-0 py-3 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                    className="w-full border-b border-black/20 bg-transparent px-0 py-3.5 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
                   />
                 </div>
 
@@ -508,7 +583,7 @@ export default function SignupPage() {
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                  className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
                 >
                   Email address
                 </label>
@@ -522,7 +597,7 @@ export default function SignupPage() {
                   onChange={handleChange}
                   disabled={loading}
                   placeholder="you@example.com"
-                  className="w-full border-b border-black/20 bg-transparent px-0 py-3 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                  className="w-full border-b border-black/20 bg-transparent px-0 py-3.5 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
                 />
               </div>
 
@@ -530,7 +605,7 @@ export default function SignupPage() {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                  className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
                 >
                   Password
                 </label>
@@ -548,8 +623,12 @@ export default function SignupPage() {
                     value={form.password}
                     onChange={handleChange}
                     disabled={loading}
-                    placeholder="Minimum 8 characters"
-                    className="w-full border-b border-black/20 bg-transparent px-0 py-3 pr-10 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                    placeholder="Create a strong password"
+                    className={`w-full border-b bg-transparent px-0 py-3.5 pr-14 text-sm outline-none transition placeholder:text-black/30 disabled:opacity-50 ${
+                      passwordErrors.length > 0
+                        ? "border-red-400 focus:border-red-500"
+                        : "border-black/20 focus:border-black"
+                    }`}
                   />
 
                   <button
@@ -560,20 +639,54 @@ export default function SignupPage() {
                       )
                     }
                     disabled={loading}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-black/40 hover:text-black"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] font-medium tracking-wider text-black/40 hover:text-black"
                   >
                     {showPassword
                       ? "HIDE"
                       : "SHOW"}
                   </button>
                 </div>
+
+                {/* PASSWORD VALIDATION ERRORS */}
+                {passwordErrors.length > 0 && (
+                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                    <p className="text-xs font-medium text-red-800 mb-2">
+                      Please choose a stronger password:
+                    </p>
+
+                    <ul className="space-y-1.5">
+                      {passwordErrors.map(
+                        (message, index) => (
+                          <li
+                            key={`${message}-${index}`}
+                            className="flex items-start gap-2 text-xs leading-5 text-red-700"
+                          >
+                            <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+
+                            <span>
+                              {message}
+                            </span>
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {/* PASSWORD HELPER */}
+                {passwordErrors.length === 0 && (
+                  <p className="mt-2 text-[11px] leading-5 text-black/40">
+                    Use at least 8 characters with a mix of
+                    letters, numbers and symbols.
+                  </p>
+                )}
               </div>
 
               {/* CONFIRM PASSWORD */}
               <div>
                 <label
                   htmlFor="password2"
-                  className="block text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                  className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
                 >
                   Confirm password
                 </label>
@@ -592,7 +705,7 @@ export default function SignupPage() {
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="Repeat your password"
-                    className="w-full border-b border-black/20 bg-transparent px-0 py-3 pr-10 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                    className="w-full border-b border-black/20 bg-transparent px-0 py-3.5 pr-14 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
                   />
 
                   <button
@@ -603,7 +716,7 @@ export default function SignupPage() {
                       )
                     }
                     disabled={loading}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-black/40 hover:text-black"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] font-medium tracking-wider text-black/40 hover:text-black"
                   >
                     {showPassword2
                       ? "HIDE"
@@ -613,16 +726,16 @@ export default function SignupPage() {
               </div>
 
               {/* TERMS */}
-              <p className="text-xs leading-5 text-black/40 pt-1">
-                By creating an account, you agree to our terms and
-                acknowledge our privacy policy.
+              <p className="text-[11px] sm:text-xs leading-5 text-black/40 pt-1">
+                By creating an account, you agree to our
+                terms and acknowledge our privacy policy.
               </p>
 
               {/* SUBMIT */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-black text-white py-4 text-xs uppercase tracking-[0.25em] transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-xl bg-black text-white py-4.5 text-[10px] sm:text-xs uppercase tracking-[0.25em] transition hover:bg-black/85 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading
                   ? "Creating account..."
@@ -644,10 +757,10 @@ export default function SignupPage() {
             </div>
 
             {/* BACK HOME */}
-            <div className="mt-6 text-center">
+            <div className="mt-6 pb-4 text-center">
               <Link
                 href="/"
-                className="text-xs uppercase tracking-[0.2em] text-black/40 hover:text-black transition"
+                className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/40 hover:text-black transition"
               >
                 ← Back to store
               </Link>
