@@ -414,7 +414,7 @@ export default function SignupPage() {
 
         setTimeout(() => {
           router.push(
-            `/verify-email?email=${encodeURIComponent(email)}`
+            `/account-verification?email=${encodeURIComponent(email)}`
           );
         }, 700);
 

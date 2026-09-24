@@ -633,9 +633,13 @@ export default function CheckoutPage() {
       /*
        * CREATE ORDER
        */
+      console.log("STARTING ORDER CREATION");
+
+console.log("ORDER DATA:", orderData);
       const response =
         await fetch(
           `${API_URL}/orders/create/`,
+          
           {
             method: "POST",
 
@@ -694,6 +698,18 @@ try {
 
       const order =
         data.order || data;
+
+console.log("ORDER OBJECT:", order);
+console.log("CHECKOUT TOKEN FROM ORDER:", order.checkout_token);
+
+if (!order.checkout_token) {
+      throw new Error(
+     "Backend created the order but did not return a checkout token."
+  );
+}
+
+
+      
 
       if (!order.id) {
         throw new Error(
