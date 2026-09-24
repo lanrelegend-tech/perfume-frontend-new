@@ -12,15 +12,16 @@ function AccountVerificationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const email = (
-    searchParams.get("email") || ""
-  )
+  const email = (searchParams.get("email") || "")
     .trim()
     .toLowerCase();
+
+  const token = (searchParams.get("token") || "").trim();
 
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [linkVerifying, setLinkVerifying] = useState(Boolean(token));
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -40,6 +41,86 @@ function AccountVerificationContent() {
 
     return () => clearInterval(timer);
   }, [resendCooldown]);
+
+  useEffect(() => {
+    if (!token) {
+      setLinkVerifying(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const verifySecureLink = async () => {
+      setError("");
+      setSuccess("");
+      setLinkVerifying(true);
+
+      try {
+        const response = await fetch(
+          `${API_URL}/users/verify-email-link/`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              token,
+            }),
+          }
+        );
+
+        let data = null;
+
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
+          setError(
+            data?.error ||
+              data?.detail ||
+              "This verification link is invalid or has expired."
+          );
+          return;
+        }
+
+        setSuccess(
+          data?.message ||
+            "Email verified successfully. You can now sign in."
+        );
+
+        setTimeout(() => {
+          if (!cancelled) {
+            router.push("/login");
+          }
+        }, 1500);
+      } catch (err) {
+        console.error("VERIFY EMAIL LINK ERROR:", err);
+
+        if (!cancelled) {
+          setError(
+            "Unable to verify your email. Please check your connection and try again."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLinkVerifying(false);
+        }
+      }
+    };
+
+    verifySecureLink();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, router]);
 
   const handleCodeChange = (e) => {
     const value = e.target.value
@@ -191,7 +272,7 @@ function AccountVerificationContent() {
           );
         } else {
           setError(
-            "Unable to resend the verification code."
+            "Unable to resend the verification email."
           );
         }
 
@@ -202,7 +283,7 @@ function AccountVerificationContent() {
 
       setSuccess(
         data?.message ||
-          "A new verification code has been sent to your email."
+          "A new verification email has been sent to your inbox."
       );
 
       setResendCooldown(60);
@@ -213,7 +294,7 @@ function AccountVerificationContent() {
       );
 
       setError(
-        "Unable to resend the verification code. Please try again."
+        "Unable to resend the verification email. Please try again."
       );
     } finally {
       setResending(false);
@@ -277,131 +358,182 @@ function AccountVerificationContent() {
               </Link>
             </div>
 
-            {/* HEADER */}
-            <div className="mb-8 sm:mb-10">
-              <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-black/40 mb-3 sm:mb-4">
-                Email verification
-              </p>
+            {/* SECURE LINK VERIFICATION */}
+            {token && linkVerifying ? (
+              <div className="text-center py-10">
 
-              <h2 className="text-2xl sm:text-4xl font-light tracking-tight">
-                Verify your email
-              </h2>
-
-              <p className="mt-3 text-sm leading-6 text-black/50">
-                We sent a 6-digit verification code to:
-              </p>
-
-              <p className="mt-2 text-sm font-medium break-all">
-                {email || "your email address"}
-              </p>
-            </div>
-
-            {/* ERROR */}
-            {error && (
-              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-6 text-red-700">
-                {error}
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {success && (
-              <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3.5 text-sm leading-6 text-green-700">
-                {success}
-              </div>
-            )}
-
-            {/* VERIFICATION FORM */}
-            <form
-              onSubmit={handleVerify}
-              className="space-y-6"
-            >
-              <div>
-                <label
-                  htmlFor="verification-code"
-                  className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
-                >
-                  Verification code
-                </label>
-
-                <input
-                  id="verification-code"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={code}
-                  onChange={handleCodeChange}
-                  disabled={loading}
-                  placeholder="000000"
-                  className="w-full border-b border-black/20 bg-transparent px-0 py-4 text-2xl tracking-[0.45em] text-center outline-none transition placeholder:text-black/20 focus:border-black disabled:opacity-50"
-                />
-
-                <p className="mt-3 text-[11px] leading-5 text-black/40 text-center">
-                  Enter the 6-digit code from your email.
+                <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-black/40 mb-4">
+                  Secure verification
                 </p>
+
+                <h2 className="text-2xl sm:text-4xl font-light tracking-tight">
+                  Verifying your email
+                </h2>
+
+                <p className="mt-4 text-sm leading-6 text-black/50">
+                  Please wait while we securely verify your email address.
+                </p>
+
+                <div className="mt-8 mx-auto h-8 w-8 rounded-full border-2 border-black/10 border-t-black animate-spin" />
+
               </div>
+            ) : (
+              <>
 
-              <button
-                type="submit"
-                disabled={
-                  loading ||
-                  code.length !== 6 ||
-                  !email
-                }
-                className="w-full rounded-xl bg-black text-white py-4 text-[10px] sm:text-xs uppercase tracking-[0.25em] transition hover:bg-black/85 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading
-                  ? "Verifying..."
-                  : "Verify email"}
-              </button>
-            </form>
+                {/* HEADER */}
+                <div className="mb-8 sm:mb-10">
 
-            {/* RESEND */}
-            <div className="mt-7 text-center">
-              <p className="text-sm text-black/50">
-                Didn't receive the code?
-              </p>
+                  <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-black/40 mb-3 sm:mb-4">
+                    Email verification
+                  </p>
 
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={
-                  resending ||
-                  resendCooldown > 0 ||
-                  !email
-                }
-                className="mt-2 text-xs font-medium uppercase tracking-[0.18em] underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {resending
-                  ? "Sending..."
-                  : resendCooldown > 0
-                  ? `Resend in ${resendCooldown}s`
-                  : "Resend code"}
-              </button>
-            </div>
+                  <h2 className="text-2xl sm:text-4xl font-light tracking-tight">
+                    Verify your email
+                  </h2>
 
-            {/* LOGIN */}
-            <div className="mt-8 text-center">
-              <p className="text-sm text-black/50">
-                Already verified?{" "}
-                <Link
-                  href="/login"
-                  className="text-black underline underline-offset-4 hover:no-underline"
+                  <p className="mt-3 text-sm leading-6 text-black/50">
+                    We sent a verification email to:
+                  </p>
+
+                  <p className="mt-2 text-sm font-medium break-all">
+                    {email || "your email address"}
+                  </p>
+
+                </div>
+
+                {/* ERROR */}
+                {error && (
+                  <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-6 text-red-700">
+                    {error}
+                  </div>
+                )}
+
+                {/* SUCCESS */}
+                {success && (
+                  <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3.5 text-sm leading-6 text-green-700">
+                    {success}
+                  </div>
+                )}
+
+                {/* 6-DIGIT FALLBACK */}
+                <div className="mb-8 rounded-2xl border border-black/10 bg-black/[0.02] px-5 py-5">
+
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-black/40 mb-2">
+                    Alternative verification
+                  </p>
+
+                  <p className="text-sm leading-6 text-black/50">
+                    If you prefer, you can still enter the 6-digit code from your verification email below.
+                  </p>
+
+                </div>
+
+                {/* VERIFICATION FORM */}
+                <form
+                  onSubmit={handleVerify}
+                  className="space-y-6"
                 >
-                  Sign in
-                </Link>
-              </p>
-            </div>
 
-            {/* BACK HOME */}
-            <div className="mt-6 pb-4 text-center">
-              <Link
-                href="/"
-                className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/40 hover:text-black transition"
-              >
-                ← Back to store
-              </Link>
-            </div>
+                  <div>
+
+                    <label
+                      htmlFor="verification-code"
+                      className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                    >
+                      Verification code
+                    </label>
+
+                    <input
+                      id="verification-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={code}
+                      onChange={handleCodeChange}
+                      disabled={loading}
+                      placeholder="000000"
+                      className="w-full border-b border-black/20 bg-transparent px-0 py-4 text-2xl tracking-[0.45em] text-center outline-none transition placeholder:text-black/20 focus:border-black disabled:opacity-50"
+                    />
+
+                    <p className="mt-3 text-[11px] leading-5 text-black/40 text-center">
+                      Enter the 6-digit code from your email.
+                    </p>
+
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      loading ||
+                      code.length !== 6 ||
+                      !email
+                    }
+                    className="w-full rounded-xl bg-black text-white py-4 text-[10px] sm:text-xs uppercase tracking-[0.25em] transition hover:bg-black/85 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loading
+                      ? "Verifying..."
+                      : "Verify email"}
+                  </button>
+
+                </form>
+
+                {/* RESEND */}
+                <div className="mt-7 text-center">
+
+                  <p className="text-sm text-black/50">
+                    Didn't receive the email?
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={
+                      resending ||
+                      resendCooldown > 0 ||
+                      !email
+                    }
+                    className="mt-2 text-xs font-medium uppercase tracking-[0.18em] underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {resending
+                      ? "Sending..."
+                      : resendCooldown > 0
+                      ? `Resend in ${resendCooldown}s`
+                      : "Resend verification email"}
+                  </button>
+
+                </div>
+
+                {/* LOGIN */}
+                <div className="mt-8 text-center">
+
+                  <p className="text-sm text-black/50">
+                    Already verified?{" "}
+
+                    <Link
+                      href="/login"
+                      className="text-black underline underline-offset-4 hover:no-underline"
+                    >
+                      Sign in
+                    </Link>
+                  </p>
+
+                </div>
+
+                {/* BACK HOME */}
+                <div className="mt-6 pb-4 text-center">
+
+                  <Link
+                    href="/"
+                    className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/40 hover:text-black transition"
+                  >
+                    ← Back to store
+                  </Link>
+
+                </div>
+
+              </>
+            )}
 
           </div>
         </div>
