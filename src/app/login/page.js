@@ -4,7 +4,6 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://perfume-backend-sbvd.onrender.com/api";
@@ -21,6 +20,7 @@ function LoginPageContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -33,12 +33,17 @@ function LoginPageContent() {
     if (error) {
       setError("");
     }
+
+    if (success) {
+      setSuccess("");
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
 
     setError("");
+    setSuccess("");
 
     if (!form.email.trim() || !form.password) {
       setError("Please enter your email and password.");
@@ -62,6 +67,59 @@ function LoginPageContent() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        /*
+         * =====================================================
+         * EMAIL NOT VERIFIED
+         * =====================================================
+         *
+         * The backend only returns this after the email and
+         * password have been successfully validated.
+         *
+         * We then request a fresh secure verification-link email.
+         */
+
+        if (data?.error === "email_not_verified") {
+          try {
+            const resendResponse = await fetch(
+              `${API_URL}/auth/resend-verification/`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  email: form.email.trim(),
+                }),
+              }
+            );
+
+            const resendData =
+              await resendResponse.json().catch(() => ({}));
+
+            if (!resendResponse.ok) {
+              throw new Error(
+                resendData?.error ||
+                  "Unable to send the verification email."
+              );
+            }
+
+            setSuccess(
+              "Your email is not verified. We’ve sent a new verification email to your inbox. Please click “Verify My Email” in the email to continue."
+            );
+          } catch (resendError) {
+            console.error(
+              "Verification email error:",
+              resendError
+            );
+
+            setError(
+              "Your email is not verified, but we couldn't send a new verification email right now. Please try again later."
+            );
+          }
+
+          return;
+        }
+
         const message =
           data?.detail ||
           data?.message ||
@@ -90,10 +148,16 @@ function LoginPageContent() {
       }
 
       // Save authentication tokens
-      localStorage.setItem("access_token", accessToken);
+      localStorage.setItem(
+        "access_token",
+        accessToken
+      );
 
       if (refreshToken) {
-        localStorage.setItem("refresh_token", refreshToken);
+        localStorage.setItem(
+          "refresh_token",
+          refreshToken
+        );
       }
 
       /*
@@ -117,7 +181,8 @@ function LoginPageContent() {
       console.error("Login error:", err);
 
       setError(
-        err.message || "Unable to sign in. Please try again."
+        err.message ||
+          "Unable to sign in. Please try again."
       );
     } finally {
       setLoading(false);
@@ -155,8 +220,9 @@ function LoginPageContent() {
               </h1>
 
               <p className="mt-6 max-w-sm text-sm leading-6 text-white/60">
-                Sign in to access your orders, wishlist, profile,
-                and your ORENTEMIST fragrance collection.
+                Sign in to access your orders, wishlist,
+                profile, and your ORENTEMIST fragrance
+                collection.
               </p>
             </div>
 
@@ -196,6 +262,32 @@ function LoginPageContent() {
               </p>
             </div>
 
+            {/* SUCCESS */}
+            {success && (
+              <div className="mb-6 flex items-start gap-3 rounded-xl border border-green-100 bg-green-50 px-4 py-3.5 text-sm text-green-700">
+
+                <svg
+                  className="mt-0.5 shrink-0"
+                  width="17"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                  />
+
+                  <path d="m8 12 2.5 2.5L16 9" />
+                </svg>
+
+                <span>{success}</span>
+              </div>
+            )}
+
             {/* ERROR */}
             {error && (
               <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3.5 text-sm text-red-700">
@@ -209,7 +301,12 @@ function LoginPageContent() {
                   stroke="currentColor"
                   strokeWidth="1.8"
                 >
-                  <circle cx="12" cy="12" r="9" />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                  />
+
                   <path d="M12 8v4" />
                   <path d="M12 16h.01" />
                 </svg>
@@ -308,8 +405,11 @@ function LoginPageContent() {
                         strokeWidth="1.6"
                       >
                         <path d="M3 3l18 18" />
+
                         <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+
                         <path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c5.5 0 9 5.9 9 8s-3.5 8-9 8a9.7 9.7 0 0 1-4.5-1.1" />
+
                         <path d="M6.6 6.6C4.2 8 3 10.5 3 12c0 1.1.8 2.7 2.2 4.2" />
                       </svg>
                     ) : (
@@ -322,6 +422,7 @@ function LoginPageContent() {
                         strokeWidth="1.6"
                       >
                         <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" />
+
                         <circle
                           cx="12"
                           cy="12"
@@ -392,6 +493,7 @@ function LoginPageContent() {
                 Your information is securely protected.
               </span>
             </div>
+
           </div>
         </div>
       </div>
