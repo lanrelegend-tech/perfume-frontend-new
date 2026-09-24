@@ -1781,31 +1781,7 @@ if (getAccessToken()) {
                 </button>
                     
               </div>
-              <button
-  type="button"
-  onClick={handleShareProduct}
-  disabled={!product}
-  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white transition-all duration-300 hover:border-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-  aria-label="Share product"
-  title="Share product"
->
-  <svg
-    width="19"
-    height="19"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.7"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="18" cy="5" r="3" />
-    <circle cx="6" cy="12" r="3" />
-    <circle cx="18" cy="19" r="3" />
-    <path d="m8.6 13.5 6.8 4" />
-    <path d="m15.4 6.5-6.8 4" />
-  </svg>
-</button>
+             
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">

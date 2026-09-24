@@ -820,18 +820,19 @@ export default function AccountPage() {
             label="Profile"
           />
 
-          <Link
-            href="/cart"
-            className="flex min-h-[52px] min-w-[62px] flex-col items-center justify-center gap-1 rounded-2xl text-black/45"
-          >
-            <span className="text-lg leading-none">
-              +
-            </span>
+         <button
+  type="button"
+  onClick={handleLogout}
+  className="flex min-h-[52px] min-w-[62px] flex-col items-center justify-center gap-1 rounded-2xl text-black/45"
+>
+  <span className="text-lg leading-none">
+    ↪
+  </span>
 
-            <span className="text-[9px] font-medium uppercase tracking-[0.12em]">
-              Cart
-            </span>
-          </Link>
+  <span className="text-[9px] font-medium uppercase tracking-[0.12em]">
+    Log out
+  </span>
+</button>
 
         </div>
 
