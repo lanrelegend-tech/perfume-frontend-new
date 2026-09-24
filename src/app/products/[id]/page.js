@@ -772,6 +772,36 @@ if (getAccessToken()) {
         "/checkout";
     }, 300);
   }
+  async function handleShareProduct() {
+  if (!product) return;
+
+  const url = window.location.href;
+
+  const shareData = {
+    title: product.name,
+    text: `Check out ${product.name} from ORENTEMIST.`,
+    url,
+  };
+
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData);
+      return;
+    }
+
+    await navigator.clipboard.writeText(url);
+
+    alert("Product link copied.");
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
+    }
+
+    console.error("Share error:", error);
+
+    alert("Unable to share this product.");
+  }
+}
 
   async function handleSubmitReview(
     event
@@ -1573,23 +1603,51 @@ if (getAccessToken()) {
               </a>
             </div>
 
-            <div className="mt-7">
-              <p className="text-2xl font-medium tracking-tight sm:text-3xl">
-                {formatPrice(
-                  selectedVariant
-                    ? selectedVariant.price
-                    : product.price
-                )}
-              </p>
+            <div className="mt-7 flex items-end justify-between gap-6">
+  <div>
+    <p className="text-2xl font-medium tracking-tight sm:text-3xl">
+      {formatPrice(
+        selectedVariant
+          ? selectedVariant.price
+          : product.price
+      )}
+    </p>
 
-              {product.size && (
-                <p className="mt-2 text-sm text-gray-500">
-                  {selectedVariant
-                    ? selectedVariant.size
-                    : product.size}
-                </p>
-              )}
-            </div>
+    {product.size && (
+      <p className="mt-2 text-sm text-gray-500">
+        {selectedVariant
+          ? selectedVariant.size
+          : product.size}
+      </p>
+    )}
+  </div>
+
+  <button
+    type="button"
+    onClick={handleShareProduct}
+    disabled={!product}
+    aria-label="Share product"
+    title="Share product"
+    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white transition-all duration-300 hover:border-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+  >
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.6 13.5 6.8 4" />
+      <path d="m15.4 6.5-6.8 4" />
+    </svg>
+  </button>
+</div>
 
             {Array.isArray(
               product.variants
@@ -1691,7 +1749,7 @@ if (getAccessToken()) {
             )}
 
             <div className="mt-8">
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+              <p className="mb-3 flex flex-row text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
                 Quantity
               </p>
 
@@ -1721,10 +1779,38 @@ if (getAccessToken()) {
                 >
                   +
                 </button>
+                    
               </div>
+              <button
+  type="button"
+  onClick={handleShareProduct}
+  disabled={!product}
+  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white transition-all duration-300 hover:border-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+  aria-label="Share product"
+  title="Share product"
+>
+  <svg
+    width="19"
+    height="19"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <path d="m8.6 13.5 6.8 4" />
+    <path d="m15.4 6.5-6.8 4" />
+  </svg>
+</button>
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
+
+              
               <button
                 type="button"
                 onClick={
@@ -1754,6 +1840,7 @@ if (getAccessToken()) {
               >
                 Buy Now
               </button>
+              
             </div>
 
             <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
