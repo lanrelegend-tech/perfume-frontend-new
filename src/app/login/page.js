@@ -81,7 +81,7 @@ function LoginPageContent() {
         if (data?.error === "email_not_verified") {
           try {
             const resendResponse = await fetch(
-              `${API_URL}/auth/resend-verification/`,
+              `${API_URL}/users/resend-verification/`,
               {
                 method: "POST",
                 headers: {
