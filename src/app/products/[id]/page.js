@@ -1,0 +1,2723 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useParams } from "next/navigation";
+
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://perfume-backend-sbvd.onrender.com/api"
+).replace(/\/$/, "");
+
+const MIN_REVIEW_LENGTH = 5;
+const MAX_REVIEW_LENGTH = 1000;
+
+
+function getImageUrl(image) {
+  if (!image) return "/placeholder-product.jpg";
+
+  if (
+    image.startsWith("http://") ||
+    image.startsWith("https://")
+  ) {
+    return image;
+  }
+
+  const imagePath = image.startsWith("/")
+    ? image
+    : `/${image}`;
+
+  return `${API_URL}${imagePath}`;
+}
+
+function formatPrice(amount) {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(Number(amount) || 0);
+}
+
+function getProductStatus(stock, inStock) {
+  const quantity = Number(stock) || 0;
+
+  if (!inStock || quantity === 0) {
+    return "Out of Stock";
+  }
+
+  if (quantity <= 10) {
+    return "Low Stock";
+  }
+
+  return "In Stock";
+}
+
+function renderStars(rating, size = "text-sm") {
+  const value = Number(rating) || 0;
+
+  return (
+    <div className="flex items-center gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          className={`${size} ${
+            star <= Math.round(value)
+              ? "text-[#c89b3c]"
+              : "text-gray-300"
+          }`}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function getAccessToken() {
+  return (
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("access") ||
+    localStorage.getItem("token")
+  );
+}
+
+function isTokenExpired(token) {
+  try {
+    const parts = token.split(".");
+
+    if (parts.length !== 3) {
+      return false;
+    }
+
+    const base64 = parts[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    const payload = JSON.parse(atob(base64));
+
+    if (!payload.exp) {
+      return false;
+    }
+
+    return Date.now() >= payload.exp * 1000;
+  } catch {
+    return false;
+  }
+}
+
+function getCurrentUserId() {
+  const token = getAccessToken();
+
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const parts = token.split(".");
+
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const base64 = parts[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    const payload = JSON.parse(atob(base64));
+
+    return (
+      payload.user_id ||
+      payload.id ||
+      payload.sub ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+export default function ProductDetailsPage() {
+  const params = useParams();
+
+  const [product, setProduct] = useState(null);
+  const [reviews, setReviews] = useState([]);
+
+  const [relatedProducts, setRelatedProducts] =
+    useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [reviewsLoading, setReviewsLoading] =
+    useState(true);
+
+  const [cartCount, setCartCount] = useState(0);
+
+  const [error, setError] = useState("");
+  const [selectedImage, setSelectedImage] =
+    useState(0);
+
+  const [quantity, setQuantity] = useState(1);
+
+  const [selectedVariant, setSelectedVariant] =
+    useState(null);
+
+  const [addingToCart, setAddingToCart] =
+    useState(false);
+
+  const [isLoggedIn, setIsLoggedIn] =
+    useState(false);
+  const [hasPurchased, setHasPurchased] =
+  useState(false);
+
+const [purchaseCheckLoading, setPurchaseCheckLoading] =
+  useState(false);  
+
+  const [reviewRating, setReviewRating] =
+    useState(5);
+
+  const [reviewComment, setReviewComment] =
+    useState("");
+
+  const [submittingReview, setSubmittingReview] =
+    useState(false);
+
+  const [reviewMessage, setReviewMessage] =
+    useState("");
+
+  /* EDIT MODAL */
+
+  const [editingReview, setEditingReview] =
+    useState(null);
+
+  const [editRating, setEditRating] =
+    useState(5);
+
+  const [editComment, setEditComment] =
+    useState("");
+
+  const [savingEdit, setSavingEdit] =
+    useState(false);
+
+  /* DELETE MODAL */
+
+  const [deletingReview, setDeletingReview] =
+    useState(null);
+
+  const [deletingReviewLoading, setDeletingReviewLoading] =
+    useState(false);
+
+  function loadCartCount() {
+    try {
+      const savedCart =
+        localStorage.getItem(
+          "orentemist_cart"
+        );
+
+      const items = savedCart
+        ? JSON.parse(savedCart)
+        : [];
+
+      const count = Array.isArray(items)
+        ? items.reduce(
+            (total, item) =>
+              total + Number(item.quantity || 0),
+            0
+          )
+        : 0;
+
+      setCartCount(count);
+    } catch (error) {
+      console.error(
+        "Cart count error:",
+        error
+      );
+
+      setCartCount(0);
+    }
+  }
+
+  function clearAuthentication() {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("access");
+    localStorage.removeItem("token");
+
+    setIsLoggedIn(false);
+  }
+const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  function checkAuthentication() {
+    const token = getAccessToken();
+
+    if (!token) {
+      setIsLoggedIn(false);
+      return;
+    }
+
+    if (isTokenExpired(token)) {
+      clearAuthentication();
+      return;
+    }
+
+    setIsLoggedIn(true);
+  }
+  async function checkPurchaseStatus(productId) {
+  const token = getAccessToken();
+
+  if (!token || isTokenExpired(token)) {
+    setHasPurchased(false);
+    return;
+  }
+
+  try {
+    setPurchaseCheckLoading(true);
+
+    const response = await fetch(
+      `${API_URL}/orders/my-orders/`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      setHasPurchased(false);
+      return;
+    }
+
+    const data = await response.json();
+
+    const orders = Array.isArray(data)
+      ? data
+      : data.results || [];
+
+    const purchased = orders.some((order) => {
+      if (order.payment_status !== "paid") {
+        return false;
+      }
+
+      const items = Array.isArray(order.items)
+        ? order.items
+        : [];
+
+      return items.some(
+        (item) =>
+          Number(item.product) ===
+          Number(productId)
+      );
+    });
+
+    setHasPurchased(purchased);
+  } catch (error) {
+    console.error(
+      "Purchase verification error:",
+      error
+    );
+
+    setHasPurchased(false);
+  } finally {
+    setPurchaseCheckLoading(false);
+  }
+}
+
+  function redirectToLogin() {
+    if (!product?.id) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const nextUrl =
+      `/products/${product.id}%23reviews`;
+
+    window.location.href =
+      `/login?next=${nextUrl}`;
+  }
+
+  async function loadReviews(productId) {
+    try {
+      setReviewsLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/reviews/product/${productId}/`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "Failed to load reviews"
+        );
+      }
+
+      const data = await response.json();
+
+      setReviews(
+        Array.isArray(data)
+          ? data
+          : data.results || []
+      );
+    } catch (err) {
+      console.error(
+        "Reviews error:",
+        err
+      );
+
+      setReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
+  }
+
+  async function loadRelatedProducts(currentProduct) {
+  try {
+    const currentProductId = Number(currentProduct.id);
+
+    const currentCategoryId =
+      currentProduct?.category?.id ||
+      currentProduct?.category_id;
+
+    const currentCategoryName =
+      currentProduct?.category?.name ||
+      currentProduct?.category_name ||
+      "";
+
+    let url = `${API_URL}/products/`;
+
+    if (currentCategoryId) {
+      url += `?category=${encodeURIComponent(currentCategoryId)}`;
+    }
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json();
+
+    const products = Array.isArray(data)
+      ? data
+      : data.results || [];
+
+    const sameCategoryProducts = products.filter(
+      (item) =>
+        Number(item.id) !== currentProductId
+    );
+
+    if (sameCategoryProducts.length >= 4) {
+      setRelatedProducts(
+        sameCategoryProducts.slice(0, 4)
+      );
+
+      return;
+    }
+
+    if (!currentCategoryId && currentCategoryName) {
+      const matchingProducts = products.filter(
+        (item) => {
+          const itemCategoryName =
+            item?.category?.name ||
+            item?.category_name ||
+            "";
+
+          return (
+            Number(item.id) !==
+              currentProductId &&
+            itemCategoryName.toLowerCase() ===
+              currentCategoryName.toLowerCase()
+          );
+        }
+      );
+
+      setRelatedProducts(
+        matchingProducts.slice(0, 4)
+      );
+
+      return;
+    }
+
+    setRelatedProducts(
+      sameCategoryProducts.slice(0, 4)
+    );
+  } catch (err) {
+    console.error(
+      "Related products error:",
+      err
+    );
+
+    setRelatedProducts([]);
+  }
+}
+  useEffect(() => {
+    async function loadProduct() {
+    
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await fetch(
+          `${API_URL}/products/${params.id}/`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            "Product not found"
+          );
+        }
+
+        const data = await response.json();
+
+        setProduct(data);
+
+        if (
+          Array.isArray(data.variants) &&
+          data.variants.length > 0
+        ) {
+          const firstAvailableVariant =
+            data.variants.find(
+              (variant) =>
+                variant.in_stock &&
+                Number(
+                  variant.stock_quantity
+                ) > 0
+            );
+
+          setSelectedVariant(
+            firstAvailableVariant ||
+              data.variants[0]
+          );
+        }
+
+        loadRelatedProducts(data);
+      } catch (err) {
+        console.error(
+          "Product error:",
+          err
+        );
+
+        setError(
+          "Unable to load this product."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+loadProduct();
+loadReviews(params.id);
+loadCartCount();
+checkAuthentication();
+
+if (getAccessToken()) {
+  checkPurchaseStatus(params.id);
+} else {
+  setHasPurchased(false);
+}
+
+  }, [params?.id]);
+
+  useEffect(() => {
+    function handleCartUpdated() {
+      loadCartCount();
+    }
+
+    window.addEventListener(
+      "orentemist-cart-updated",
+      handleCartUpdated
+    );
+
+    window.addEventListener(
+      "storage",
+      handleCartUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "orentemist-cart-updated",
+        handleCartUpdated
+      );
+
+      window.removeEventListener(
+        "storage",
+        handleCartUpdated
+      );
+    };
+  }, []);
+
+  const images = useMemo(() => {
+    if (!product) return [];
+
+    const collectedImages = [];
+
+    if (product.image) {
+      collectedImages.push(product.image);
+    }
+
+    if (Array.isArray(product.images)) {
+      product.images.forEach((item) => {
+        const image =
+          typeof item === "string"
+            ? item
+            : item?.image;
+
+        if (image) {
+          collectedImages.push(image);
+        }
+      });
+    }
+
+    const uniqueImages = Array.from(
+      new Map(
+        collectedImages.map((image) => [
+          getImageUrl(image),
+          image,
+        ])
+      ).values()
+    );
+
+    return uniqueImages.slice(0, 4);
+  }, [product]);
+
+  const currentStock = selectedVariant
+    ? Number(
+        selectedVariant.stock_quantity
+      ) || 0
+    : Number(
+        product?.stock_quantity
+      ) || 0;
+
+  const currentInStock = selectedVariant
+    ? selectedVariant.in_stock
+    : product?.in_stock;
+
+  const status = product
+    ? getProductStatus(
+        currentStock,
+        currentInStock
+      )
+    : "";
+
+  const isAvailable =
+    status !== "Out of Stock";
+
+  const trimmedReviewComment =
+    reviewComment.trim();
+
+  const reviewCommentLength =
+    reviewComment.length;
+
+  const isReviewValid =
+    trimmedReviewComment.length >=
+      MIN_REVIEW_LENGTH &&
+    trimmedReviewComment.length <=
+      MAX_REVIEW_LENGTH &&
+    Number(reviewRating) >= 1 &&
+    Number(reviewRating) <= 5;
+
+  const trimmedEditComment =
+    editComment.trim();
+
+  const editCommentLength =
+    editComment.length;
+
+  const isEditValid =
+    trimmedEditComment.length >=
+      MIN_REVIEW_LENGTH &&
+    trimmedEditComment.length <=
+      MAX_REVIEW_LENGTH &&
+    Number(editRating) >= 1 &&
+    Number(editRating) <= 5;
+
+  function handleIncreaseQuantity() {
+    const stock = currentStock;
+
+    setQuantity((current) => {
+      if (
+        stock > 0 &&
+        current >= stock
+      ) {
+        return current;
+      }
+
+      return current + 1;
+    });
+  }
+
+  function handleDecreaseQuantity() {
+    setQuantity((current) =>
+      Math.max(1, current - 1)
+    );
+  }
+
+  function handleAddToCart() {
+    if (!product || !isAvailable) {
+      return;
+    }
+
+    try {
+      setAddingToCart(true);
+
+      const savedCart =
+        localStorage.getItem(
+          "orentemist_cart"
+        );
+
+      const cart = savedCart
+        ? JSON.parse(savedCart)
+        : [];
+
+      const safeCart = Array.isArray(cart)
+        ? cart
+        : [];
+
+      const variantId =
+        selectedVariant?.id || null;
+
+      const existingIndex =
+        safeCart.findIndex(
+          (item) =>
+            Number(item.product_id) ===
+              Number(product.id) &&
+            Number(item.variant_id || 0) ===
+              Number(variantId || 0)
+        );
+
+      if (existingIndex !== -1) {
+        const existingItem =
+          safeCart[existingIndex];
+
+        const newQuantity =
+          Number(
+            existingItem.quantity || 0
+          ) + quantity;
+
+        if (
+          currentStock > 0 &&
+          newQuantity > currentStock
+        ) {
+          alert(
+            `Only ${currentStock} available for ${product.name}.`
+          );
+
+          return;
+        }
+
+        safeCart[existingIndex] = {
+          ...existingItem,
+          quantity: newQuantity,
+        };
+      } else {
+        safeCart.push({
+          product_id: product.id,
+          variant_id: variantId,
+          name: product.name,
+          brand:
+            product.brand ||
+            "ORENTEMIST",
+          price: Number(
+            selectedVariant
+              ? selectedVariant.price
+              : product.price
+          ),
+          image:
+            product.image || null,
+          size:
+            selectedVariant?.size ||
+            product.size ||
+            null,
+          quantity,
+          stock_quantity:
+            currentStock,
+          in_stock:
+            currentInStock,
+        });
+      }
+
+      localStorage.setItem(
+        "orentemist_cart",
+        JSON.stringify(safeCart)
+      );
+
+      loadCartCount();
+
+      window.dispatchEvent(
+        new Event(
+          "orentemist-cart-updated"
+        )
+      );
+
+      alert(
+        `${product.name} added to cart.`
+      );
+    } catch (error) {
+      console.error(
+        "Add to cart error:",
+        error
+      );
+
+      alert(
+        "Something went wrong. Please try again."
+      );
+    } finally {
+      setAddingToCart(false);
+    }
+  }
+
+  function handleBuyNow() {
+    if (!product || !isAvailable) {
+      return;
+    }
+
+    handleAddToCart();
+
+    setTimeout(() => {
+      window.location.href =
+        "/checkout";
+    }, 300);
+  }
+
+  async function handleSubmitReview(
+    event
+  ) {
+    event.preventDefault();
+
+    if (!isLoggedIn) {
+      redirectToLogin();
+      return;
+    }
+
+    const trimmedComment =
+      reviewComment.trim();
+
+    if (
+      trimmedComment.length <
+      MIN_REVIEW_LENGTH
+    ) {
+      setReviewMessage(
+        `Your review must be at least ${MIN_REVIEW_LENGTH} characters.`
+      );
+
+      return;
+    }
+
+    if (
+      trimmedComment.length >
+      MAX_REVIEW_LENGTH
+    ) {
+      setReviewMessage(
+        `Your review cannot exceed ${MAX_REVIEW_LENGTH} characters.`
+      );
+
+      return;
+    }
+
+    if (
+      Number(reviewRating) < 1 ||
+      Number(reviewRating) > 5
+    ) {
+      setReviewMessage(
+        "Please select a rating between 1 and 5 stars."
+      );
+
+      return;
+    }
+
+    try {
+      setSubmittingReview(true);
+      setReviewMessage("");
+
+      const token = getAccessToken();
+
+      if (!token) {
+        setIsLoggedIn(false);
+        redirectToLogin();
+        return;
+      }
+
+      if (isTokenExpired(token)) {
+        clearAuthentication();
+        redirectToLogin();
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/reviews/product/${product.id}/create/`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+
+          body: JSON.stringify({
+            rating: Number(reviewRating),
+            comment: trimmedComment,
+          }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        clearAuthentication();
+        redirectToLogin();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to submit your review."
+        );
+      }
+
+      setReviewComment("");
+      setReviewRating(5);
+
+      setReviewMessage(
+        "Thank you. Your review has been submitted."
+      );
+
+      await loadReviews(product.id);
+    } catch (error) {
+      console.error(
+        "Review submission error:",
+        error
+      );
+
+      setReviewMessage(
+        error.message ||
+          "Unable to submit your review. Please try again."
+      );
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
+
+  /* OPEN EDIT MODAL */
+
+  function openEditReview(review) {
+    if (!isLoggedIn) {
+      redirectToLogin();
+      return;
+    }
+
+    const currentUserId =
+      getCurrentUserId();
+
+    if (
+      currentUserId === null ||
+      Number(review.user) !==
+        Number(currentUserId)
+    ) {
+      setReviewMessage(
+        "You can only edit your own review."
+      );
+      return;
+    }
+
+    setEditingReview(review);
+    setEditRating(Number(review.rating) || 5);
+    setEditComment(review.comment || "");
+    setReviewMessage("");
+  }
+
+  /* CLOSE EDIT MODAL */
+
+  function closeEditModal() {
+    if (savingEdit) {
+      return;
+    }
+
+    setEditingReview(null);
+    setEditRating(5);
+    setEditComment("");
+  }
+
+  /* SAVE EDIT */
+
+  async function handleSaveEdit() {
+    if (!editingReview) {
+      return;
+    }
+
+    const trimmedComment =
+      editComment.trim();
+
+    if (
+      trimmedComment.length <
+      MIN_REVIEW_LENGTH
+    ) {
+      return;
+    }
+
+    if (
+      trimmedComment.length >
+      MAX_REVIEW_LENGTH
+    ) {
+      return;
+    }
+
+    if (
+      Number(editRating) < 1 ||
+      Number(editRating) > 5
+    ) {
+      return;
+    }
+
+    const token = getAccessToken();
+
+    if (!token || isTokenExpired(token)) {
+      clearAuthentication();
+      closeEditModal();
+      redirectToLogin();
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+
+      const response = await fetch(
+        `${API_URL}/reviews/${editingReview.id}/`,
+        {
+          method: "PATCH",
+
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+
+          body: JSON.stringify({
+            rating: Number(editRating),
+            comment: trimmedComment,
+          }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        clearAuthentication();
+        closeEditModal();
+        redirectToLogin();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to update your review."
+        );
+      }
+
+      closeEditModal();
+
+      setReviewMessage(
+        "Your review has been updated."
+      );
+
+      await loadReviews(product.id);
+    } catch (error) {
+      console.error(
+        "Review update error:",
+        error
+      );
+
+      setReviewMessage(
+        error.message ||
+          "Unable to update your review."
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  /* OPEN DELETE MODAL */
+
+  function openDeleteReview(review) {
+    if (!isLoggedIn) {
+      redirectToLogin();
+      return;
+    }
+
+    const currentUserId =
+      getCurrentUserId();
+
+    if (
+      currentUserId === null ||
+      Number(review.user) !==
+        Number(currentUserId)
+    ) {
+      setReviewMessage(
+        "You can only delete your own review."
+      );
+      return;
+    }
+
+    setDeletingReview(review);
+    setReviewMessage("");
+  }
+  
+
+  /* CLOSE DELETE MODAL */
+
+  function closeDeleteModal() {
+    if (deletingReviewLoading) {
+      return;
+    }
+
+    setDeletingReview(null);
+  }
+
+  /* CONFIRM DELETE */
+
+  async function handleConfirmDelete() {
+    if (!deletingReview) {
+      return;
+    }
+
+    const token = getAccessToken();
+
+    if (!token || isTokenExpired(token)) {
+      clearAuthentication();
+      closeDeleteModal();
+      redirectToLogin();
+      return;
+    }
+
+    try {
+      setDeletingReviewLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/reviews/${deletingReview.id}/`,
+        {
+          method: "DELETE",
+
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        clearAuthentication();
+        closeDeleteModal();
+        redirectToLogin();
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+
+        throw new Error(
+          data?.detail ||
+            data?.message ||
+            "Unable to delete your review."
+        );
+      }
+
+      closeDeleteModal();
+
+      setReviewMessage(
+        "Your review has been deleted."
+      );
+
+      await loadReviews(product.id);
+    } catch (error) {
+      console.error(
+        "Review deletion error:",
+        error
+      );
+
+      setReviewMessage(
+        error.message ||
+          "Unable to delete your review."
+      );
+    } finally {
+      setDeletingReviewLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#f8f7f4]">
+        <nav className="border-b border-black/10 bg-[#f8f7f4]">
+          <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8">
+            <div className="h-4 w-32 animate-pulse rounded bg-gray-200" />
+
+            <div className="hidden h-4 w-48 animate-pulse rounded bg-gray-200 sm:block" />
+
+            <div className="h-9 w-9 animate-pulse rounded-full bg-gray-200" />
+          </div>
+        </nav>
+
+        <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 lg:py-20">
+          <div className="grid animate-pulse gap-10 lg:grid-cols-2">
+            <div className="aspect-square rounded-3xl bg-gray-200" />
+
+            <div className="space-y-6">
+              <div className="h-4 w-24 rounded bg-gray-200" />
+              <div className="h-12 w-3/4 rounded bg-gray-200" />
+              <div className="h-8 w-32 rounded bg-gray-200" />
+              <div className="h-24 w-full rounded bg-gray-200" />
+              <div className="h-14 w-full rounded bg-gray-200" />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <main className="min-h-screen bg-[#f8f7f4] text-black">
+        <nav className="border-b border-black/10 bg-[#f8f7f4]">
+          <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8">
+            <Link
+              href="/"
+              className="text-lg font-semibold tracking-[0.22em]"
+            >
+              ORENTEMIST
+            </Link>
+
+            <Link
+              href="/cart"
+              className="text-sm transition hover:opacity-50"
+            >
+              Cart
+            </Link>
+            <button
+  type="button"
+  className="text-xl md:hidden"
+  aria-label="Open menu"
+>
+  ☰
+</button>
+          </div>
+        </nav>
+
+        <section className="relative flex min-h-[calc(100vh-80px)] items-center justify-center overflow-hidden px-5 py-20">
+          <div className="relative z-10 w-full max-w-4xl text-center">
+            <p className="text-[10px] uppercase tracking-[0.45em] text-black/40">
+              ORENTEMIST
+            </p>
+
+            <h1 className="mt-8 text-[clamp(8rem,25vw,20rem)] font-light leading-[0.75] tracking-[-0.08em] text-black/[0.06]">
+              404
+            </h1>
+
+            <div className="relative -mt-16 sm:-mt-24 md:-mt-32">
+              <p className="text-xs uppercase tracking-[0.4em] text-black/40">
+                Fragrance not found
+              </p>
+
+              <h2 className="mx-auto mt-5 max-w-2xl text-4xl font-light leading-tight tracking-[-0.04em] sm:text-5xl md:text-6xl">
+                This scent has
+                <br />
+                <span className="italic">
+                  disappeared.
+                </span>
+              </h2>
+
+              <p className="mx-auto mt-7 max-w-md text-sm leading-7 text-black/50">
+                The fragrance you're looking for may have moved, expired, or never existed.
+              </p>
+            </div>
+
+            <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link
+                href="/"
+                className="bg-black px-8 py-4 text-sm font-medium text-white transition hover:bg-black/80"
+              >
+                Return Home
+              </Link>
+
+              <Link
+                href="/products"
+                className="border border-black/15 bg-white px-8 py-4 text-sm font-medium transition hover:bg-black hover:text-white"
+              >
+                Explore Fragrances
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  const averageRating =
+    Number(product.average_rating || 0);
+
+  const reviewCount =
+    Number(product.review_count) ||
+    reviews.length;
+
+  const currentUserId =
+    isLoggedIn
+      ? getCurrentUserId()
+      : null;
+
+  return (
+    <main className="min-h-screen bg-[#f8f7f4] text-black">
+
+      {/* NAVBAR */}
+<nav className="sticky top-0 z-50 border-b border-black/10 bg-[#f8f7f4]/95 backdrop-blur-xl">
+  <div className="mx-auto flex h-20 max-w-7xl items-center px-5 sm:px-8">
+
+    <Link
+      href="/"
+      className="text-lg font-semibold tracking-[0.22em]"
+    >
+      ORENTEMIST
+    </Link>
+
+    {/* MOBILE 3-DOT MENU */}
+    <div className="ml-auto flex items-center gap-3 md:hidden">
+
+  <Link
+    href="/cart"
+    aria-label="Shopping cart"
+    className="relative flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white"
+  >
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+    >
+      <path d="M6 8h12l1 12H5L6 8Z" />
+      <path d="M9 8a3 3 0 0 1 6 0" />
+    </svg>
+
+    {cartCount > 0 && (
+      <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-black px-1 text-[9px] font-semibold text-white">
+        {cartCount}
+      </span>
+    )}
+  </Link>
+
+  <button
+    type="button"
+    onClick={() => setMobileMenuOpen(true)}
+    aria-label="Open menu"
+    className="flex h-10 w-10 items-center justify-center rounded-full"
+  >
+    <span className="flex flex-col gap-1.5">
+      <span className="h-1 w-1 rounded-full bg-black" />
+      <span className="h-1 w-1 rounded-full bg-black" />
+      <span className="h-1 w-1 rounded-full bg-black" />
+    </span>
+  </button>
+
+</div>
+
+    {/* DESKTOP MENU */}
+    <div className="ml-auto hidden items-center gap-8 text-xs font-medium uppercase tracking-[0.18em] md:flex">
+
+      <Link
+        href="/"
+        className="transition hover:opacity-50"
+      >
+        Home
+      </Link>
+
+      <Link
+        href="/products"
+        className="transition hover:opacity-50"
+      >
+        Collection
+      </Link>
+
+      <Link
+        href="/account"
+        className="transition hover:opacity-50"
+      >
+        Account
+      </Link>
+
+      <Link
+        href="/cart"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white transition hover:border-black"
+      >
+        <svg
+          width="17"
+          height="17"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+        >
+          <path d="M6 8h12l1 12H5L6 8Z" />
+          <path d="M9 8a3 3 0 0 1 6 0" />
+        </svg>
+
+        {cartCount > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-black px-1 text-[9px] font-semibold text-white">
+            {cartCount}
+          </span>
+        )}
+      </Link>
+
+    </div>
+  </div>
+</nav>
+
+      {/* BREADCRUMB */}
+
+      <div className="mx-auto max-w-7xl px-5 pt-7 sm:px-8">
+        <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-gray-400">
+          <Link
+            href="/products"
+            className="transition hover:text-black"
+          >
+            Collection
+          </Link>
+
+          <span>/</span>
+
+          <span className="max-w-[220px] truncate text-gray-600">
+            {product.name}
+          </span>
+        </div>
+      </div>
+
+      {/* PRODUCT */}
+
+      <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-12 lg:py-16">
+        <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+
+          {/* IMAGE GALLERY */}
+
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <div className="grid grid-cols-4 gap-3 sm:gap-4">
+
+              <div className="col-span-1 flex flex-col gap-3 sm:gap-4">
+                {images.map(
+                  (image, index) => (
+                    <button
+                      key={`${image}-${index}`}
+                      type="button"
+                      onClick={() =>
+                        setSelectedImage(index)
+                      }
+                      className={`group relative aspect-square overflow-hidden rounded-2xl border bg-white transition-all duration-300 ${
+                        selectedImage === index
+                          ? "border-black shadow-lg"
+                          : "border-black/10 hover:-translate-y-1 hover:border-black/40"
+                      }`}
+                    >
+                     <Image
+  src={getImageUrl(image)}
+  alt={`${product.name} image ${index + 1}`}
+  fill
+  sizes="80px"
+  className="object-contain p-2 transition duration-500 group-hover:scale-110"
+  loading={index === 0 ? "eager" : "lazy"}
+/>
+                    </button>
+                  )
+                )}
+
+                {images.length < 4 &&
+                  Array.from({
+                    length:
+                      4 - images.length,
+                  }).map(
+                    (_, index) => (
+                      <div
+                        key={`empty-${index}`}
+                        className="aspect-square rounded-2xl border border-dashed border-black/10 bg-white/50"
+                      />
+                    )
+                  )}
+              </div>
+
+              <div className="relative col-span-3 overflow-hidden rounded-[2rem] border border-black/10 bg-white shadow-[0_25px_80px_rgba(0,0,0,0.07)]">
+
+                <div className="absolute inset-0">
+                  <div className="absolute left-1/2 top-1/2 h-80 w-80 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#eeeae2] blur-3xl" />
+
+                  <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-[#f4f0e8] blur-3xl" />
+
+                  <div className="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-[#f1eee8] blur-3xl" />
+                </div>
+
+                {product.featured && (
+                  <div className="absolute left-6 top-6 z-10">
+                    <span className="rounded-full bg-black px-4 py-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-white shadow-lg">
+                      Featured
+                    </span>
+                  </div>
+                )}
+
+                <div className="absolute right-5 top-5 z-10 rounded-full border border-black/10 bg-white/80 px-3 py-2 text-[9px] font-medium uppercase tracking-[0.15em] text-gray-500 backdrop-blur-md">
+                  {images.length > 0
+                    ? selectedImage + 1
+                    : 0}{" "}
+                  / {images.length}
+                </div>
+
+                <div className="relative flex aspect-[4/5] items-center justify-center p-8 sm:p-12 lg:p-16">
+                  {images.length > 0 ? (
+                    <Image
+  src={getImageUrl(images[selectedImage])}
+  alt={product.name}
+  fill
+  priority
+  sizes="(max-width: 1024px) 90vw, 55vw"
+  className="object-contain drop-shadow-[0_35px_50px_rgba(0,0,0,0.18)] transition-all duration-700 ease-out hover:scale-[1.04]"
+/>
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
+                      No image available
+                    </div>
+                  )}
+
+                  {!isAvailable && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-[2px]">
+                      <span className="rounded-full border border-black/20 bg-white px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.25em] shadow-xl">
+                        Out of Stock
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {images.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedImage(
+                          (current) =>
+                            current === 0
+                              ? images.length - 1
+                              : current - 1
+                        )
+                      }
+                      className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/90 text-xl shadow-md backdrop-blur-md transition-all duration-300 hover:scale-110 hover:bg-black hover:text-white"
+                    >
+                      ‹
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedImage(
+                          (current) =>
+                            current ===
+                            images.length - 1
+                              ? 0
+                              : current + 1
+                        )
+                      }
+                      className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white/90 text-xl shadow-md backdrop-blur-md transition-all duration-300 hover:scale-110 hover:bg-black hover:text-white"
+                    >
+                      ›
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* PRODUCT INFO */}
+
+          <div className="flex flex-col justify-center">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-gray-500">
+              {product.brand || "ORENTEMIST"}
+            </p>
+
+            <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl lg:text-6xl">
+              {product.name}
+            </h1>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              {renderStars(
+                averageRating,
+                "text-base"
+              )}
+
+              <span className="text-sm text-gray-500">
+                {averageRating.toFixed(1)}
+              </span>
+
+              <span className="text-gray-300">
+                |
+              </span>
+
+              <a
+                href="#reviews"
+                className="text-sm text-gray-500 underline underline-offset-4 transition hover:text-black"
+              >
+                {reviewCount}{" "}
+                {reviewCount === 1
+                  ? "review"
+                  : "reviews"}
+              </a>
+            </div>
+
+            <div className="mt-7">
+              <p className="text-2xl font-medium tracking-tight sm:text-3xl">
+                {formatPrice(
+                  selectedVariant
+                    ? selectedVariant.price
+                    : product.price
+                )}
+              </p>
+
+              {product.size && (
+                <p className="mt-2 text-sm text-gray-500">
+                  {selectedVariant
+                    ? selectedVariant.size
+                    : product.size}
+                </p>
+              )}
+            </div>
+
+            {Array.isArray(
+              product.variants
+            ) &&
+              product.variants.length >
+                0 && (
+                <div className="mt-7">
+                  <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+                    Select Size
+                  </p>
+
+                  <div className="flex flex-wrap gap-3">
+                    {product.variants.map(
+                      (variant) => {
+                        const variantAvailable =
+                          variant.in_stock &&
+                          Number(
+                            variant.stock_quantity
+                          ) > 0;
+
+                        const isSelected =
+                          selectedVariant?.id ===
+                          variant.id;
+
+                        return (
+                          <button
+                            key={variant.id}
+                            type="button"
+                            disabled={
+                              !variantAvailable
+                            }
+                            onClick={() => {
+                              setSelectedVariant(
+                                variant
+                              );
+
+                              setQuantity(1);
+                            }}
+                            className={`rounded-full border px-5 py-3 text-sm transition ${
+                              isSelected
+                                ? "border-black bg-black text-white"
+                                : variantAvailable
+                                ? "border-black/10 bg-white hover:border-black"
+                                : "cursor-not-allowed border-black/10 bg-gray-100 text-gray-400 line-through"
+                            }`}
+                          >
+                            {variant.size}
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+              )}
+
+            <div className="mt-6">
+              <span
+                className={`inline-flex rounded-full px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                  status === "In Stock"
+                    ? "bg-black text-white"
+                    : status === "Low Stock"
+                    ? "bg-[#eee8dc] text-black"
+                    : "border border-black/10 bg-white text-gray-500"
+                }`}
+              >
+                {status}
+              </span>
+
+              {status ===
+                "Low Stock" && (
+                <span className="ml-3 text-xs text-gray-500">
+                  Only {currentStock} left
+                </span>
+              )}
+            </div>
+
+            {product.description && (
+              <div className="mt-9 border-t border-black/10 pt-7">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">
+                  Description
+                </p>
+
+                <p className="mt-4 max-w-xl text-sm leading-7 text-gray-600">
+                  {product.description}
+                </p>
+              </div>
+            )}
+
+            {product.fragrance_notes && (
+              <div className="mt-7 border-t border-black/10 pt-7">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">
+                  Fragrance Notes
+                </p>
+
+                <p className="mt-4 text-sm leading-7 text-gray-600">
+                  {product.fragrance_notes}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-8">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+                Quantity
+              </p>
+
+              <div className="flex h-14 w-fit items-center overflow-hidden rounded-full border border-black/10 bg-white">
+                <button
+                  type="button"
+                  onClick={
+                    handleDecreaseQuantity
+                  }
+                  disabled={!isAvailable}
+                  className="flex h-full w-14 items-center justify-center text-lg transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  −
+                </button>
+
+                <span className="flex w-12 justify-center text-sm font-medium">
+                  {quantity}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={
+                    handleIncreaseQuantity
+                  }
+                  disabled={!isAvailable}
+                  className="flex h-full w-14 items-center justify-center text-lg transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={
+                  handleAddToCart
+                }
+                disabled={
+                  !isAvailable ||
+                  addingToCart
+                }
+                className="h-14 rounded-full border border-black bg-white text-sm font-medium transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300"
+              >
+                {addingToCart
+                  ? "Adding..."
+                  : "Add to Cart"}
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  handleBuyNow
+                }
+                disabled={
+                  !isAvailable ||
+                  addingToCart
+                }
+                className="h-14 rounded-full bg-black text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                Buy Now
+              </button>
+            </div>
+
+            <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-black/10 bg-white p-4">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.15em]">
+                  Authentic
+                </p>
+
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Genuine fragrances only.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-black/10 bg-white p-4">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.15em]">
+                  Delivery
+                </p>
+
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Secure nationwide delivery.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-black/10 bg-white p-4">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.15em]">
+                  Quality
+                </p>
+
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Carefully selected fragrances.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* REVIEWS */}
+
+      <section
+        id="reviews"
+        className="border-t border-black/10 bg-white"
+      >
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 lg:py-20">
+          <div className="grid gap-10 lg:grid-cols-[0.35fr_0.65fr]">
+
+            {/* REVIEW SUMMARY */}
+
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-gray-400">
+                Customer Reviews
+              </p>
+
+              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+                What customers say
+              </h2>
+
+              <div className="mt-7 rounded-3xl border border-black/10 bg-[#f8f7f4] p-7">
+                <div className="flex items-end gap-3">
+                  <span className="text-5xl font-semibold tracking-tight">
+                    {averageRating.toFixed(1)}
+                  </span>
+
+                  <span className="pb-2 text-sm text-gray-400">
+                    / 5
+                  </span>
+                </div>
+
+                <div className="mt-3">
+                  {renderStars(
+                    averageRating,
+                    "text-lg"
+                  )}
+                </div>
+
+                <p className="mt-4 text-sm text-gray-500">
+                  Based on {reviewCount}{" "}
+                  {reviewCount === 1
+                    ? "customer review"
+                    : "customer reviews"}
+                </p>
+              </div>
+            </div>
+
+            {/* REVIEW LIST */}
+
+            <div>
+
+              {/* WRITE REVIEW */}
+
+              <div className="mb-6 rounded-3xl border border-black/10 bg-[#f8f7f4] p-6 sm:p-7">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400">
+                      Share your experience
+                    </p>
+
+                    <h3 className="mt-2 text-xl font-semibold">
+                      {isLoggedIn
+                        ? "How was this fragrance?"
+                        : "Love the scent? Tell us about it."}
+                    </h3>
+                  </div>
+
+                  {!isLoggedIn && (
+                    <Link
+                      href={`/login?next=/products/${product.id}%23reviews`}
+                      className="text-xs font-medium underline underline-offset-4 transition hover:opacity-50"
+                    >
+                      Log in or sign up
+                    </Link>
+                  )}
+                </div>
+{isLoggedIn ? (
+  purchaseCheckLoading ? (
+    <div className="mt-5 rounded-2xl border border-black/10 bg-white p-6">
+      <p className="text-sm text-gray-500">
+        Checking your purchase...
+      </p>
+    </div>
+  ) : hasPurchased ? (
+    <form
+      onSubmit={handleSubmitReview}
+      className="mt-6"
+    >
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+        Your rating
+      </p>
+
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => setReviewRating(star)}
+            className={`text-3xl transition hover:scale-110 ${
+              star <= reviewRating
+                ? "text-[#c89b3c]"
+                : "text-gray-300"
+            }`}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-3 text-xs text-gray-400">
+        {reviewRating === 5
+          ? "Excellent"
+          : reviewRating === 4
+          ? "Very good"
+          : reviewRating === 3
+          ? "Good"
+          : reviewRating === 2
+          ? "Could be better"
+          : "Not satisfied"}
+      </p>
+
+      <textarea
+        value={reviewComment}
+        onChange={(event) =>
+          setReviewComment(event.target.value)
+        }
+        rows={4}
+        minLength={MIN_REVIEW_LENGTH}
+        maxLength={MAX_REVIEW_LENGTH}
+        placeholder="Tell us how it smells, how long it lasts, and what you think..."
+        className={`mt-5 w-full resize-none rounded-2xl border bg-white px-5 py-4 text-sm outline-none transition placeholder:text-gray-400 ${
+          reviewCommentLength > 0 &&
+          reviewCommentLength < MIN_REVIEW_LENGTH
+            ? "border-amber-400 focus:border-amber-500"
+            : reviewCommentLength >= MAX_REVIEW_LENGTH
+            ? "border-red-400 focus:border-red-500"
+            : "border-black/10 focus:border-black"
+        }`}
+      />
+
+      <div className="mt-2 flex items-center justify-between">
+        <span
+          className={`text-[10px] ${
+            reviewCommentLength > 0 &&
+            reviewCommentLength < MIN_REVIEW_LENGTH
+              ? "text-amber-600"
+              : reviewCommentLength >= MAX_REVIEW_LENGTH
+              ? "text-red-600"
+              : "text-gray-400"
+          }`}
+        >
+          {reviewCommentLength < MIN_REVIEW_LENGTH
+            ? `Minimum ${MIN_REVIEW_LENGTH} characters`
+            : reviewCommentLength >= MAX_REVIEW_LENGTH
+            ? `${MAX_REVIEW_LENGTH} character limit reached`
+            : "You can continue writing"}
+        </span>
+
+        <span
+          className={`text-[10px] ${
+            reviewCommentLength >= MAX_REVIEW_LENGTH
+              ? "font-semibold text-red-600"
+              : "text-gray-400"
+          }`}
+        >
+          {reviewCommentLength}/{MAX_REVIEW_LENGTH}
+        </span>
+      </div>
+
+      {reviewMessage && (
+        <p
+          className={`mt-3 text-sm ${
+            reviewMessage.includes("Thank you") ||
+            reviewMessage.includes("updated") ||
+            reviewMessage.includes("deleted")
+              ? "text-green-700"
+              : "text-gray-500"
+          }`}
+        >
+          {reviewMessage}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={
+          submittingReview ||
+          !isReviewValid
+        }
+        className="mt-4 rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+      >
+        {submittingReview
+          ? "Submitting..."
+          : "Submit Review"}
+      </button>
+    </form>
+  ) : (
+    <div className="mt-5 rounded-2xl border border-black/10 bg-white p-6">
+      <h4 className="text-sm font-semibold">
+        Purchase required to leave a review
+      </h4>
+
+      <p className="mt-2 text-sm leading-6 text-gray-500">
+        You can only review fragrances you have purchased.
+      </p>
+
+      <Link
+        href="/products"
+        className="mt-5 inline-flex rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+      >
+        Explore Fragrances
+      </Link>
+    </div>
+  )
+) : (
+  <div className="mt-5 rounded-2xl border border-black/10 bg-white p-6">
+    <h4 className="text-sm font-semibold">
+      Log in or sign up to leave a review
+    </h4>
+
+    <p className="mt-2 text-sm leading-6 text-gray-500">
+      Share your experience with this fragrance and let other customers know how it smells, how it performs, and what you think.
+    </p>
+
+    <Link
+      href={`/login?next=/products/${product.id}%23reviews`}
+      className="mt-5 inline-flex rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-gray-800"
+    >
+      Log In / Sign Up
+    </Link>
+  </div>
+)}
+  
+  
+              
+              </div>
+
+              {/* EXISTING REVIEWS */}
+
+              {reviewsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(
+                    (item) => (
+                      <div
+                        key={item}
+                        className="animate-pulse rounded-3xl border border-black/10 p-7"
+                      >
+                        <div className="h-3 w-24 rounded bg-gray-200" />
+                        <div className="mt-4 h-3 w-20 rounded bg-gray-200" />
+                        <div className="mt-5 h-3 w-full rounded bg-gray-200" />
+                        <div className="mt-2 h-3 w-4/5 rounded bg-gray-200" />
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="flex min-h-[280px] flex-col items-center justify-center rounded-3xl border border-black/10 bg-[#f8f7f4] px-6 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-xl text-[#c89b3c] shadow-sm">
+                    ★
+                  </div>
+
+                  <h3 className="mt-5 text-lg font-semibold">
+                    No reviews yet
+                  </h3>
+
+                  <p className="mt-2 max-w-sm text-sm leading-6 text-gray-500">
+                    Be the first customer to share your experience with this fragrance.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map(
+                    (review) => {
+                      const isOwnReview =
+                        isLoggedIn &&
+                        currentUserId !==
+                          null &&
+                        Number(
+                          review.user
+                        ) ===
+                          Number(
+                            currentUserId
+                          );
+
+                      return (
+                        <article
+                          key={review.id}
+                          className="rounded-3xl border border-black/10 bg-[#f8f7f4] p-6 transition hover:border-black/20 hover:shadow-sm sm:p-7"
+                        >
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+
+                            <div>
+                              <p className="text-sm font-semibold">
+                                {review.username ||
+                                  review.user
+                                    ?.username ||
+                                  review.user
+                                    ?.name ||
+                                  "Customer"}
+                              </p>
+
+                              <div className="mt-2">
+                                {renderStars(
+                                  review.rating
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-start gap-3 sm:items-end">
+                              {review.created_at && (
+                                <p className="text-xs text-gray-400">
+                                  {new Date(
+                                    review.created_at
+                                  ).toLocaleDateString(
+                                    "en-NG",
+                                    {
+                                      day: "numeric",
+                                      month: "short",
+                                      year: "numeric",
+                                    }
+                                  )}
+                                </p>
+                              )}
+
+                              {isOwnReview && (
+                                <div className="flex items-center gap-4">
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openEditReview(
+                                        review
+                                      )
+                                    }
+                                    className="text-xs font-medium underline underline-offset-4 transition hover:opacity-50"
+                                  >
+                                    Edit
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openDeleteReview(
+                                        review
+                                      )
+                                    }
+                                    className="text-xs font-medium text-red-600 underline underline-offset-4 transition hover:opacity-50"
+                                  >
+                                    Delete
+                                  </button>
+
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {review.comment && (
+                            <p className="mt-6 text-sm leading-7 text-gray-600">
+                              {review.comment}
+                            </p>
+                          )}
+
+                          {review.updated_at &&
+                            review.created_at &&
+                            new Date(
+                              review.updated_at
+                            ).getTime() >
+                              new Date(
+                                review.created_at
+                              ).getTime() + 1000 && (
+                              <p className="mt-4 text-[10px] text-gray-400">
+                                Edited
+                              </p>
+                            )}
+                        </article>
+                      );
+                    }
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* RELATED PRODUCTS */}
+
+      {relatedProducts.length > 0 && (
+        <section className="border-t border-black/10 bg-[#f8f7f4]">
+          <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 lg:py-20">
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-gray-400">
+                  You may also like
+                </p>
+
+                <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+                  Discover another signature scent
+                </h2>
+
+                <p className="mt-3 max-w-xl text-sm leading-6 text-gray-500">
+                  More fragrances selected from the same collection.
+                </p>
+              </div>
+
+              <Link
+                href="/products"
+                className="text-xs font-medium uppercase tracking-[0.15em] underline underline-offset-4 transition hover:opacity-50"
+              >
+                View Collection
+              </Link>
+            </div>
+
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {relatedProducts.map(
+                (relatedProduct) => (
+                  <Link
+                    key={relatedProduct.id}
+                    href={`/products/${relatedProduct.id}`}
+                    className="group overflow-hidden rounded-3xl border border-black/10 bg-white transition duration-300 hover:-translate-y-1 hover:border-black/20 hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)]"
+                  >
+                    <div className="relative aspect-[4/5] overflow-hidden bg-[#f3f0ea]">
+                     <Image
+  src={getImageUrl(relatedProduct.image)}
+  alt={relatedProduct.name}
+  fill
+  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 25vw"
+  className="object-contain p-7 transition duration-500 group-hover:scale-105"
+  loading="lazy"
+/>
+
+                      {relatedProduct.featured && (
+                        <span className="absolute left-4 top-4 rounded-full bg-black px-3 py-1.5 text-[8px] font-semibold uppercase tracking-[0.18em] text-white">
+                          Featured
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="p-5">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+                        {relatedProduct.brand ||
+                          "ORENTEMIST"}
+                      </p>
+
+                      <h3 className="mt-2 line-clamp-1 text-base font-semibold">
+                        {relatedProduct.name}
+                      </h3>
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <p className="text-sm font-medium">
+                          {formatPrice(
+                            relatedProduct.price
+                          )}
+                        </p>
+
+                        <span className="text-xs text-gray-400 transition group-hover:translate-x-1 group-hover:text-black">
+                          →
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* BRAND STATEMENT */}
+
+      <section className="bg-black px-5 py-20 text-white sm:px-8">
+        <div className="mx-auto max-w-4xl text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/50">
+            ORENTEMIST
+          </p>
+
+          <h2 className="mt-6 text-3xl font-semibold tracking-[-0.03em] sm:text-5xl">
+            A fragrance that becomes part of your identity.
+          </h2>
+
+          <p className="mx-auto mt-6 max-w-2xl text-sm leading-7 text-white/60">
+            Discover carefully selected fragrances created for people who appreciate character, elegance and unforgettable presence.
+          </p>
+
+          <Link
+            href="/collection"
+            className="mt-9 inline-flex rounded-full bg-white px-7 py-3 text-sm font-medium text-black transition hover:bg-white/90"
+          >
+            Explore Collection
+          </Link>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+
+      <footer className="bg-[#f8f7f4]">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 sm:px-8 md:flex-row md:items-center md:justify-between">
+          <p className="text-xs font-semibold tracking-[0.2em]">
+            ORENTEMIST
+          </p>
+
+          <div className="flex gap-6 text-xs text-gray-500">
+            <Link
+              href="/products"
+              className="transition hover:text-black"
+            >
+              Shop
+            </Link>
+
+            <Link
+              href="/account"
+              className="transition hover:text-black"
+            >
+              Account
+            </Link>
+
+            <Link
+              href="/cart"
+              className="transition hover:text-black"
+            >
+              Cart
+            </Link>
+          </div>
+
+          <p className="text-xs text-gray-400">
+            © {new Date().getFullYear()} ORENTEMIST
+          </p>
+        </div>
+      </footer>
+
+      {/* ================================================= */}
+      {/* EDIT REVIEW MODAL */}
+      {/* ================================================= */}
+
+      {editingReview && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
+          onClick={closeEditModal}
+        >
+          <div
+            className="w-full max-w-lg overflow-hidden rounded-[2rem] border border-black/10 bg-[#f8f7f4] shadow-[0_30px_100px_rgba(0,0,0,0.25)]"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+
+            <div className="border-b border-black/10 bg-white px-6 py-5 sm:px-7">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.25em] text-gray-400">
+                    Your Review
+                  </p>
+
+                  <h3 className="mt-2 text-xl font-semibold">
+                    Edit your review
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={savingEdit}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-[#f8f7f4] text-xl transition hover:bg-black hover:text-white disabled:opacity-40"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-7 sm:px-7">
+
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+                Rating
+              </p>
+
+              <div className="mt-4 flex gap-2">
+                {[1, 2, 3, 4, 5].map(
+                  (star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() =>
+                        setEditRating(star)
+                      }
+                      disabled={savingEdit}
+                      className={`text-4xl transition hover:scale-110 ${
+                        star <= editRating
+                          ? "text-[#c89b3c]"
+                          : "text-gray-300"
+                      }`}
+                    >
+                      ★
+                    </button>
+                  )
+                )}
+              </div>
+
+              <p className="mt-3 text-xs text-gray-400">
+                {editRating === 5
+                  ? "Excellent"
+                  : editRating === 4
+                  ? "Very good"
+                  : editRating === 3
+                  ? "Good"
+                  : editRating === 2
+                  ? "Could be better"
+                  : "Not satisfied"}
+              </p>
+
+              <div className="mt-6">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+                  Your comment
+                </p>
+
+                <textarea
+                  value={editComment}
+                  onChange={(event) =>
+                    setEditComment(
+                      event.target.value
+                    )
+                  }
+                  disabled={savingEdit}
+                  rows={6}
+                  minLength={
+                    MIN_REVIEW_LENGTH
+                  }
+                  maxLength={
+                    MAX_REVIEW_LENGTH
+                  }
+                  placeholder="Tell us about your experience..."
+                  className={`w-full resize-none rounded-2xl border bg-white px-5 py-4 text-sm leading-6 outline-none transition placeholder:text-gray-400 disabled:opacity-60 ${
+                    editCommentLength > 0 &&
+                    editCommentLength <
+                      MIN_REVIEW_LENGTH
+                      ? "border-amber-400 focus:border-amber-500"
+                      : editCommentLength >=
+                        MAX_REVIEW_LENGTH
+                      ? "border-red-400 focus:border-red-500"
+                      : "border-black/10 focus:border-black"
+                  }`}
+                />
+
+                <div className="mt-2 flex items-center justify-between">
+                  <span
+                    className={`text-[10px] ${
+                      editCommentLength > 0 &&
+                      editCommentLength <
+                        MIN_REVIEW_LENGTH
+                        ? "text-amber-600"
+                        : editCommentLength >=
+                          MAX_REVIEW_LENGTH
+                        ? "text-red-600"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {editCommentLength <
+                    MIN_REVIEW_LENGTH
+                      ? `Minimum ${MIN_REVIEW_LENGTH} characters`
+                      : editCommentLength >=
+                        MAX_REVIEW_LENGTH
+                      ? `${MAX_REVIEW_LENGTH} character limit reached`
+                      : "You can continue writing"}
+                  </span>
+
+                  <span
+                    className={`text-[10px] ${
+                      editCommentLength >=
+                      MAX_REVIEW_LENGTH
+                        ? "font-semibold text-red-600"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {editCommentLength}/
+                    {MAX_REVIEW_LENGTH}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={savingEdit}
+                  className="rounded-full border border-black/15 bg-white px-6 py-3 text-sm font-medium transition hover:border-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={
+                    savingEdit ||
+                    !isEditValid
+                  }
+                  className="rounded-full bg-black px-6 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  {savingEdit
+                    ? "Saving..."
+                    : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================= */}
+      {/* DELETE REVIEW MODAL */}
+      {/* ================================================= */}
+
+      {deletingReview && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 py-6 backdrop-blur-sm"
+          onClick={closeDeleteModal}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-[2rem] border border-black/10 bg-[#f8f7f4] shadow-[0_30px_100px_rgba(0,0,0,0.25)]"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+
+            <div className="px-6 py-7 sm:px-7">
+
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-xl text-red-600">
+                !
+              </div>
+
+              <div className="mt-5 text-center">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.25em] text-gray-400">
+                  Delete Review
+                </p>
+
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight">
+                  Delete your review?
+                </h3>
+
+                <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-gray-500">
+                  This action cannot be undone. Your review and rating will be permanently removed.
+                </p>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-black/10 bg-white p-5">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">
+                    Your rating
+                  </p>
+
+                  {renderStars(
+                    deletingReview.rating,
+                    "text-sm"
+                  )}
+                </div>
+
+                {deletingReview.comment && (
+                  <p className="mt-4 line-clamp-3 text-sm leading-6 text-gray-500">
+                    "{deletingReview.comment}"
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={
+                    deletingReviewLoading
+                  }
+                  className="flex-1 rounded-full border border-black/15 bg-white px-6 py-3 text-sm font-medium transition hover:border-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    handleConfirmDelete
+                  }
+                  disabled={
+                    deletingReviewLoading
+                  }
+                  className="flex-1 rounded-full bg-red-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  {deletingReviewLoading
+                    ? "Deleting..."
+                    : "Delete Review"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+{/* ================= MOBILE SIDE MENU ================= */}
+
+{mobileMenuOpen && (
+  <div className="fixed inset-0 z-[200] md:hidden">
+
+    {/* BACKDROP */}
+    <button
+      type="button"
+      aria-label="Close menu"
+      onClick={() => setMobileMenuOpen(false)}
+      className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+    />
+
+    {/* SIDE DRAWER */}
+    <aside className="absolute right-0 top-0 flex h-full w-[85%] max-w-sm flex-col bg-white shadow-2xl">
+
+      {/* HEADER */}
+      <div className="flex items-center justify-between border-b border-black/10 px-6 py-6">
+
+        <Link
+          href="/"
+          onClick={() => setMobileMenuOpen(false)}
+          className="text-lg font-semibold tracking-[0.3em]"
+        >
+          ORENTEMIST
+        </Link>
+
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-label="Close menu"
+          className="flex h-10 w-10 items-center justify-center text-2xl text-black/60"
+        >
+          ×
+        </button>
+
+      </div>
+
+      {/* MENU */}
+      <div className="flex flex-1 flex-col px-6 py-8">
+
+        <p className="mb-6 text-[10px] uppercase tracking-[0.35em] text-black/40">
+          Menu
+        </p>
+
+        <nav className="space-y-1">
+
+          <Link
+            href="/"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+          >
+            Home
+            <span className="text-black/30">→</span>
+          </Link>
+
+          
+
+          <Link
+            href="/collection"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+          >
+            Collection
+            <span className="text-black/30">→</span>
+          </Link>
+
+          <Link
+            href="/about"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+          >
+            About
+            <span className="text-black/30">→</span>
+          </Link>
+
+          <Link
+            href="/account"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+          >
+            Account
+            <span className="text-black/30">→</span>
+          </Link>
+         
+          <Link
+            href="/contact"
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+          >
+            Contact
+            <span className="text-black/30">→</span>
+          </Link>
+         <Link
+  href="/cart"
+  onClick={() => setMobileMenuOpen(false)}
+  className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+>
+  <span className="flex items-center gap-3">
+    Cart
+
+    {cartCount > 0 && (
+      <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-black px-1.5 text-[10px] font-semibold text-white">
+        {cartCount}
+      </span>
+    )}
+  </span>
+
+  <span className="text-black/30">→</span>
+</Link>
+
+
+        </nav>
+
+      </div>
+
+      {/* FOOTER */}
+      <div className="border-t border-black/10 px-6 py-6">
+
+        <p className="text-[10px] uppercase tracking-[0.3em] text-black/30">
+          ORENTEMIST
+        </p>
+
+        <p className="mt-2 text-xs text-black/40">
+          Luxury fragrances. Signature presence.
+        </p>
+
+      </div>
+
+    </aside>
+
+  </div>
+)}
+    </main>
+  );
+}
