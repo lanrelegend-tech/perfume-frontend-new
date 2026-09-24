@@ -65,6 +65,9 @@ function LoginPageContent() {
       });
 
       const data = await response.json().catch(() => ({}));
+      console.log("LOGIN STATUS:", response.status);
+     console.log("LOGIN RESPONSE:", data);
+      console.log("LOGIN ERROR VALUE:", data?.error);
 
       if (!response.ok) {
         /*
