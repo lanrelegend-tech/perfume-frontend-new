@@ -81,7 +81,11 @@ function LoginPageContent() {
          * We then request a fresh secure verification-link email.
          */
 
-        if (data?.error === "email_not_verified") {
+        if (data?.error === "email_not_verified" ||
+
+                data?.error?.[0] === "email_not_verified"
+
+) {
           try {
             const resendResponse = await fetch(
               `${API_URL}/users/resend-verification/`,
