@@ -1674,14 +1674,14 @@ export default function CouponsPage() {
                         ),
                     })
                   }
-                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm uppercase outline-none focus:border-black/30"
+                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base sm:text-sm uppercase outline-none focus:border-black/30"
                 />
               </div>
 
               {/* TYPE */}
 
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label className="mb-2 block text-base sm:text-sm font-medium">
                   Discount Type
                 </label>
 
@@ -1694,7 +1694,7 @@ export default function CouponsPage() {
                         type: "percentage",
                       })
                     }
-                    className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm ${
+                    className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-base sm:text-sm ${
                       form.type ===
                       "percentage"
                         ? "border-black bg-black text-white"
@@ -1716,7 +1716,7 @@ export default function CouponsPage() {
                         type: "fixed",
                       })
                     }
-                    className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm ${
+                    className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-base sm:text-sm ${
                       form.type ===
                       "fixed"
                         ? "border-black bg-black text-white"
@@ -1735,7 +1735,7 @@ export default function CouponsPage() {
               {/* VALUE */}
 
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label className="mb-2 block text-base sm:text-sm font-medium">
                   Discount Value
                 </label>
 
@@ -1764,7 +1764,7 @@ export default function CouponsPage() {
                           e.target.value,
                       })
                     }
-                    className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 pr-12 text-sm outline-none focus:border-black/30"
+                    className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 pr-12 text-base sm:text-sm outline-none focus:border-black/30"
                   />
 
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-black/40">
@@ -1779,7 +1779,7 @@ export default function CouponsPage() {
               {/* MINIMUM ORDER */}
 
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label className="mb-2 block text-base sm:text-sm font-medium">
                   Minimum Order Amount
                 </label>
 
@@ -1796,7 +1796,7 @@ export default function CouponsPage() {
                         e.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm outline-none focus:border-black/30"
+                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base sm:text-sm outline-none focus:border-black/30"
                 />
 
                 <p className="mt-1 text-xs text-black/35">
@@ -1807,7 +1807,7 @@ export default function CouponsPage() {
               {/* MAXIMUM DISCOUNT */}
 
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label className="mb-2 block text-base sm:text-sm font-medium">
                   Maximum Discount
                 </label>
 
@@ -1826,7 +1826,7 @@ export default function CouponsPage() {
                         e.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm outline-none focus:border-black/30"
+                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base sm:text-sm outline-none focus:border-black/30"
                 />
 
                 <p className="mt-1 text-xs text-black/35">
@@ -1856,7 +1856,7 @@ export default function CouponsPage() {
                         e.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm outline-none focus:border-black/30"
+                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base sm:text-sm outline-none focus:border-black/30"
                 />
 
                 <p className="mt-1 text-xs text-black/35">
@@ -1867,7 +1867,7 @@ export default function CouponsPage() {
               {/* EXPIRY */}
 
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label className="mb-2 block text-base sm:text-sm font-medium">
                   Expiry Date
                 </label>
 
@@ -1881,7 +1881,7 @@ export default function CouponsPage() {
                         e.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm outline-none focus:border-black/30"
+                  className="w-full rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base sm:text-sm outline-none focus:border-black/30"
                 />
               </div>
 

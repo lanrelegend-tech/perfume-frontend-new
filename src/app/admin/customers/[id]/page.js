@@ -52,8 +52,7 @@ export default function CustomerDetailsPage() {
         setLoading(true);
         setError("");
 
-        const token =
-          localStorage.getItem("access_token");
+        const token = localStorage.getItem("access_token");
 
         if (!token) {
           router.push("/admin/login");
@@ -70,16 +69,9 @@ export default function CustomerDetailsPage() {
           }
         );
 
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          localStorage.removeItem(
-            "access_token"
-          );
-          localStorage.removeItem(
-            "refresh_token"
-          );
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
 
           router.push("/admin/login");
           return;
@@ -97,10 +89,7 @@ export default function CustomerDetailsPage() {
 
         setCustomer(data);
       } catch (err) {
-        console.error(
-          "Customer details error:",
-          err
-        );
+        console.error("Customer details error:", err);
 
         setError(
           err.message ||
@@ -177,8 +166,7 @@ export default function CustomerDetailsPage() {
       : ["No delivery address saved."];
   };
 
-  const orders =
-    customer?.order_history || [];
+  const orders = customer?.order_history || [];
 
   const totalOrders = Number(
     customer?.order_count ||
@@ -219,8 +207,7 @@ export default function CustomerDetailsPage() {
       return;
     }
 
-    window.location.href =
-      `tel:${customer.phone}`;
+    window.location.href = `tel:${customer.phone}`;
   };
 
   /*
@@ -242,39 +229,105 @@ export default function CustomerDetailsPage() {
     setMessageModal(false);
   };
 
-  const sendMessage = () => {
-    if (!customer?.email) {
+  const sendMessage = async () => {
+  if (!customer?.email) {
+    setNotice({
+      type: "error",
+      title: "No email address",
+      message:
+        "This customer does not have an email address.",
+    });
+
+    return;
+  }
+
+  if (!messageText.trim()) {
+    setNotice({
+      type: "error",
+      title: "Message is empty",
+      message:
+        "Please enter a message before sending.",
+    });
+
+    return;
+  }
+
+  const token =
+    localStorage.getItem("access_token");
+
+  if (!token) {
+    router.push("/admin/login");
+    return;
+  }
+
+  try {
+    setActionLoading(true);
+
+    const response = await fetch(
+      `${API_URL}/users/admin/customers/${customer.id}/`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: messageText.trim(),
+        }),
+      }
+    );
+
+    const data =
+      await response.json().catch(() => ({}));
+
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+
+      router.push("/admin/login");
       return;
     }
 
-    if (!messageText.trim()) {
-      setNotice({
-        type: "error",
-        title: "Message is empty",
-        message:
-          "Please enter a message before sending.",
-      });
-
-      return;
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+          data.error ||
+          "Unable to send message."
+      );
     }
-
-    const subject =
-      `Message from ORENTEMIST`;
-
-    const body =
-      `Hello ${getCustomerName()},\n\n${messageText.trim()}\n\nRegards,\nORENTEMIST Customer Support`;
-
-    const mailto =
-      `mailto:${customer.email}?subject=${encodeURIComponent(
-        subject
-      )}&body=${encodeURIComponent(body)}`;
-
-    window.location.href = mailto;
 
     setMessageText("");
     setMessageModal(false);
-  };
 
+    setNotice({
+      type: "success",
+      title: "Message sent",
+      message:
+        `Your message was sent to ${getCustomerName()}.`,
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Customer message error:",
+      error
+    );
+
+    setNotice({
+      type: "error",
+      title: "Message failed",
+      message:
+        error.message ||
+        "Unable to send the message. Please try again.",
+    });
+
+  } finally {
+    setActionLoading(false);
+  }
+};
   /*
   |--------------------------------------------------------------------------
   | CUSTOMER ACTIONS
@@ -329,26 +382,19 @@ export default function CustomerDetailsPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            is_active:
-              !customer.is_active,
+            is_active: !customer.is_active,
           }),
         }
       );
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
       if (
         response.status === 401 ||
         response.status === 403
       ) {
-        localStorage.removeItem(
-          "access_token"
-        );
-
-        localStorage.removeItem(
-          "refresh_token"
-        );
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
 
         router.push("/admin/login");
         return;
@@ -392,14 +438,15 @@ export default function CustomerDetailsPage() {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem(
-      "access_token"
-    );
+  /*
+  |--------------------------------------------------------------------------
+  | LOGOUT
+  |--------------------------------------------------------------------------
+  */
 
-    localStorage.removeItem(
-      "refresh_token"
-    );
+  const logout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
 
     router.push("/admin/login");
   };
@@ -470,9 +517,7 @@ export default function CustomerDetailsPage() {
             <div className="p-5 sm:p-8">
               <button
                 onClick={() =>
-                  router.push(
-                    "/admin/customers"
-                  )
+                  router.push("/admin/customers")
                 }
                 className="mb-6 flex items-center gap-2 text-sm text-black/50 transition hover:text-black"
               >
@@ -480,14 +525,13 @@ export default function CustomerDetailsPage() {
                 Back to Customers
               </button>
 
-              <div className="rounded-2xl border border-red-200 bg-white p-8">
+              <div className="rounded-2xl border border-red-200 bg-white p-5 sm:p-8">
                 <h2 className="font-semibold">
                   Unable to load customer
                 </h2>
 
-                <p className="mt-2 text-sm text-black/50">
-                  {error ||
-                    "Customer not found."}
+                <p className="mt-2 break-words text-sm text-black/50">
+                  {error || "Customer not found."}
                 </p>
               </div>
             </div>
@@ -498,84 +542,97 @@ export default function CustomerDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f7f5] text-black">
+    <div className="min-h-screen overflow-x-hidden bg-[#f7f7f5] text-black">
       <AdminSidebar />
 
       <main className="lg:ml-[250px]">
         <div className="pt-16 lg:pt-0">
 
-          {/* HEADER */}
+          {/* =================================================
+              HEADER
+          ================================================= */}
 
-          <header className="flex h-[82px] items-center justify-between border-b border-black/10 bg-white px-5 sm:px-8">
-            <div>
-              <p className="text-xs text-black/40">
-                ORENTEMIST ADMIN
-              </p>
+          <header className="border-b border-black/10 bg-white">
+            <div className="flex min-h-[82px] items-center justify-between gap-4 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-black/40 sm:text-xs">
+                  ORENTEMIST ADMIN
+                </p>
 
-              <h2 className="text-xl font-semibold">
-                Customer Details
-              </h2>
-            </div>
+                <h2 className="mt-1 truncate text-lg font-semibold sm:text-xl">
+                  Customer Details
+                </h2>
+              </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                className="hidden rounded-xl border border-black/10 p-3 transition hover:bg-black/5 sm:block"
-              >
-                <Search size={18} />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  className="hidden rounded-xl border border-black/10 p-3 transition hover:bg-black/5 sm:block"
+                  aria-label="Search"
+                >
+                  <Search size={18} />
+                </button>
 
-              <button className="rounded-xl border border-black/10 p-3 transition hover:bg-black/5">
-                <Bell size={18} />
-              </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-black/10 p-3 transition hover:bg-black/5"
+                  aria-label="Notifications"
+                >
+                  <Bell size={18} />
+                </button>
 
-              <button
-                onClick={openMessageModal}
-                className="rounded-xl border border-black/10 p-3 transition hover:bg-black/5"
-              >
-                <MessageCircle size={18} />
-              </button>
+                <button
+                  type="button"
+                  onClick={openMessageModal}
+                  className="rounded-xl border border-black/10 p-3 transition hover:bg-black/5"
+                  aria-label="Message customer"
+                >
+                  <MessageCircle size={18} />
+                </button>
+              </div>
             </div>
           </header>
 
-          <div className="p-5 sm:p-8">
+          <div className="px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
 
-            {/* BACK */}
+            {/* =================================================
+                BACK
+            ================================================= */}
 
             <button
+              type="button"
               onClick={() =>
-                router.push(
-                  "/admin/customers"
-                )
+                router.push("/admin/customers")
               }
-              className="mb-6 flex items-center gap-2 text-sm text-black/50 transition hover:text-black"
+              className="mb-5 flex items-center gap-2 text-sm text-black/50 transition hover:text-black sm:mb-6"
             >
               <ArrowLeft size={16} />
               Back to Customers
             </button>
 
-            {/* PROFILE */}
+            {/* =================================================
+                PROFILE
+            ================================================= */}
 
-            <section className="rounded-2xl border border-black/10 bg-white p-5 sm:p-7">
-              <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
+            <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-6 lg:p-7">
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
 
-                <div className="flex items-center gap-4">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                   <Avatar
                     name={getCustomerName()}
                     large
                   />
 
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h1 className="text-2xl font-semibold">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                      <h1 className="max-w-full break-words text-xl font-semibold sm:text-2xl">
                         {getCustomerName()}
                       </h1>
 
-                      <StatusBadge
-                        status={status}
-                      />
+                      <StatusBadge status={status} />
                     </div>
 
-                    <p className="mt-2 text-sm text-black/45">
+                    <p className="mt-2 text-xs text-black/45 sm:text-sm">
                       Customer since{" "}
                       {formatDate(
                         customer.date_joined
@@ -584,101 +641,92 @@ export default function CustomerDetailsPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
                   <button
                     type="button"
                     onClick={openMessageModal}
-                    className="flex items-center gap-2 rounded-xl border border-black/10 px-4 py-3 text-sm transition hover:bg-black/5"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-black/10 px-3 py-3 text-sm transition hover:bg-black/5 sm:px-4"
                   >
                     <MailIcon size={16} />
-                    Message
+                    <span>Message</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={openCallModal}
                     disabled={!customer.phone}
-                    className="flex items-center gap-2 rounded-xl bg-black px-4 py-3 text-sm text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex items-center justify-center gap-2 rounded-xl bg-black px-3 py-3 text-sm text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
                   >
                     <Phone size={16} />
-                    Call
+                    <span>Call</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={openActionModal}
-                    className="rounded-xl border border-black/10 p-3 transition hover:bg-black/5"
+                    className="col-span-2 flex items-center justify-center rounded-xl border border-black/10 p-3 transition hover:bg-black/5 sm:col-span-1"
                     title="Customer actions"
+                    aria-label="Customer actions"
                   >
-                    <MoreHorizontal
-                      size={18}
-                    />
+                    <MoreHorizontal size={18} />
                   </button>
-
                 </div>
               </div>
             </section>
 
-            {/* STATS */}
+            {/* =================================================
+                STATS
+            ================================================= */}
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-5 grid grid-cols-1 gap-3 min-[430px]:grid-cols-2 sm:mt-6 sm:gap-4 xl:grid-cols-4">
 
               <StatCard
                 title="Total Orders"
                 value={totalOrders}
-                icon={
-                  <ShoppingCart size={20} />
-                }
+                icon={<ShoppingCart size={20} />}
               />
 
               <StatCard
                 title="Total Spent"
-                value={formatCurrency(
-                  totalSpent
-                )}
-                icon={
-                  <CreditCard size={20} />
-                }
+                value={formatCurrency(totalSpent)}
+                icon={<CreditCard size={20} />}
               />
 
               <StatCard
                 title="Average Order"
-                value={formatCurrency(
-                  averageOrder
-                )}
-                icon={
-                  <BarChart3 size={20} />
-                }
+                value={formatCurrency(averageOrder)}
+                icon={<BarChart3 size={20} />}
               />
 
               <StatCard
                 title="Customer Since"
-                value={formatDate(
-                  customer.date_joined
-                )}
-                icon={
-                  <CalendarDays size={20} />
-                }
+                value={formatDate(customer.date_joined)}
+                icon={<CalendarDays size={20} />}
               />
 
             </div>
 
-            {/* CONTENT */}
+            {/* =================================================
+                CONTENT
+            ================================================= */}
 
-            <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
+            <div className="mt-5 grid gap-5 sm:mt-6 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
 
-              {/* LEFT */}
+              {/* =================================================
+                  LEFT
+              ================================================= */}
 
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-5 sm:space-y-6">
 
-                {/* ORDERS */}
+                {/* =================================================
+                    ORDERS
+                ================================================= */}
 
                 <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
 
-                  <div className="flex items-center justify-between border-b border-black/10 px-5 py-5">
+                  <div className="flex flex-col gap-3 border-b border-black/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-5">
 
-                    <div>
+                    <div className="min-w-0">
                       <h2 className="font-semibold">
                         Recent Orders
                       </h2>
@@ -689,12 +737,11 @@ export default function CustomerDetailsPage() {
                     </div>
 
                     <button
+                      type="button"
                       onClick={() =>
-                        router.push(
-                          "/admin/orders"
-                        )
+                        router.push("/admin/orders")
                       }
-                      className="text-xs font-medium underline underline-offset-4"
+                      className="self-start text-xs font-medium underline underline-offset-4 sm:self-auto"
                     >
                       View all
                     </button>
@@ -702,95 +749,87 @@ export default function CustomerDetailsPage() {
                   </div>
 
                   <div className="overflow-x-auto">
-
                     {orders.length > 0 ? (
-                      <table className="w-full min-w-[600px]">
-
+                      <table className="w-full min-w-[650px]">
                         <thead>
                           <tr className="border-b border-black/10 text-left text-xs uppercase tracking-wider text-black/35">
-
-                            <th className="px-5 py-4 font-medium">
+                            <th className="whitespace-nowrap px-4 py-4 font-medium sm:px-5">
                               Order
                             </th>
 
-                            <th className="px-5 py-4 font-medium">
+                            <th className="whitespace-nowrap px-4 py-4 font-medium sm:px-5">
                               Date
                             </th>
 
-                            <th className="px-5 py-4 font-medium">
+                            <th className="whitespace-nowrap px-4 py-4 font-medium sm:px-5">
                               Items
                             </th>
 
-                            <th className="px-5 py-4 font-medium">
+                            <th className="whitespace-nowrap px-4 py-4 font-medium sm:px-5">
                               Amount
                             </th>
 
-                            <th className="px-5 py-4 font-medium">
+                            <th className="whitespace-nowrap px-4 py-4 font-medium sm:px-5">
                               Status
                             </th>
-
                           </tr>
                         </thead>
 
                         <tbody>
-                          {orders.map(
-                            (order) => (
-                              <tr
-                                key={order.id}
-                                onClick={() =>
-                                  router.push(
-                                    `/admin/orders/${order.id}`
-                                  )
-                                }
-                                className="cursor-pointer border-b border-black/5 last:border-0 hover:bg-black/[0.015]"
-                              >
+                          {orders.map((order) => (
+                            <tr
+                              key={order.id}
+                              onClick={() =>
+                                router.push(
+                                  `/admin/orders/${order.id}`
+                                )
+                              }
+                              className="cursor-pointer border-b border-black/5 last:border-0 hover:bg-black/[0.015]"
+                            >
+                              <td className="whitespace-nowrap px-4 py-5 text-sm font-medium sm:px-5">
+                                {order.order_number ||
+                                  `#${order.id}`}
+                              </td>
 
-                                <td className="px-5 py-5 text-sm font-medium">
-                                  {order.order_number ||
-                                    `#${order.id}`}
-                                </td>
+                              <td className="whitespace-nowrap px-4 py-5 text-sm text-black/50 sm:px-5">
+                                {formatDate(
+                                  order.created_at
+                                )}
+                              </td>
 
-                                <td className="px-5 py-5 text-sm text-black/50">
-                                  {formatDate(
-                                    order.created_at
-                                  )}
-                                </td>
+                              <td className="px-4 py-5 text-sm text-black/60 sm:px-5">
+                                —
+                              </td>
 
-                                <td className="px-5 py-5 text-sm text-black/60">
-                                  —
-                                </td>
+                              <td className="whitespace-nowrap px-4 py-5 text-sm font-medium sm:px-5">
+                                {formatCurrency(
+                                  order.total_amount
+                                )}
+                              </td>
 
-                                <td className="px-5 py-5 text-sm font-medium">
-                                  {formatCurrency(
-                                    order.total_amount
-                                  )}
-                                </td>
-
-                                <td className="px-5 py-5">
-                                  <span className="rounded-full bg-black/5 px-3 py-1 text-xs font-medium capitalize text-black/65">
-                                    {order.status ||
-                                      "pending"}
-                                  </span>
-                                </td>
-
-                              </tr>
-                            )
-                          )}
+                              <td className="px-4 py-5 sm:px-5">
+                                <span className="inline-flex whitespace-nowrap rounded-full bg-black/5 px-3 py-1 text-xs font-medium capitalize text-black/65">
+                                  {order.status ||
+                                    "pending"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
-
                       </table>
                     ) : (
                       <div className="px-5 py-10 text-center text-sm text-black/40">
                         This customer has no orders yet.
                       </div>
                     )}
-
                   </div>
                 </section>
 
-                {/* ACTIVITY */}
+                {/* =================================================
+                    ACTIVITY
+                ================================================= */}
 
-                <section className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6">
+                <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-6">
 
                   <h2 className="font-semibold">
                     Customer Activity
@@ -802,8 +841,7 @@ export default function CustomerDetailsPage() {
                       <Activity
                         title="Latest order"
                         description={`${
-                          orders[0]
-                            .order_number ||
+                          orders[0].order_number ||
                           `Order #${orders[0].id}`
                         } was ${
                           orders[0].status ||
@@ -813,9 +851,7 @@ export default function CustomerDetailsPage() {
                           orders[0].created_at
                         )}
                         icon={
-                          <ShoppingBag
-                            size={17}
-                          />
+                          <ShoppingBag size={17} />
                         }
                       />
                     )}
@@ -827,32 +863,32 @@ export default function CustomerDetailsPage() {
                         customer.date_joined
                       )}
                       icon={
-                        <UserRound
-                          size={17}
-                        />
+                        <UserRound size={17} />
                       }
                     />
 
                   </div>
                 </section>
-
               </div>
 
-              {/* RIGHT */}
+              {/* =================================================
+                  RIGHT
+              ================================================= */}
 
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-5 sm:space-y-6">
 
-                {/* CONTACT */}
+                {/* =================================================
+                    CONTACT
+                ================================================= */}
 
-                <section className="rounded-2xl border border-black/10 bg-white p-5">
+                <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5">
 
                   <div className="flex items-center gap-3">
-
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white">
                       <UserRound size={18} />
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <h2 className="font-semibold">
                         Contact Information
                       </h2>
@@ -861,53 +897,43 @@ export default function CustomerDetailsPage() {
                         Customer contact details
                       </p>
                     </div>
-
                   </div>
 
                   <div className="mt-6 space-y-5">
 
                     <DetailRow
-                      icon={
-                        <UserRound size={16} />
-                      }
+                      icon={<UserRound size={16} />}
                       label="Full Name"
                       value={getCustomerName()}
                     />
 
                     <DetailRow
-                      icon={
-                        <MailIcon size={16} />
-                      }
+                      icon={<MailIcon size={16} />}
                       label="Email"
-                      value={
-                        customer.email || "—"
-                      }
+                      value={customer.email || "—"}
                     />
 
                     <DetailRow
-                      icon={
-                        <Phone size={16} />
-                      }
+                      icon={<Phone size={16} />}
                       label="Phone"
-                      value={
-                        customer.phone || "—"
-                      }
+                      value={customer.phone || "—"}
                     />
 
                   </div>
                 </section>
 
-                {/* ADDRESS */}
+                {/* =================================================
+                    ADDRESS
+                ================================================= */}
 
-                <section className="rounded-2xl border border-black/10 bg-white p-5">
+                <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5">
 
                   <div className="flex items-center gap-3">
-
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white">
                       <MapPin size={18} />
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <h2 className="font-semibold">
                         Delivery Address
                       </h2>
@@ -916,15 +942,16 @@ export default function CustomerDetailsPage() {
                         Default shipping address
                       </p>
                     </div>
-
                   </div>
 
-                  <div className="mt-5 rounded-xl bg-[#f7f7f5] p-4 text-sm leading-6 text-black/65">
+                  
 
+                  <div className="mt-5 overflow-hidden rounded-xl bg-[#f7f7f5] p-4 text-sm leading-6 text-black/65">
                     {getAddress().map(
                       (line, index) => (
                         <p
                           key={`${line}-${index}`}
+                          className="break-words"
                         >
                           {line}
                         </p>
@@ -932,13 +959,14 @@ export default function CustomerDetailsPage() {
                     )}
 
                     <p>Nigeria</p>
-
                   </div>
                 </section>
 
-                {/* ACCOUNT */}
+                {/* =================================================
+                    ACCOUNT
+                ================================================= */}
 
-                <section className="rounded-2xl border border-black/10 bg-white p-5">
+                <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5">
 
                   <h2 className="font-semibold">
                     Account Information
@@ -974,9 +1002,11 @@ export default function CustomerDetailsPage() {
                   </div>
                 </section>
 
-                {/* ACTIONS */}
+                {/* =================================================
+                    ACTIONS
+                ================================================= */}
 
-                <section className="rounded-2xl bg-black p-5 text-white">
+                <section className="rounded-2xl bg-black p-4 text-white sm:p-5">
 
                   <h2 className="font-semibold">
                     Customer Actions
@@ -1009,7 +1039,6 @@ export default function CustomerDetailsPage() {
 
                   </div>
                 </section>
-
               </div>
             </div>
           </div>
@@ -1021,14 +1050,12 @@ export default function CustomerDetailsPage() {
       ===================================================== */}
 
       {callModal && (
-        <ModalOverlay
-          onClose={closeCallModal}
-        >
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+        <ModalOverlay onClose={closeCallModal}>
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
 
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
 
-              <div>
+              <div className="min-w-0">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white">
                   <Phone size={20} />
                 </div>
@@ -1043,57 +1070,52 @@ export default function CustomerDetailsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={closeCallModal}
-                className="rounded-xl p-2 text-black/40 hover:bg-black/5 hover:text-black"
+                className="shrink-0 rounded-xl p-2 text-black/40 hover:bg-black/5 hover:text-black"
               >
                 <X size={19} />
               </button>
-
             </div>
 
             <div className="mt-6 rounded-2xl border border-black/10 bg-[#f7f7f5] p-4">
-
-              <div className="flex items-center gap-3">
-
-                <Avatar
-                  name={getCustomerName()}
-                />
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar name={getCustomerName()} />
 
                 <div className="min-w-0">
-                  <p className="font-medium">
+                  <p className="break-words font-medium">
                     {getCustomerName()}
                   </p>
 
-                  <p className="mt-1 text-sm text-black/45">
+                  <p className="mt-1 break-all text-sm text-black/45">
                     {customer.phone ||
                       "No phone number saved"}
                   </p>
                 </div>
-
               </div>
-
             </div>
 
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
               <button
+                type="button"
                 onClick={closeCallModal}
-                className="flex-1 rounded-xl border border-black/10 px-4 py-3 text-sm font-medium hover:bg-black/5"
+                className="rounded-xl border border-black/10 px-4 py-3 text-sm font-medium hover:bg-black/5"
               >
                 Cancel
               </button>
 
               <button
+                type="button"
                 onClick={callCustomer}
                 disabled={!customer.phone}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Phone size={16} />
                 Call Now
               </button>
 
             </div>
-
           </div>
         </ModalOverlay>
       )}
@@ -1103,14 +1125,12 @@ export default function CustomerDetailsPage() {
       ===================================================== */}
 
       {messageModal && (
-        <ModalOverlay
-          onClose={closeMessageModal}
-        >
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+        <ModalOverlay onClose={closeMessageModal}>
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
 
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
 
-              <div>
+              <div className="min-w-0">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white">
                   <MessageCircle size={20} />
                 </div>
@@ -1119,80 +1139,74 @@ export default function CustomerDetailsPage() {
                   Message Customer
                 </h3>
 
-                <p className="mt-1 text-sm text-black/45">
+                <p className="mt-1 break-words text-sm text-black/45">
                   Write a message to {getCustomerName()}.
                 </p>
               </div>
 
               <button
+                type="button"
                 onClick={closeMessageModal}
-                className="rounded-xl p-2 text-black/40 hover:bg-black/5 hover:text-black"
+                className="shrink-0 rounded-xl p-2 text-black/40 hover:bg-black/5 hover:text-black"
               >
                 <X size={19} />
               </button>
-
             </div>
 
             <div className="mt-6 rounded-2xl border border-black/10 bg-[#f7f7f5] p-4">
+              <div className="flex min-w-0 items-center gap-3">
 
-              <div className="flex items-center gap-3">
-
-                <Avatar
-                  name={getCustomerName()}
-                />
+                <Avatar name={getCustomerName()} />
 
                 <div className="min-w-0">
-
-                  <p className="font-medium">
+                  <p className="break-words font-medium">
                     {getCustomerName()}
                   </p>
 
-                  <p className="mt-1 truncate text-sm text-black/45">
+                  <p className="mt-1 break-all text-sm text-black/45">
                     {customer.email ||
                       "No email address saved"}
                   </p>
-
                 </div>
 
               </div>
-
             </div>
 
             <textarea
               value={messageText}
               onChange={(event) =>
-                setMessageText(
-                  event.target.value
-                )
+                setMessageText(event.target.value)
               }
               placeholder="Write your message..."
               rows={6}
-              className="mt-5 w-full resize-none rounded-2xl border border-black/10 bg-[#fafafa] p-4 text-sm outline-none transition placeholder:text-black/30 focus:border-black/30"
+              className="mt-5 w-full resize-none rounded-2xl border border-black/10 bg-[#fafafa] p-4 text-base outline-none transition placeholder:text-black/30 focus:border-black/30 sm:text-sm"
             />
 
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
               <button
+                type="button"
                 onClick={closeMessageModal}
-                className="flex-1 rounded-xl border border-black/10 px-4 py-3 text-sm font-medium hover:bg-black/5"
+                className="rounded-xl border border-black/10 px-4 py-3 text-sm font-medium hover:bg-black/5"
               >
                 Cancel
               </button>
 
               <button
+                type="button"
                 onClick={sendMessage}
-                disabled={
-                  !customer.email ||
-                  !messageText.trim()
-                }
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
+               disabled={
+  !customer.email ||
+  !messageText.trim() ||
+  actionLoading
+}
+                className="flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Send size={16} />
-                Send Message
+               <Send size={16} />
+{actionLoading ? "Sending..." : "Send Message"}
               </button>
 
             </div>
-
           </div>
         </ModalOverlay>
       )}
@@ -1202,46 +1216,45 @@ export default function CustomerDetailsPage() {
       ===================================================== */}
 
       {actionModal && (
-        <ModalOverlay
-          onClose={closeActionModal}
-        >
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
+        <ModalOverlay onClose={closeActionModal}>
+          <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
 
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
 
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-medium uppercase tracking-[0.18em] text-black/35">
                   Customer Actions
                 </p>
 
-                <h3 className="mt-2 text-xl font-semibold">
+                <h3 className="mt-2 break-words text-xl font-semibold">
                   {getCustomerName()}
                 </h3>
               </div>
 
               <button
+                type="button"
                 onClick={closeActionModal}
-                className="rounded-xl p-2 text-black/40 hover:bg-black/5 hover:text-black"
+                className="shrink-0 rounded-xl p-2 text-black/40 hover:bg-black/5 hover:text-black"
               >
                 <X size={19} />
               </button>
-
             </div>
 
             <div className="mt-6 space-y-2">
 
               <button
+                type="button"
                 onClick={() => {
                   closeActionModal();
                   setMessageModal(true);
                 }}
                 className="flex w-full items-center gap-3 rounded-2xl border border-black/10 p-4 text-left transition hover:bg-black/5"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white">
                   <MessageCircle size={18} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium">
                     Message Customer
                   </p>
@@ -1253,6 +1266,7 @@ export default function CustomerDetailsPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   closeActionModal();
                   setCallModal(true);
@@ -1260,16 +1274,16 @@ export default function CustomerDetailsPage() {
                 disabled={!customer.phone}
                 className="flex w-full items-center gap-3 rounded-2xl border border-black/10 p-4 text-left transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white">
                   <Phone size={18} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium">
                     Call Customer
                   </p>
 
-                  <p className="mt-1 text-xs text-black/40">
+                  <p className="mt-1 break-all text-xs text-black/40">
                     {customer.phone ||
                       "No phone number saved"}
                   </p>
@@ -1277,17 +1291,18 @@ export default function CustomerDetailsPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   closeActionModal();
                   setConfirmModal(true);
                 }}
                 className="flex w-full items-center gap-3 rounded-2xl border border-red-100 p-4 text-left transition hover:bg-red-50"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
                   <UserRound size={18} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-red-700">
                     {customer.is_active
                       ? "Ban Customer"
@@ -1305,29 +1320,27 @@ export default function CustomerDetailsPage() {
             </div>
 
             <button
+              type="button"
               onClick={closeActionModal}
               className="mt-5 w-full rounded-xl border border-black/10 px-4 py-3 text-sm font-medium hover:bg-black/5"
             >
               Cancel
             </button>
-
           </div>
         </ModalOverlay>
       )}
 
       {/* =====================================================
-          BAN / UNBAN CONFIRMATION MODAL
+          BAN / UNBAN CONFIRMATION
       ===================================================== */}
 
       {confirmModal && (
-        <ModalOverlay
-          onClose={closeConfirmModal}
-        >
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+        <ModalOverlay onClose={closeConfirmModal}>
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
 
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
 
-              <div>
+              <div className="min-w-0">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white">
                   <UserRound size={20} />
                 </div>
@@ -1346,53 +1359,50 @@ export default function CustomerDetailsPage() {
               </div>
 
               <button
+                type="button"
                 onClick={closeConfirmModal}
                 disabled={actionLoading}
-                className="rounded-xl p-2 text-black/40 hover:bg-black/5 disabled:opacity-40"
+                className="shrink-0 rounded-xl p-2 text-black/40 hover:bg-black/5 disabled:opacity-40"
               >
                 <X size={19} />
               </button>
-
             </div>
 
             <div className="mt-6 rounded-2xl border border-black/10 bg-[#f7f7f5] p-4">
 
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
 
-                <Avatar
-                  name={getCustomerName()}
-                />
+                <Avatar name={getCustomerName()} />
 
                 <div className="min-w-0">
-
-                  <p className="font-medium">
+                  <p className="break-words font-medium">
                     {getCustomerName()}
                   </p>
 
-                  <p className="mt-1 truncate text-xs text-black/40">
+                  <p className="mt-1 break-all text-xs text-black/40">
                     {customer.email}
                   </p>
-
                 </div>
 
               </div>
-
             </div>
 
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
               <button
+                type="button"
                 onClick={closeConfirmModal}
                 disabled={actionLoading}
-                className="flex-1 rounded-xl border border-black/10 px-4 py-3 text-sm font-medium hover:bg-black/5 disabled:opacity-40"
+                className="rounded-xl border border-black/10 px-4 py-3 text-sm font-medium hover:bg-black/5 disabled:opacity-40"
               >
                 Cancel
               </button>
 
               <button
+                type="button"
                 onClick={toggleCustomerStatus}
                 disabled={actionLoading}
-                className="flex-1 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:opacity-50"
+                className="rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:opacity-50"
               >
                 {actionLoading
                   ? customer.is_active
@@ -1404,7 +1414,6 @@ export default function CustomerDetailsPage() {
               </button>
 
             </div>
-
           </div>
         </ModalOverlay>
       )}
@@ -1414,10 +1423,8 @@ export default function CustomerDetailsPage() {
       ===================================================== */}
 
       {notice && (
-        <ModalOverlay
-          onClose={() => setNotice(null)}
-        >
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+        <ModalOverlay onClose={() => setNotice(null)}>
+          <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 text-center shadow-2xl sm:p-6">
 
             <div
               className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${
@@ -1437,21 +1444,20 @@ export default function CustomerDetailsPage() {
               {notice.title}
             </h3>
 
-            <p className="mt-2 text-sm leading-6 text-black/50">
+            <p className="mt-2 break-words text-sm leading-6 text-black/50">
               {notice.message}
             </p>
 
             <button
+              type="button"
               onClick={() => setNotice(null)}
               className="mt-6 w-full rounded-xl bg-black px-4 py-3 text-sm font-medium text-white"
             >
               Done
             </button>
-
           </div>
         </ModalOverlay>
       )}
-
     </div>
   );
 }
@@ -1468,7 +1474,7 @@ function ModalOverlay({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-5 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/50 p-3 backdrop-blur-sm sm:p-5"
       onMouseDown={(event) => {
         if (
           event.target ===
@@ -1478,7 +1484,9 @@ function ModalOverlay({
         }
       }}
     >
-      {children}
+      <div className="my-auto w-full">
+        {children}
+      </div>
     </div>
   );
 }
@@ -1505,7 +1513,7 @@ function Avatar({
     <div
       className={`flex shrink-0 items-center justify-center rounded-full bg-black font-semibold text-white ${
         large
-          ? "h-16 w-16 text-lg"
+          ? "h-14 w-14 text-base sm:h-16 sm:w-16 sm:text-lg"
           : "h-10 w-10 text-xs"
       }`}
     >
@@ -1525,7 +1533,7 @@ function StatusBadge({
 }) {
   return (
     <span
-      className={`rounded-full px-3 py-1 text-xs font-medium ${
+      className={`inline-flex shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
         status === "Active"
           ? "bg-green-50 text-green-700"
           : "bg-black/5 text-black/45"
@@ -1548,17 +1556,17 @@ function StatCard({
   icon,
 }) {
   return (
-    <div className="rounded-2xl border border-black/10 bg-white p-5">
+    <div className="min-w-0 rounded-2xl border border-black/10 bg-white p-4 sm:p-5">
 
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white">
         {icon}
       </div>
 
-      <p className="mt-5 text-xs text-black/40">
+      <p className="mt-4 text-xs text-black/40 sm:mt-5">
         {title}
       </p>
 
-      <p className="mt-1 text-xl font-semibold">
+      <p className="mt-1 break-words text-lg font-semibold sm:text-xl">
         {value}
       </p>
 
@@ -1578,14 +1586,13 @@ function DetailRow({
   value,
 }) {
   return (
-    <div className="flex gap-3">
+    <div className="flex min-w-0 gap-3">
 
-      <div className="mt-0.5 text-black/35">
+      <div className="mt-0.5 shrink-0 text-black/35">
         {icon}
       </div>
 
       <div className="min-w-0">
-
         <p className="text-xs text-black/40">
           {label}
         </p>
@@ -1593,7 +1600,6 @@ function DetailRow({
         <p className="mt-1 break-all text-sm font-medium">
           {value}
         </p>
-
       </div>
 
     </div>
@@ -1614,14 +1620,14 @@ function InfoRow({
   return (
     <div className="flex items-center justify-between gap-4">
 
-      <span className="text-xs text-black/40">
+      <span className="shrink-0 text-xs text-black/40">
         {label}
       </span>
 
       {badge ? (
         <StatusBadge status={value} />
       ) : (
-        <span className="text-right text-sm font-medium">
+        <span className="min-w-0 break-all text-right text-sm font-medium">
           {value}
         </span>
       )}
@@ -1643,13 +1649,13 @@ function Activity({
   icon,
 }) {
   return (
-    <div className="flex gap-4">
+    <div className="flex min-w-0 gap-4">
 
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white">
         {icon}
       </div>
 
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
 
         <div className="flex flex-col justify-between gap-1 sm:flex-row">
 
@@ -1657,13 +1663,13 @@ function Activity({
             {title}
           </h3>
 
-          <span className="text-xs text-black/35">
+          <span className="shrink-0 text-xs text-black/35">
             {date}
           </span>
 
         </div>
 
-        <p className="mt-1 text-xs leading-5 text-black/45">
+        <p className="mt-1 break-words text-xs leading-5 text-black/45">
           {description}
         </p>
 
