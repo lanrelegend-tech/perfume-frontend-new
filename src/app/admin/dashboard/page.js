@@ -36,6 +36,7 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // ==================================================
   // AUTH
@@ -579,7 +580,7 @@ export default function AdminDashboard() {
     <main className="min-h-screen bg-[#f5f7f6] text-[#171918]">
       <AdminSidebar />
 
-      <section className="lg:ml-[250px] p-5 md:p-8">
+     <section className="lg:ml-[250px] p-5 pt-20 md:p-8 lg:pt-8">
 
         {/* HEADER */}
 
@@ -610,11 +611,15 @@ export default function AdminDashboard() {
                 className="text-gray-400"
               />
 
-              <input
-                type="text"
-                placeholder="Search..."
-                className="w-full outline-none text-sm bg-transparent"
-              />
+             <input
+  type="text"
+  placeholder="Search..."
+  value={searchQuery}
+  onChange={(event) =>
+    setSearchQuery(event.target.value)
+  }
+  className="w-full outline-none text-base sm:text-sm bg-transparent"
+/>
             </div>
 
             {/* NOTIFICATIONS */}
@@ -1334,10 +1339,14 @@ export default function AdminDashboard() {
             />
 
             <input
-              type="text"
-              placeholder="Search..."
-              className="w-full outline-none text-sm bg-transparent"
-            />
+  type="text"
+  placeholder="Search..."
+  value={searchQuery}
+  onChange={(event) =>
+    setSearchQuery(event.target.value)
+  }
+  className="w-full outline-none text-base sm:text-sm bg-transparent"
+/>
 
           </div>
 
