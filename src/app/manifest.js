@@ -1,7 +1,7 @@
 export default function manifest() {
   return {
-    name: "ORENTEMIST",
-    short_name: "ORENTEMIST",
+    name: "Orentemist",
+    short_name: "Orentemist",
     description: "The Art of Fragrance",
     start_url: "/",
     display: "standalone",
