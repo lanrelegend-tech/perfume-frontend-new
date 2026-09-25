@@ -51,8 +51,16 @@ function getProductsFromResponse(data) {
 function getProductStatus(product) {
   const stock = Number(product.stock_quantity) || 0;
 
-  if (!product.in_stock || stock === 0) {
-    return "Out of Stock";
+  const isPreorder =
+    stock === 0 &&
+    product.is_preorder === true;
+
+  if (isPreorder) {
+    return "Pre-order Available";
+  }
+
+  if (stock === 0) {
+    return "Sold Out";
   }
 
   if (stock <= 10) {
@@ -1359,9 +1367,15 @@ function ProductGrid({
 
         const status =
           getProductStatus(product);
+         
+          
+        const isPreorder =
+           status === "Pre-order Available";
 
-        const isOutOfStock =
-          status === "Out of Stock";
+        const isSoldOut =
+           status === "Sold Out";  
+
+       
 
         const notes =
           getFragranceNotes(product);
@@ -1412,17 +1426,29 @@ function ProductGrid({
                 </span>
               )}
 
-              {/* OUT OF STOCK */}
+             {/* PRE-ORDER */}
 
-              {isOutOfStock && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+{isPreorder && (
+  <div className="absolute inset-0 flex items-center justify-center bg-black/25">
 
-                  <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
-                    Out of Stock
-                  </span>
+    <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
+      Pre-order Available
+    </span>
 
-                </div>
-              )}
+  </div>
+)}
+
+{/* SOLD OUT */}
+
+{isSoldOut && (
+  <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+
+    <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
+      Sold Out
+    </span>
+
+  </div>
+)}
 
             </div>
 

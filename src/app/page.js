@@ -1028,10 +1028,15 @@ function ProductGrid({ products, currency = "NGN" }) {
 
       {products.map((product) => {
 
-        const stock = Number(product.stock_quantity) || 0;
+       const stock = Number(product.stock_quantity) || 0;
 
-        const isOutOfStock =
-          !product.in_stock || stock === 0;
+const isPreorder =
+  stock === 0 &&
+  product.is_preorder === true;
+
+const isSoldOut =
+  stock === 0 &&
+  product.is_preorder !== true;
 
         return (
           <Link
@@ -1056,15 +1061,25 @@ function ProductGrid({ products, currency = "NGN" }) {
                 </span>
               )}
 
-              {isOutOfStock && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+             {isPreorder && (
+  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
 
-                  <span className="bg-white px-4 py-2 text-[10px] uppercase tracking-widest">
-                    Out of Stock
-                  </span>
+    <span className="bg-white px-4 py-2 text-[10px] uppercase tracking-widest">
+      Pre-order Available
+    </span>
 
-                </div>
-              )}
+  </div>
+)}
+
+{isSoldOut && (
+  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+
+    <span className="bg-white px-4 py-2 text-[10px] uppercase tracking-widest">
+      Sold Out
+    </span>
+
+  </div>
+)}
 
             </div>
 

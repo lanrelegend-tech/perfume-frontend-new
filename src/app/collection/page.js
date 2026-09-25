@@ -288,14 +288,22 @@ export default function CollectionPage() {
     return product.image;
   };
 
-  const isInStock = (product) => {
-    return (
-      product?.in_stock !== false &&
-      product?.stock !== 0 &&
-      product?.stock_quantity !== 0
-    );
-  };
+  const getProductStatus = (product) => {
+  const stock = Number(product?.stock_quantity) || 0;
 
+  if (stock > 0) {
+    return "In Stock";
+  }
+
+  if (
+    stock === 0 &&
+    product?.is_preorder === true
+  ) {
+    return "Pre-order Available";
+  }
+
+  return "Sold Out";
+};
   return (
     <main className="min-h-screen bg-[#faf9f6] text-[#171717]">
 
@@ -624,11 +632,17 @@ export default function CollectionPage() {
                             className="object-cover transition duration-700 ease-out group-hover:scale-105"
                           />
 
-                          {!isInStock(product) && (
-                            <span className="absolute right-3 top-3 bg-black px-3 py-2 text-[9px] uppercase tracking-[0.15em] text-white">
-                              Sold Out
-                            </span>
-                          )}
+                         {getProductStatus(product) === "Pre-order Available" && (
+  <span className="absolute right-3 top-3 bg-black px-3 py-2 text-[9px] uppercase tracking-[0.15em] text-white">
+    Pre-order Available
+  </span>
+)}
+
+{getProductStatus(product) === "Sold Out" && (
+  <span className="absolute right-3 top-3 bg-black px-3 py-2 text-[9px] uppercase tracking-[0.15em] text-white">
+    Sold Out
+  </span>
+)}
 
                           <div className="absolute bottom-3 left-3 right-3 translate-y-3 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
 
@@ -829,9 +843,11 @@ export default function CollectionPage() {
             {filteredProducts.map(
               (product, index) => {
 
-                const inStock =
-                  isInStock(product);
 
+                const productStatus =
+  getProductStatus(product);
+
+                
                 return (
 
                   <Link
@@ -867,11 +883,17 @@ export default function CollectionPage() {
                         </span>
                       )}
 
-                      {!inStock && (
-                        <span className="absolute right-4 top-4 bg-black px-3 py-2 text-[9px] uppercase tracking-[0.15em] text-white">
-                          Sold Out
-                        </span>
-                      )}
+                     {productStatus === "Pre-order Available" && (
+  <span className="absolute right-4 top-4 bg-black px-3 py-2 text-[9px] uppercase tracking-[0.15em] text-white">
+    Pre-order Available
+  </span>
+)}
+
+{productStatus === "Sold Out" && (
+  <span className="absolute right-4 top-4 bg-black px-3 py-2 text-[9px] uppercase tracking-[0.15em] text-white">
+    Sold Out
+  </span>
+)}
 
                       <div className="absolute bottom-4 left-4 right-4 translate-y-3 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
 
