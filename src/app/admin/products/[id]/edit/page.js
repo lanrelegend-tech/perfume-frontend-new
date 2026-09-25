@@ -8,6 +8,9 @@ import {
   ImagePlus,
   Save,
   Trash2,
+  Package,
+  Clock3,
+  CalendarDays,
 } from "lucide-react";
 
 function getImageUrl(image) {
@@ -75,6 +78,9 @@ export default function EditProductPage() {
 
   const productId = params?.id;
 
+  const API_URL =
+    process.env.NEXT_PUBLIC_API_URL;
+
   const [product, setProduct] = useState(null);
   const [categories, setCategories] = useState([]);
   const [images, setImages] = useState([]);
@@ -85,10 +91,6 @@ export default function EditProductPage() {
   const [deletedMainImage, setDeletedMainImage] =
     useState(false);
 
-  /*
-   * Stores the ID of an existing gallery image
-   * that was promoted to the new MAIN IMAGE.
-   */
   const [promotedMainImageId, setPromotedMainImageId] =
     useState(null);
 
@@ -97,8 +99,12 @@ export default function EditProductPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
+  /* =====================================================
+     LOAD PRODUCT
+  ===================================================== */
+
   useEffect(() => {
-    if (!productId) return;
+    if (!productId || !API_URL) return;
 
     const loadData = async () => {
       try {
@@ -114,7 +120,7 @@ export default function EditProductPage() {
         }
 
         const productsResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/products/`
+          `${API_URL}/products/`
         );
 
         if (!productsResponse.ok) {
@@ -130,9 +136,11 @@ export default function EditProductPage() {
           productsData
         )
           ? productsData
-          : Array.isArray(productsData.results)
-            ? productsData.results
-            : [];
+          : Array.isArray(
+              productsData.results
+            )
+          ? productsData.results
+          : [];
 
         const foundProduct =
           productList.find(
@@ -146,6 +154,11 @@ export default function EditProductPage() {
             "Product not found"
           );
         }
+
+        const stockQuantity =
+          Number(
+            foundProduct.stock_quantity
+          ) || 0;
 
         const formattedProduct = {
           ...foundProduct,
@@ -171,23 +184,44 @@ export default function EditProductPage() {
                 )
               : "0",
 
+          /*
+           * Stock controls the real availability.
+           */
           in_stock:
-            Boolean(foundProduct.in_stock),
+            stockQuantity > 0,
+
+          /*
+           * Pre-orders are only active when
+           * stock is zero.
+           */
+          is_preorder:
+            stockQuantity === 0 &&
+            foundProduct.is_preorder === true,
 
           featured:
-            Boolean(foundProduct.featured),
+            Boolean(
+              foundProduct.featured
+            ),
+
+          preorder_release_date:
+            foundProduct.preorder_release_date ||
+            "",
+
+          preorder_message:
+            foundProduct.preorder_message ||
+            "",
         };
 
         setProduct(formattedProduct);
 
-        /*
-         * Product.image is the MAIN image.
-         *
-         * Product.images[] contains
-         * additional gallery images.
-         */
+        /* =================================================
+           PRODUCT IMAGES
+        ================================================= */
+
         const galleryImages =
-          Array.isArray(foundProduct.images)
+          Array.isArray(
+            foundProduct.images
+          )
             ? foundProduct.images
             : [];
 
@@ -231,9 +265,13 @@ export default function EditProductPage() {
         setDeletedMainImage(false);
         setPromotedMainImageId(null);
 
+        /* =================================================
+           CATEGORIES
+        ================================================= */
+
         const categoriesResponse =
           await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/products/categories/`
+            `${API_URL}/products/categories/`
           );
 
         if (categoriesResponse.ok) {
@@ -241,13 +279,15 @@ export default function EditProductPage() {
             await categoriesResponse.json();
 
           const categoryList =
-            Array.isArray(categoriesData)
+            Array.isArray(
+              categoriesData
+            )
               ? categoriesData
               : Array.isArray(
-                    categoriesData.results
-                  )
-                ? categoriesData.results
-                : [];
+                  categoriesData.results
+                )
+              ? categoriesData.results
+              : [];
 
           setCategories(categoryList);
         }
@@ -267,7 +307,11 @@ export default function EditProductPage() {
     };
 
     loadData();
-  }, [productId, router]);
+  }, [productId, router, API_URL]);
+
+  /* =====================================================
+     INPUT CHANGE
+  ===================================================== */
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -278,16 +322,81 @@ export default function EditProductPage() {
     }));
   };
 
-  /*
-   * Add new images.
-   *
-   * If there is currently no main image,
-   * the FIRST newly selected image becomes
-   * the new main image.
-   *
-   * Any other selected images become
-   * gallery images.
-   */
+  /* =====================================================
+     STOCK CHANGE
+  ===================================================== */
+
+  const handleStockChange = (e) => {
+    const value = e.target.value;
+
+    const stockQuantity =
+      value === ""
+        ? 0
+        : Math.max(
+            0,
+            Number(value) || 0
+          );
+
+    setProduct((prev) => ({
+      ...prev,
+
+      stock_quantity:
+        value === ""
+          ? ""
+          : String(stockQuantity),
+
+      /*
+       * Automatically determine normal
+       * availability from stock.
+       */
+      in_stock:
+        stockQuantity > 0,
+
+      /*
+       * If stock becomes available,
+       * pre-order is automatically disabled.
+       */
+      is_preorder:
+        stockQuantity === 0
+          ? Boolean(prev.is_preorder)
+          : false,
+    }));
+  };
+
+  /* =====================================================
+     PRE-ORDER TOGGLE
+  ===================================================== */
+
+  const handlePreorderToggle = () => {
+    const stockQuantity =
+      Number(
+        product?.stock_quantity
+      ) || 0;
+
+    /*
+     * Never allow pre-order when there
+     * is existing stock.
+     */
+    if (stockQuantity > 0) {
+      setProduct((prev) => ({
+        ...prev,
+        is_preorder: false,
+      }));
+
+      return;
+    }
+
+    setProduct((prev) => ({
+      ...prev,
+      is_preorder:
+        !prev.is_preorder,
+    }));
+  };
+
+  /* =====================================================
+     IMAGE UPLOAD
+  ===================================================== */
+
   const handleImageUpload = (e) => {
     const files = Array.from(
       e.target.files || []
@@ -296,7 +405,8 @@ export default function EditProductPage() {
     if (!files.length) return;
 
     const hasMainImage = images.some(
-      (image) => image.isMain === true
+      (image) =>
+        image.isMain === true
     );
 
     const newImages = files.map(
@@ -312,10 +422,6 @@ export default function EditProductPage() {
       })
     );
 
-    /*
-     * We found a replacement main image,
-     * so do not clear Product.image.
-     */
     if (
       !hasMainImage &&
       newImages.length > 0
@@ -332,9 +438,10 @@ export default function EditProductPage() {
     e.target.value = "";
   };
 
-  /*
-   * Remove an image.
-   */
+  /* =====================================================
+     REMOVE IMAGE
+  ===================================================== */
+
   const removeImage = (id) => {
     const image = images.find(
       (item) => item.id === id
@@ -342,15 +449,11 @@ export default function EditProductPage() {
 
     if (!image) return;
 
-    const remainingImages = images.filter(
-      (item) => item.id !== id
-    );
+    const remainingImages =
+      images.filter(
+        (item) => item.id !== id
+      );
 
-    /*
-     * If the MAIN image is deleted,
-     * promote the next available image
-     * to MAIN IMAGE.
-     */
     if (image.isMain) {
       const nextMainImage =
         remainingImages[0];
@@ -360,38 +463,22 @@ export default function EditProductPage() {
 
         setDeletedMainImage(false);
 
-        /*
-         * If the replacement is an existing
-         * gallery image, remember its ID so
-         * the backend can make it the new
-         * Product.image.
-         */
         if (
           nextMainImage.existing &&
-          typeof nextMainImage.id === "number"
+          typeof nextMainImage.id ===
+            "number"
         ) {
           setPromotedMainImageId(
             nextMainImage.id
           );
         } else {
-          /*
-           * A new local file will be uploaded
-           * through the existing main-image
-           * upload logic.
-           */
           setPromotedMainImageId(null);
         }
       } else {
-        /*
-         * No image remains.
-         */
         setDeletedMainImage(true);
         setPromotedMainImageId(null);
       }
     } else if (
-      /*
-       * Existing gallery image being deleted.
-       */
       image.existing &&
       typeof image.id === "number"
     ) {
@@ -411,9 +498,6 @@ export default function EditProductPage() {
       );
     }
 
-    /*
-     * Clean up temporary preview URLs.
-     */
     if (
       image.url?.startsWith("blob:")
     ) {
@@ -422,6 +506,10 @@ export default function EditProductPage() {
 
     setImages(remainingImages);
   };
+
+  /* =====================================================
+     SAVE
+  ===================================================== */
 
   const handleSave = async () => {
     if (!product) return;
@@ -432,17 +520,44 @@ export default function EditProductPage() {
       setError("");
 
       const token =
-        localStorage.getItem("access_token");
+        localStorage.getItem(
+          "access_token"
+        );
 
       if (!token) {
         router.push("/admin/login");
         return;
       }
 
+      /*
+       * Empty stock = 0.
+       */
+      const stockQuantity =
+        product.stock_quantity === ""
+          ? 0
+          : Math.max(
+              0,
+              Number(
+                product.stock_quantity
+              ) || 0
+            );
+
+      /*
+       * Final purchase state.
+       */
+      const hasStock =
+        stockQuantity > 0;
+
+      const finalPreorder =
+        !hasStock &&
+        product.is_preorder === true;
+
       const payload = {
         name: product.name,
         brand: product.brand,
-        description: product.description,
+        description:
+          product.description,
+
         category_id:
           product.category_id === "" ||
           product.category_id === null
@@ -450,23 +565,62 @@ export default function EditProductPage() {
             : Number(
                 product.category_id
               ),
-        price: Number(product.price),
+
+        price: Number(
+          product.price
+        ) || 0,
+
         size: product.size,
+
         fragrance_notes:
           product.fragrance_notes,
-        stock_quantity: Number(
-          product.stock_quantity
-        ),
+
+        /*
+         * Stock is always saved as a
+         * valid number.
+         */
+        stock_quantity:
+          stockQuantity,
+
+        /*
+         * Stock > 0 = in stock.
+         * Stock = 0 = out of stock.
+         */
         in_stock:
-          Boolean(product.in_stock),
+          hasStock,
+
+        /*
+         * Pre-order only exists when
+         * stock is zero.
+         */
+        is_preorder:
+          finalPreorder,
+
+        /*
+         * Optional pre-order information.
+         */
+        preorder_release_date:
+          finalPreorder &&
+          product.preorder_release_date
+            ? product.preorder_release_date
+            : null,
+
+        preorder_message:
+          finalPreorder &&
+          product.preorder_message
+            ? product.preorder_message
+            : "",
+
         featured:
-          Boolean(product.featured),
+          Boolean(
+            product.featured
+          ),
       };
 
-      /*
-       * If there is no replacement main image,
-       * clear Product.image.
-       */
+      /* =================================================
+         DELETE MAIN IMAGE
+      ================================================= */
+
       if (
         deletedMainImage &&
         !images.some(
@@ -477,18 +631,22 @@ export default function EditProductPage() {
         payload.image = null;
       }
 
-      /*
-       * Update normal product information.
-       */
+      /* =================================================
+         UPDATE PRODUCT
+      ================================================= */
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/products/admin/${productId}/`,
+        `${API_URL}/products/admin/${productId}/`,
         {
           method: "PATCH",
           headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(
+            payload
+          ),
         }
       );
 
@@ -547,24 +705,23 @@ export default function EditProductPage() {
             }
           }
         } catch {
-          // Keep default error message
+          // Keep default error
         }
 
         throw new Error(message);
       }
 
-      /*
-       * Find the newly selected MAIN image.
-       *
-       * This is uploaded to Product.image,
-       * NOT ProductImage/gallery.
-       */
-      const newMainImage = images.find(
-        (image) =>
-          !image.existing &&
-          image.file &&
-          image.isMain === true
-      );
+      /* =================================================
+         NEW MAIN IMAGE
+      ================================================= */
+
+      const newMainImage =
+        images.find(
+          (image) =>
+            !image.existing &&
+            image.file &&
+            image.isMain === true
+        );
 
       if (newMainImage) {
         const mainImageFormData =
@@ -577,7 +734,7 @@ export default function EditProductPage() {
 
         const mainImageResponse =
           await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/products/admin/${productId}/`,
+            `${API_URL}/products/admin/${productId}/`,
             {
               method: "PATCH",
               headers: {
@@ -608,63 +765,25 @@ export default function EditProductPage() {
           return;
         }
 
-        if (!mainImageResponse.ok) {
-          let message =
-            "Product was updated, but the main product image could not be uploaded.";
-
-          try {
-            const errorData =
-              await mainImageResponse.json();
-
-            console.error(
-              "Main image upload response:",
-              errorData
-            );
-
-            if (
-              errorData &&
-              typeof errorData ===
-                "object"
-            ) {
-              const firstError =
-                Object.values(
-                  errorData
-                )[0];
-
-              if (
-                Array.isArray(
-                  firstError
-                )
-              ) {
-                message =
-                  firstError[0];
-              } else if (
-                typeof firstError ===
-                "string"
-              ) {
-                message =
-                  firstError;
-              }
-            }
-          } catch {
-            // Keep default error message
-          }
-
-          throw new Error(message);
+        if (
+          !mainImageResponse.ok
+        ) {
+          throw new Error(
+            "Product was updated, but the main product image could not be uploaded."
+          );
         }
       }
 
-      /*
-       * If an existing gallery image was promoted
-       * to MAIN IMAGE, tell the backend to make it
-       * the Product.image without deleting it.
-       */
+      /* =================================================
+         PROMOTE EXISTING IMAGE
+      ================================================= */
+
       if (
         promotedMainImageId !== null
       ) {
         const promoteResponse =
           await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/products/admin/images/${promotedMainImageId}/`,
+            `${API_URL}/products/admin/images/${promotedMainImageId}/`,
             {
               method: "POST",
               headers: {
@@ -694,17 +813,19 @@ export default function EditProductPage() {
           return;
         }
 
-        if (!promoteResponse.ok) {
+        if (
+          !promoteResponse.ok
+        ) {
           throw new Error(
             "Product was updated, but the new main image could not be saved."
           );
         }
       }
 
-      /*
-       * Delete existing gallery images
-       * that the user removed.
-       */
+      /* =================================================
+         DELETE GALLERY IMAGES
+      ================================================= */
+
       if (
         deletedImageIds.length > 0
       ) {
@@ -714,7 +835,7 @@ export default function EditProductPage() {
         ) {
           const deleteResponse =
             await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/products/admin/images/${imageId}/`,
+              `${API_URL}/products/admin/images/${imageId}/`,
               {
                 method: "DELETE",
                 headers: {
@@ -747,10 +868,6 @@ export default function EditProductPage() {
           if (
             !deleteResponse.ok
           ) {
-            console.error(
-              `Failed to delete image ${imageId}`
-            );
-
             throw new Error(
               "Product was updated, but one or more images could not be deleted."
             );
@@ -758,12 +875,10 @@ export default function EditProductPage() {
         }
       }
 
-      /*
-       * Upload NEW GALLERY images.
-       *
-       * IMPORTANT:
-       * The new main image is excluded here.
-       */
+      /* =================================================
+         NEW GALLERY IMAGES
+      ================================================= */
+
       const newImageFiles =
         images
           .filter(
@@ -798,7 +913,7 @@ export default function EditProductPage() {
 
         const imageResponse =
           await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/products/admin/images/bulk/`,
+            `${API_URL}/products/admin/images/bulk/`,
             {
               method: "POST",
               headers: {
@@ -830,10 +945,6 @@ export default function EditProductPage() {
         }
 
         if (!imageResponse.ok) {
-          console.error(
-            "Image upload failed"
-          );
-
           throw new Error(
             "Product was updated, but image upload failed."
           );
@@ -844,7 +955,7 @@ export default function EditProductPage() {
 
       setTimeout(() => {
         router.push(
-          "/admin/products"
+          `/admin/products/${productId}`
         );
       }, 1200);
     } catch (err) {
@@ -862,6 +973,10 @@ export default function EditProductPage() {
     }
   };
 
+  /* =====================================================
+     LOADING
+  ===================================================== */
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#fafafa] text-black flex items-center justify-center">
@@ -871,6 +986,10 @@ export default function EditProductPage() {
       </div>
     );
   }
+
+  /* =====================================================
+     ERROR
+  ===================================================== */
 
   if (error || !product) {
     return (
@@ -896,9 +1015,34 @@ export default function EditProductPage() {
     );
   }
 
+  /* =====================================================
+     LIVE STOCK STATE
+  ===================================================== */
+
+  const stockQuantity =
+    product.stock_quantity === ""
+      ? 0
+      : Number(
+          product.stock_quantity
+        ) || 0;
+
+  const hasStock =
+    stockQuantity > 0;
+
+  const isPreorder =
+    !hasStock &&
+    product.is_preorder === true;
+
+  const isSoldOut =
+    !hasStock &&
+    product.is_preorder !== true;
+
   return (
     <div className="min-h-screen bg-[#fafafa] text-black">
-      {/* Header */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
       <div className="border-b border-black/10 bg-white">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
@@ -922,7 +1066,9 @@ export default function EditProductPage() {
 
           <div className="hidden items-center gap-3 sm:flex">
             <button
-              onClick={() => router.back()}
+              onClick={() =>
+                router.back()
+              }
               className="rounded-xl border border-black/10 px-5 py-2.5 text-sm font-medium transition hover:bg-black/5"
             >
               Cancel
@@ -943,12 +1089,18 @@ export default function EditProductPage() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* =================================================
+          CONTENT
+      ================================================= */}
+
       <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          {/* Main */}
+          {/* =================================================
+              MAIN
+          ================================================= */}
+
           <div className="space-y-6">
-            {/* Basic Information */}
+            {/* BASIC INFORMATION */}
             <section className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6">
               <div className="mb-6">
                 <h2 className="text-base font-semibold">
@@ -961,7 +1113,7 @@ export default function EditProductPage() {
               </div>
 
               <div className="grid gap-5">
-                {/* Name */}
+                {/* NAME */}
                 <div>
                   <label className="mb-2 block text-sm font-medium">
                     Product Name
@@ -978,6 +1130,7 @@ export default function EditProductPage() {
                   />
                 </div>
 
+                {/* BRAND + CATEGORY */}
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-medium">
@@ -991,7 +1144,7 @@ export default function EditProductPage() {
                         product.brand || ""
                       }
                       onChange={handleChange}
-                      placeholder="e.g. VELRA"
+                      placeholder="e.g. ORENTEMIST"
                       className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                     />
                   </div>
@@ -1036,7 +1189,7 @@ export default function EditProductPage() {
                   </div>
                 </div>
 
-                {/* Description */}
+                {/* DESCRIPTION */}
                 <div>
                   <label className="mb-2 block text-sm font-medium">
                     Description
@@ -1054,6 +1207,7 @@ export default function EditProductPage() {
                   />
                 </div>
 
+                {/* FRAGRANCE NOTES */}
                 <div>
                   <label className="mb-2 block text-sm font-medium">
                     Fragrance Notes
@@ -1078,7 +1232,7 @@ export default function EditProductPage() {
               </div>
             </section>
 
-            {/* Pricing */}
+            {/* PRICING */}
             <section className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6">
               <div className="mb-6">
                 <h2 className="text-base font-semibold">
@@ -1108,6 +1262,7 @@ export default function EditProductPage() {
                         product.price || ""
                       }
                       onChange={handleChange}
+                      min="0"
                       className="h-12 w-full rounded-xl border border-black/10 bg-white pl-9 pr-4 text-sm outline-none focus:border-black"
                     />
                   </div>
@@ -1132,75 +1287,256 @@ export default function EditProductPage() {
               </div>
             </section>
 
-            {/* Inventory */}
+            {/* =================================================
+                INVENTORY + PRE-ORDER
+            ================================================= */}
+
             <section className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6">
               <div className="mb-6">
                 <h2 className="text-base font-semibold">
-                  Inventory
+                  Inventory & Availability
                 </h2>
 
                 <p className="mt-1 text-sm text-black/50">
-                  Manage stock and product availability.
+                  Manage current stock and pre-order availability.
                 </p>
               </div>
 
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-medium">
-                    Stock Quantity
-                  </label>
+              {/* STOCK */}
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  Current Stock
+                </label>
 
-                  <input
-                    type="number"
-                    name="stock_quantity"
-                    value={
-                      product.stock_quantity ??
-                      "0"
-                    }
-                    onChange={handleChange}
-                    min="0"
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
-                  />
-                </div>
+                <input
+                  type="number"
+                  name="stock_quantity"
+                  value={
+                    product.stock_quantity ??
+                    ""
+                  }
+                  onChange={
+                    handleStockChange
+                  }
+                  min="0"
+                  placeholder="0"
+                  className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
+                />
 
-                <div>
-                  <label className="mb-2 block text-sm font-medium">
-                    Availability
-                  </label>
+                <p className="mt-2 text-xs text-black/40">
+                  Enter 0 when the product is out of stock.
+                </p>
+              </div>
 
-                  <select
-                    name="in_stock"
-                    value={
-                      product.in_stock
-                        ? "true"
-                        : "false"
-                    }
-                    onChange={(e) =>
-                      setProduct(
-                        (prev) => ({
-                          ...prev,
-                          in_stock:
-                            e.target
-                              .value ===
-                            "true",
-                        })
-                      )
-                    }
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
+              {/* LIVE STATUS */}
+              <div className="mt-5 rounded-2xl border border-black/10 bg-black/[0.02] p-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                      hasStock
+                        ? "bg-emerald-50 text-emerald-700"
+                        : isPreorder
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-red-50 text-red-600"
+                    }`}
                   >
-                    <option value="true">
-                      In Stock
-                    </option>
+                    <Package size={18} />
+                  </div>
 
-                    <option value="false">
-                      Out of Stock
-                    </option>
-                  </select>
+                  <div>
+                    <p className="text-xs text-black/40">
+                      Current Status
+                    </p>
+
+                    <p className="mt-1 text-sm font-semibold">
+                      {hasStock &&
+                        "In Stock"}
+
+                      {isPreorder &&
+                        "Pre-order Available"}
+
+                      {isSoldOut &&
+                        "Sold Out"}
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              {/* PRE-ORDER SETTINGS */}
+              {!hasStock && (
+                <div className="mt-5 border-t border-black/10 pt-5">
+                  <button
+                    type="button"
+                    onClick={
+                      handlePreorderToggle
+                    }
+                    className="flex w-full items-center justify-between gap-4 rounded-2xl border border-black/10 p-4 text-left transition hover:bg-black/[0.02]"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                        <Clock3 size={18} />
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Allow Pre-orders
+                        </p>
+
+                        <p className="mt-1 max-w-md text-xs leading-5 text-black/45">
+                          Let customers purchase this product while it is out of stock.
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                        product.is_preorder
+                          ? "bg-black"
+                          : "bg-black/10"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
+                          product.is_preorder
+                            ? "left-6"
+                            : "left-1"
+                        }`}
+                      />
+                    </span>
+                  </button>
+
+                  {/* PRE-ORDER OPTIONS */}
+                  {isPreorder && (
+                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+                      <div className="mb-4 flex items-start gap-3">
+                        <Clock3
+                          size={18}
+                          className="mt-0.5 shrink-0 text-amber-700"
+                        />
+
+                        <div>
+                          <p className="text-sm font-semibold text-amber-900">
+                            Pre-order settings
+                          </p>
+
+                          <p className="mt-1 text-xs leading-5 text-amber-800/70">
+                            Customers will be able to pay for this product even though the current stock is zero.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* RELEASE DATE */}
+                      <div>
+                        <label className="mb-2 flex items-center gap-2 text-sm font-medium text-amber-950">
+                          <CalendarDays
+                            size={15}
+                          />
+                          Expected Release Date
+                          <span className="font-normal text-amber-800/50">
+                            (Optional)
+                          </span>
+                        </label>
+
+                        <input
+                          type="date"
+                          name="preorder_release_date"
+                          value={
+                            product.preorder_release_date ||
+                            ""
+                          }
+                          onChange={
+                            handleChange
+                          }
+                          className="h-12 w-full rounded-xl border border-amber-200 bg-white px-4 text-sm outline-none focus:border-amber-500"
+                        />
+
+                        <p className="mt-2 text-xs text-amber-800/60">
+                          Leave blank if you do not know the exact release date.
+                        </p>
+                      </div>
+
+                      {/* PREORDER MESSAGE */}
+                      <div className="mt-4">
+                        <label className="mb-2 block text-sm font-medium text-amber-950">
+                          Pre-order Message
+                          <span className="ml-1 font-normal text-amber-800/50">
+                            (Optional)
+                          </span>
+                        </label>
+
+                        <textarea
+                          name="preorder_message"
+                          value={
+                            product.preorder_message ||
+                            ""
+                          }
+                          onChange={
+                            handleChange
+                          }
+                          rows={3}
+                          maxLength={255}
+                          placeholder="e.g. Ships within 4 days of your order"
+                          className="w-full resize-none rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500"
+                        />
+
+                        <p className="mt-2 text-xs text-amber-800/60">
+                          This message can be shown to customers on the product page.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SOLD OUT */}
+                  {isSoldOut && (
+                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50/60 p-4">
+                      <div className="flex items-start gap-3">
+                        <Package
+                          size={18}
+                          className="mt-0.5 shrink-0 text-red-600"
+                        />
+
+                        <div>
+                          <p className="text-sm font-semibold text-red-900">
+                            Product is Sold Out
+                          </p>
+
+                          <p className="mt-1 text-xs leading-5 text-red-800/70">
+                            Customers cannot purchase this product until stock is added or pre-orders are enabled.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* STOCK EXISTS */}
+              {hasStock && (
+                <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                  <div className="flex items-start gap-3">
+                    <Check
+                      size={18}
+                      className="mt-0.5 shrink-0 text-emerald-700"
+                    />
+
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-900">
+                        Product is In Stock
+                      </p>
+
+                      <p className="mt-1 text-xs leading-5 text-emerald-800/70">
+                        Customers will see the normal Buy Now option. Pre-order settings are disabled while stock is available.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </section>
 
-            {/* Images */}
+            {/* =================================================
+                IMAGES
+            ================================================= */}
+
             <section className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6">
               <div className="mb-6">
                 <h2 className="text-base font-semibold">
@@ -1280,42 +1616,55 @@ export default function EditProductPage() {
             </section>
           </div>
 
-          {/* Sidebar */}
+          {/* =================================================
+              SIDEBAR
+          ================================================= */}
+
           <div className="space-y-6">
-            {/* Publishing */}
+            {/* PUBLISHING */}
             <section className="rounded-2xl border border-black/10 bg-white p-5">
               <h2 className="text-base font-semibold">
                 Publishing
               </h2>
 
               <div className="mt-5 rounded-xl border border-black/10 p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium">
                       Product Status
                     </p>
 
                     <p className="mt-1 text-xs text-black/45">
-                      {product.in_stock
+                      {hasStock
                         ? "Available for customers"
+                        : isPreorder
+                        ? "Available for pre-order"
                         : "Currently unavailable"}
                     </p>
                   </div>
 
                   <span
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                      product.in_stock
+                    className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium ${
+                      hasStock
                         ? "bg-emerald-50 text-emerald-700"
-                        : "bg-black/5 text-black/50"
+                        : isPreorder
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-red-50 text-red-700"
                     }`}
                   >
-                    {product.in_stock
-                      ? "In Stock"
-                      : "Out of Stock"}
+                    {hasStock &&
+                      "In Stock"}
+
+                    {isPreorder &&
+                      "Pre-order"}
+
+                    {isSoldOut &&
+                      "Sold Out"}
                   </span>
                 </div>
               </div>
 
+              {/* FEATURED */}
               <button
                 type="button"
                 onClick={() =>
@@ -1355,7 +1704,7 @@ export default function EditProductPage() {
               </button>
             </section>
 
-            {/* Summary */}
+            {/* SUMMARY */}
             <section className="rounded-2xl border border-black/10 bg-white p-5">
               <h2 className="text-base font-semibold">
                 Product Summary
@@ -1392,8 +1741,7 @@ export default function EditProductPage() {
                   <span className="text-sm font-medium">
                     ₦
                     {Number(
-                      product.price ||
-                        0
+                      product.price || 0
                     ).toLocaleString(
                       "en-NG"
                     )}
@@ -1406,22 +1754,34 @@ export default function EditProductPage() {
                   </span>
 
                   <span className="text-sm font-medium">
-                    {
-                      product.stock_quantity
-                    }{" "}
+                    {stockQuantity}{" "}
                     units
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm text-black/50">
-                    Availability
+                    Status
                   </span>
 
                   <span className="text-sm font-medium">
-                    {product.in_stock
+                    {hasStock
                       ? "In Stock"
-                      : "Out of Stock"}
+                      : isPreorder
+                      ? "Pre-order"
+                      : "Sold Out"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-black/50">
+                    Featured
+                  </span>
+
+                  <span className="text-sm font-medium">
+                    {product.featured
+                      ? "Yes"
+                      : "No"}
                   </span>
                 </div>
 
@@ -1437,7 +1797,7 @@ export default function EditProductPage() {
               </div>
             </section>
 
-            {/* Mobile Actions */}
+            {/* MOBILE ACTIONS */}
             <div className="space-y-3 sm:hidden">
               <button
                 onClick={handleSave}
@@ -1452,7 +1812,9 @@ export default function EditProductPage() {
               </button>
 
               <button
-                onClick={() => router.back()}
+                onClick={() =>
+                  router.back()
+                }
                 className="flex h-12 w-full items-center justify-center rounded-xl border border-black/10 bg-white text-sm font-medium"
               >
                 Cancel
@@ -1462,14 +1824,14 @@ export default function EditProductPage() {
         </div>
       </div>
 
-      {/* Error Notification */}
+      {/* ERROR */}
       {error && !loading && (
         <div className="fixed bottom-5 left-1/2 z-50 flex max-w-[90%] -translate-x-1/2 items-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-medium text-white shadow-xl">
           {error}
         </div>
       )}
 
-      {/* Saved Notification */}
+      {/* SAVED */}
       {saved && (
         <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white shadow-xl">
           <Check size={17} />

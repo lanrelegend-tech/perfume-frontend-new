@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Script from "next/script";
 
-const API_URL =
+const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
+  "https://perfume-backend-sbvd.onrender.com/api"
+).replace(/\/$/, "");
 
 const CART_STORAGE_KEY = "orentemist_cart";
 
@@ -16,7 +17,8 @@ function getStoredCart() {
   }
 
   try {
-    const stored = localStorage.getItem(CART_STORAGE_KEY);
+    const stored =
+      localStorage.getItem(CART_STORAGE_KEY);
 
     if (!stored) {
       return [];
@@ -117,7 +119,7 @@ export default function CheckoutPage() {
     useState("");
 
   /*
-   * LOAD CART FROM BROWSER
+   * LOAD CART
    */
   function loadCart() {
     try {
@@ -137,6 +139,18 @@ export default function CheckoutPage() {
 
         product_image:
           item.image || "",
+
+        /*
+         * Preserve preorder information.
+         */
+        is_preorder:
+          item.is_preorder === true,
+
+        preorder_message:
+          item.preorder_message || "",
+
+        preorder_release_date:
+          item.preorder_release_date || "",
 
         subtotal:
           Number(item.price || 0) *
@@ -168,6 +182,9 @@ export default function CheckoutPage() {
     }
   }
 
+  /*
+   * LOAD SHIPPING
+   */
   async function loadShippingRates() {
     try {
       setShippingLoading(true);
@@ -274,12 +291,9 @@ export default function CheckoutPage() {
     }
 
     return cart.items.reduce(
-      (total, item) => {
-        return (
-          total +
-          Number(item.subtotal || 0)
-        );
-      },
+      (total, item) =>
+        total +
+        Number(item.subtotal || 0),
       0
     );
   }
@@ -372,6 +386,9 @@ export default function CheckoutPage() {
     }
   }
 
+  /*
+   * COUPON
+   */
   async function handleApplyCoupon() {
     const code = couponCode.trim();
 
@@ -408,7 +425,7 @@ export default function CheckoutPage() {
           },
 
           body: JSON.stringify({
-            code: code,
+            code,
             order_amount: subtotal,
           }),
         }
@@ -556,7 +573,7 @@ export default function CheckoutPage() {
       setPlacingOrder(true);
 
       /*
-       * Get the current browser cart.
+       * Get the latest browser cart.
        */
       const browserCart =
         getStoredCart();
@@ -571,6 +588,55 @@ export default function CheckoutPage() {
 
         return;
       }
+
+      /*
+       * Prepare cart items.
+       *
+       * IMPORTANT:
+       * is_preorder is now sent to the backend.
+       */
+      const cartItems =
+        browserCart.map((item) => ({
+          product_id:
+            item.product_id ?? item.id,
+
+          quantity:
+            Number(
+              item.quantity || 0
+            ),
+
+          variant_id:
+            item.variant_id ??
+            item.variantId ??
+            null,
+
+          size:
+            item.size || "",
+
+          /*
+           * PRE-ORDER DATA
+           */
+          is_preorder:
+            item.is_preorder === true,
+
+          preorder_release_date:
+            item.preorder_release_date ||
+            null,
+
+          preorder_message:
+            item.preorder_message ||
+            "",
+        }));
+
+      /*
+       * Check whether this order contains
+       * any preorder products.
+       */
+      const hasPreorderItems =
+        cartItems.some(
+          (item) =>
+            item.is_preorder === true
+        );
 
       /*
        * Order information.
@@ -606,40 +672,29 @@ export default function CheckoutPage() {
         total:
           getFinalTotal(),
 
-        /*
-         * Browser cart items.
-         */
         cart_items:
-  browserCart.map((item) => ({
-    product_id:
-      item.product_id ?? item.id,
+          cartItems,
 
-    quantity:
-      Number(
-        item.quantity || 0
-      ),
-
-    variant_id:
-      item.variant_id ??
-      item.variantId ??
-      null,
-
-    size:
-      item.size || "",
-  })),
-
+        /*
+         * Tell backend that this order
+         * contains preorder items.
+         */
+        has_preorder_items:
+          hasPreorderItems,
       };
 
-      /*
-       * CREATE ORDER
-       */
-      console.log("STARTING ORDER CREATION");
+      console.log(
+        "STARTING ORDER CREATION"
+      );
 
-console.log("ORDER DATA:", orderData);
+      console.log(
+        "ORDER DATA:",
+        orderData
+      );
+
       const response =
         await fetch(
           `${API_URL}/orders/create/`,
-          
           {
             method: "POST",
 
@@ -661,27 +716,27 @@ console.log("ORDER DATA:", orderData);
         );
 
       const responseText =
-  await response.text();
+        await response.text();
 
-console.log(
-  "CREATE ORDER STATUS:",
-  response.status
-);
+      console.log(
+        "CREATE ORDER STATUS:",
+        response.status
+      );
 
-console.log(
-  "CREATE ORDER RESPONSE:",
-  responseText
-);
+      console.log(
+        "CREATE ORDER RESPONSE:",
+        responseText
+      );
 
-let data;
+      let data;
 
-try {
-  data = JSON.parse(responseText);
-} catch (error) {
-  throw new Error(
-    `Server returned a non-JSON response (${response.status}).`
-  );
-}
+      try {
+        data = JSON.parse(responseText);
+      } catch (error) {
+        throw new Error(
+          `Server returned a non-JSON response (${response.status}).`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -699,17 +754,21 @@ try {
       const order =
         data.order || data;
 
-console.log("ORDER OBJECT:", order);
-console.log("CHECKOUT TOKEN FROM ORDER:", order.checkout_token);
+      console.log(
+        "ORDER OBJECT:",
+        order
+      );
 
-if (!order.checkout_token) {
-      throw new Error(
-     "Backend created the order but did not return a checkout token."
-  );
-}
+      console.log(
+        "CHECKOUT TOKEN FROM ORDER:",
+        order.checkout_token
+      );
 
-
-      
+      if (!order.checkout_token) {
+        throw new Error(
+          "Backend created the order but did not return a checkout token."
+        );
+      }
 
       if (!order.id) {
         throw new Error(
@@ -724,12 +783,13 @@ if (!order.checkout_token) {
         "orentemist_pending_order_id",
         String(order.id)
       );
+
       if (order.checkout_token) {
-  localStorage.setItem(
-    "orentemist_pending_checkout_token",
-    order.checkout_token
-  );
-}
+        localStorage.setItem(
+          "orentemist_pending_checkout_token",
+          order.checkout_token
+        );
+      }
 
       /*
        * INITIALIZE PAYSTACK
@@ -754,34 +814,39 @@ if (!order.checkout_token) {
             },
 
             body: JSON.stringify({
-  order_id: order.id,
-  checkout_token: order.checkout_token,
-}),
+              order_id: order.id,
+
+              checkout_token:
+                order.checkout_token,
+            }),
           }
         );
-const paymentResponseText =
-  await paymentResponse.text();
 
-console.log(
-  "PAYMENT STATUS:",
-  paymentResponse.status
-);
+      const paymentResponseText =
+        await paymentResponse.text();
 
-console.log(
-  "PAYMENT RESPONSE:",
-  paymentResponseText
-);
+      console.log(
+        "PAYMENT STATUS:",
+        paymentResponse.status
+      );
 
-let paymentData;
+      console.log(
+        "PAYMENT RESPONSE:",
+        paymentResponseText
+      );
 
-try {
-  paymentData =
-    JSON.parse(paymentResponseText);
-} catch (error) {
-  throw new Error(
-    `Payment server returned a non-JSON response (${paymentResponse.status}).`
-  );
-}
+      let paymentData;
+
+      try {
+        paymentData =
+          JSON.parse(
+            paymentResponseText
+          );
+      } catch (error) {
+        throw new Error(
+          `Payment server returned a non-JSON response (${paymentResponse.status}).`
+        );
+      }
 
       if (!paymentResponse.ok) {
         throw new Error(
@@ -810,13 +875,13 @@ try {
       /*
        * Save payment reference.
        */
-
       if (paymentData.checkout_token) {
-  localStorage.setItem(
-    "orentemist_pending_checkout_token",
-    paymentData.checkout_token
-  );
-}
+        localStorage.setItem(
+          "orentemist_pending_checkout_token",
+          paymentData.checkout_token
+        );
+      }
+
       localStorage.setItem(
         "orentemist_pending_payment_reference",
         reference
@@ -837,10 +902,10 @@ try {
       }
 
       /*
-       * Do NOT clear cart yet.
+       * DO NOT CLEAR CART HERE.
        *
-       * We clear it after successful
-       * payment confirmation.
+       * Cart should only be cleared after
+       * successful payment confirmation.
        */
       window.location.href =
         authorizationUrl;
@@ -860,6 +925,9 @@ try {
     }
   }
 
+  /*
+   * LOADING
+   */
   if (loading) {
     return (
       <main className="min-h-screen bg-white">
@@ -900,6 +968,18 @@ try {
   const currentShippingRate =
     findShippingRate();
 
+  const preorderItems =
+    items.filter(
+      (item) =>
+        item.is_preorder === true
+    );
+
+  const hasPreorderItems =
+    preorderItems.length > 0;
+
+  /*
+   * EMPTY CART
+   */
   if (items.length === 0) {
     return (
       <main className="min-h-screen bg-[#fafafa]">
@@ -931,7 +1011,7 @@ try {
             </p>
 
             <Link
-              href="/shop"
+              href="/products"
               className="mt-8 inline-flex rounded-full bg-black px-7 py-3.5 text-sm font-medium text-white transition hover:bg-gray-800"
             >
               Continue Shopping
@@ -1016,11 +1096,51 @@ try {
           </p>
         </div>
 
+        {/*
+         * PRE-ORDER NOTICE
+         */}
+        {hasPreorderItems && (
+          <div className="mb-8 rounded-3xl border border-black bg-black p-5 text-white sm:p-6">
+            <div className="flex gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20">
+                ✓
+              </div>
+
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.15em]">
+                  Pre-order included
+                </h2>
+
+                <p className="mt-2 max-w-2xl text-xs leading-6 text-white/65">
+                  Your order contains{" "}
+                  {preorderItems.length}{" "}
+                  pre-order{" "}
+                  {preorderItems.length === 1
+                    ? "product"
+                    : "products"}.
+                  You will pay the full amount
+                  now through the same secure
+                  Paystack payment process.
+                </p>
+
+                <p className="mt-2 text-xs text-white/45">
+                  Availability and shipping
+                  timing are based on the
+                  information provided for each
+                  product.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <form
           onSubmit={handlePlaceOrder}
           className="grid items-start gap-10 lg:grid-cols-[1fr_420px]"
         >
           <div className="space-y-8">
+            {/* CONTACT */}
+
             <section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
               <div className="mb-7">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
@@ -1053,7 +1173,7 @@ try {
                     value={form.firstName}
                     onChange={handleChange}
                     required
-                    placeholder="Jamiu"
+                    placeholder="First name"
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
@@ -1073,7 +1193,7 @@ try {
                     value={form.lastName}
                     onChange={handleChange}
                     required
-                    placeholder="Abdulrazaq"
+                    placeholder="Last name"
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
@@ -1119,6 +1239,8 @@ try {
                 </div>
               </div>
             </section>
+
+            {/* DELIVERY */}
 
             <section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
               <div className="mb-7">
@@ -1446,6 +1568,89 @@ try {
               </div>
             </section>
 
+            {/* PREORDER INFORMATION */}
+
+            {hasPreorderItems && (
+              <section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
+                <div className="mb-6">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+                    03
+                  </span>
+
+                  <h2 className="mt-1 text-xl font-semibold">
+                    Pre-order Information
+                  </h2>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    Review the availability
+                    information before paying.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {preorderItems.map(
+                    (item) => (
+                      <div
+                        key={
+                          item.key ||
+                          `${item.id}-${item.variantId || "preorder"}`
+                        }
+                        className="rounded-2xl bg-[#fafafa] p-4"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold">
+                              {item.product_name}
+                            </p>
+
+                            <span className="mt-2 inline-flex rounded-full bg-black px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.15em] text-white">
+                              Pre-order
+                            </span>
+                          </div>
+
+                          <p className="shrink-0 text-sm font-semibold">
+                            {formatPrice(
+                              item.subtotal
+                            )}
+                          </p>
+                        </div>
+
+                        {item.preorder_message && (
+                          <p className="mt-3 text-xs leading-5 text-gray-500">
+                            {item.preorder_message}
+                          </p>
+                        )}
+
+                        {item.preorder_release_date && (
+                          <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.12em] text-gray-400">
+                            Expected availability:{" "}
+                            {
+                              item.preorder_release_date
+                            }
+                          </p>
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-black/10 p-4">
+                  <p className="text-xs font-semibold">
+                    Full payment required
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Pre-order products are paid
+                    in full now. Payment will be
+                    processed through the normal
+                    Paystack checkout.
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {/* DELIVERY INFO */}
+
             <section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
               <div className="flex gap-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white">
@@ -1491,6 +1696,8 @@ try {
             </section>
           </div>
 
+          {/* ORDER SUMMARY */}
+
           <aside className="lg:sticky lg:top-8">
             <div className="overflow-hidden rounded-3xl border border-black/10 bg-white">
               <div className="border-b border-black/10 px-5 py-5 sm:px-6">
@@ -1535,9 +1742,17 @@ try {
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-sm font-medium">
-                          {item.product_name}
-                        </h3>
+                        <div className="flex items-start gap-2">
+                          <h3 className="truncate text-sm font-medium">
+                            {item.product_name}
+                          </h3>
+
+                          {item.is_preorder && (
+                            <span className="shrink-0 rounded-full bg-black px-2 py-0.5 text-[7px] font-semibold uppercase tracking-wider text-white">
+                              Pre-order
+                            </span>
+                          )}
+                        </div>
 
                         {item.size && (
                           <p className="mt-1 text-xs text-gray-500">
@@ -1576,6 +1791,8 @@ try {
                       )}
                     </span>
                   </div>
+
+                  {/* COUPON */}
 
                   {!appliedCoupon ? (
                     <div className="pt-2">
@@ -1643,16 +1860,7 @@ try {
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2.5">
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black text-white">
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <path d="m5 12 4 4L19 6" />
-                            </svg>
+                            ✓
                           </div>
 
                           <div className="min-w-0">
@@ -1807,6 +2015,21 @@ try {
                     checkout.
                   </span>
                 </div>
+
+                {hasPreorderItems && (
+                  <div className="mt-4 rounded-2xl bg-[#fafafa] p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.15em]">
+                      Pre-order payment
+                    </p>
+
+                    <p className="mt-2 text-xs leading-5 text-gray-500">
+                      Pre-order products are paid
+                      in full now through the same
+                      secure Paystack payment
+                      process.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </aside>

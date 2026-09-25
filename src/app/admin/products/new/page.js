@@ -27,6 +27,9 @@ export default function AddProductPage() {
     image: "",
     stock_quantity: "",
     in_stock: true,
+    is_preorder: false,
+    preorder_release_date: "",
+    preorder_message: "Available for pre-order",
     featured: false,
   });
 
@@ -63,7 +66,6 @@ export default function AddProductPage() {
 
         setCategories(categoryList);
 
-        // Automatically select the first REAL category
         if (categoryList.length > 0) {
           setProduct((prev) => ({
             ...prev,
@@ -105,6 +107,66 @@ export default function AddProductPage() {
   };
 
   // --------------------------------------------------
+  // STOCK CHANGE
+  // --------------------------------------------------
+  const handleStockChange = (e) => {
+    const value = e.target.value;
+
+    setProduct((prev) => {
+      const stockQuantity =
+        value === "" ? "" : Number(value);
+
+      const hasStock =
+        stockQuantity !== "" &&
+        stockQuantity > 0;
+
+      return {
+        ...prev,
+        stock_quantity: value,
+        is_preorder: hasStock
+          ? false
+          : prev.is_preorder,
+        in_stock: hasStock,
+      };
+    });
+  };
+
+  // --------------------------------------------------
+  // AVAILABILITY CHANGE
+  // --------------------------------------------------
+  const handleAvailabilityChange = (e) => {
+    const isInStock = e.target.value === "true";
+
+    setProduct((prev) => ({
+      ...prev,
+      in_stock: isInStock,
+      is_preorder: isInStock
+        ? false
+        : prev.is_preorder,
+    }));
+  };
+
+  // --------------------------------------------------
+  // PRE-ORDER TOGGLE
+  // --------------------------------------------------
+  const togglePreorder = () => {
+    const stockQuantity =
+      product.stock_quantity === ""
+        ? 0
+        : Number(product.stock_quantity);
+
+    if (stockQuantity > 0) {
+      return;
+    }
+
+    setProduct((prev) => ({
+      ...prev,
+      is_preorder: !prev.is_preorder,
+      in_stock: false,
+    }));
+  };
+
+  // --------------------------------------------------
   // IMAGE UPLOAD
   // --------------------------------------------------
   const handleImageUpload = (e) => {
@@ -123,7 +185,6 @@ export default function AddProductPage() {
 
     setImages((prev) => [...prev, ...newImages]);
 
-    // The first image becomes the main Product.image
     if (images.length === 0 && newImages.length > 0) {
       setProduct((prev) => ({
         ...prev,
@@ -131,7 +192,6 @@ export default function AddProductPage() {
       }));
     }
 
-    // Allow selecting the same file again later
     e.target.value = "";
   };
 
@@ -212,7 +272,6 @@ export default function AddProductPage() {
   const handleSave = async (publish = false) => {
     setError("");
 
-    // Validation
     if (!product.name.trim()) {
       setError("Product name is required.");
       return;
@@ -238,11 +297,27 @@ export default function AddProductPage() {
       return;
     }
 
+    const stockQuantity =
+      product.stock_quantity === ""
+        ? 0
+        : Number(product.stock_quantity);
+
     if (
-      product.stock_quantity === "" ||
-      Number(product.stock_quantity) < 0
+      Number.isNaN(stockQuantity) ||
+      stockQuantity < 0
     ) {
       setError("Please enter a valid stock quantity.");
+      return;
+    }
+
+    if (
+      stockQuantity === 0 &&
+      product.is_preorder &&
+      !product.preorder_message.trim()
+    ) {
+      setError(
+        "Please enter a pre-order message."
+      );
       return;
     }
 
@@ -263,6 +338,15 @@ export default function AddProductPage() {
     setLoading(true);
 
     try {
+      // ------------------------------------------------
+      // FINAL PRODUCT STATE
+      // ------------------------------------------------
+      const hasStock = stockQuantity > 0;
+
+      const allowPreorder =
+        stockQuantity === 0 &&
+        product.is_preorder === true;
+
       // ------------------------------------------------
       // CREATE FORMDATA
       // ------------------------------------------------
@@ -305,12 +389,17 @@ export default function AddProductPage() {
 
       formData.append(
         "stock_quantity",
-        String(Number(product.stock_quantity))
+        String(stockQuantity)
       );
 
       formData.append(
         "in_stock",
-        product.in_stock ? "true" : "false"
+        hasStock ? "true" : "false"
+      );
+
+      formData.append(
+        "is_preorder",
+        allowPreorder ? "true" : "false"
       );
 
       formData.append(
@@ -318,10 +407,28 @@ export default function AddProductPage() {
         product.featured ? "true" : "false"
       );
 
+      if (
+        allowPreorder &&
+        product.preorder_release_date
+      ) {
+        formData.append(
+          "preorder_release_date",
+          product.preorder_release_date
+        );
+      }
+
+      formData.append(
+        "preorder_message",
+        product.preorder_message.trim()
+      );
+
       // ------------------------------------------------
       // SEND REAL IMAGE FILE
       // ------------------------------------------------
-      if (images.length > 0 && images[0].file) {
+      if (
+        images.length > 0 &&
+        images[0].file
+      ) {
         formData.append(
           "image",
           images[0].file
@@ -329,9 +436,7 @@ export default function AddProductPage() {
       }
 
       // ------------------------------------------------
-      // IMPORTANT:
-      // DO NOT SET CONTENT-TYPE MANUALLY.
-      // Browser creates multipart/form-data boundary.
+      // CREATE PRODUCT
       // ------------------------------------------------
       const response = await fetch(
         `${API_URL}/products/admin/`,
@@ -375,11 +480,6 @@ export default function AddProductPage() {
         return;
       }
 
-      console.log(
-        "Product created successfully:",
-        data
-      );
-
       // ------------------------------------------------
       // UPLOAD ADDITIONAL IMAGES
       // ------------------------------------------------
@@ -387,7 +487,8 @@ export default function AddProductPage() {
         data?.id &&
         images.length > 1
       ) {
-        const additionalImages = images.slice(1);
+        const additionalImages =
+          images.slice(1);
 
         const imageFormData = new FormData();
 
@@ -416,9 +517,10 @@ export default function AddProductPage() {
           }
         );
 
-        const imageData = await imageResponse
-          .json()
-          .catch(() => ({}));
+        const imageData =
+          await imageResponse
+            .json()
+            .catch(() => ({}));
 
         if (!imageResponse.ok) {
           console.error(
@@ -426,9 +528,6 @@ export default function AddProductPage() {
             imageData
           );
 
-          // Product itself was already created.
-          // Show a warning instead of treating
-          // the whole product creation as failed.
           setError(
             "Product was created, but some additional images could not be uploaded."
           );
@@ -436,7 +535,9 @@ export default function AddProductPage() {
           setSaved(true);
 
           setTimeout(() => {
-            router.push("/admin/products");
+            router.push(
+              "/admin/products"
+            );
             router.refresh();
           }, 1500);
 
@@ -473,6 +574,16 @@ export default function AddProductPage() {
         String(category.id) ===
         String(product.category_id)
     )?.name || "—";
+
+  const stockQuantity =
+    product.stock_quantity === ""
+      ? 0
+      : Number(product.stock_quantity);
+
+  const hasStock = stockQuantity > 0;
+
+  const isPreorder =
+    !hasStock && product.is_preorder;
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-black">
@@ -587,7 +698,7 @@ export default function AddProductPage() {
                       name="brand"
                       value={product.brand}
                       onChange={handleChange}
-                      placeholder="e.g. VELRA"
+                      placeholder="e.g. ORENTEMIST"
                       className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                     />
                   </div>
@@ -601,14 +712,18 @@ export default function AddProductPage() {
                       name="category_id"
                       value={product.category_id}
                       onChange={handleChange}
-                      disabled={categoriesLoading || loading}
+                      disabled={
+                        categoriesLoading ||
+                        loading
+                      }
                       className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black disabled:cursor-not-allowed disabled:bg-black/5"
                     >
                       {categoriesLoading ? (
                         <option value="">
                           Loading categories...
                         </option>
-                      ) : categories.length === 0 ? (
+                      ) : categories.length ===
+                        0 ? (
                         <option value="">
                           No categories found
                         </option>
@@ -735,7 +850,7 @@ export default function AddProductPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-black/50">
-                  Manage stock and product availability.
+                  Manage the quantity currently available.
                 </p>
               </div>
 
@@ -750,11 +865,15 @@ export default function AddProductPage() {
                     type="number"
                     name="stock_quantity"
                     value={product.stock_quantity}
-                    onChange={handleChange}
+                    onChange={handleStockChange}
                     placeholder="0"
                     min="0"
                     className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
                   />
+
+                  <p className="mt-2 text-xs text-black/40">
+                    Enter 0 when the product is currently out of stock.
+                  </p>
                 </div>
 
                 {/* Availability */}
@@ -766,19 +885,15 @@ export default function AddProductPage() {
                   <select
                     name="in_stock"
                     value={
-                      product.in_stock
+                      hasStock
                         ? "true"
                         : "false"
                     }
-                    onChange={(e) =>
-                      setProduct((prev) => ({
-                        ...prev,
-                        in_stock:
-                          e.target.value ===
-                          "true",
-                      }))
+                    onChange={
+                      handleAvailabilityChange
                     }
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
+                    disabled={hasStock}
+                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black disabled:cursor-not-allowed disabled:bg-black/5"
                   >
                     <option value="true">
                       In Stock
@@ -788,6 +903,10 @@ export default function AddProductPage() {
                       Out of Stock
                     </option>
                   </select>
+
+                  <p className="mt-2 text-xs text-black/40">
+                    Availability is automatically set from the stock quantity.
+                  </p>
                 </div>
               </div>
             </section>
@@ -864,33 +983,122 @@ export default function AddProductPage() {
                 Publishing
               </h2>
 
+              {/* Product Status */}
               <div className="mt-5 rounded-xl border border-black/10 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium">
-                      Product Availability
+                      Product Status
                     </p>
 
                     <p className="mt-1 text-xs text-black/45">
-                      {product.in_stock
-                        ? "Available to customers"
-                        : "Currently unavailable"}
+                      {hasStock
+                        ? "Available for normal purchase"
+                        : isPreorder
+                        ? "Out of stock, but available for pre-order"
+                        : "Out of stock and unavailable for purchase"}
                     </p>
                   </div>
 
                   <span
                     className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                      product.in_stock
+                      hasStock
                         ? "bg-emerald-50 text-emerald-700"
+                        : isPreorder
+                        ? "bg-amber-50 text-amber-700"
                         : "bg-red-50 text-red-700"
                     }`}
                   >
-                    {product.in_stock
+                    {hasStock
                       ? "In Stock"
-                      : "Out of Stock"}
+                      : isPreorder
+                      ? "Pre-order"
+                      : "Sold Out"}
                   </span>
                 </div>
               </div>
+
+              {/* Pre-order */}
+              {!hasStock && (
+                <div className="mt-4 rounded-xl border border-black/10 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">
+                        Allow Pre-orders
+                      </p>
+
+                      <p className="mt-1 text-xs text-black/45">
+                        Let customers purchase this product while it is out of stock.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={togglePreorder}
+                      className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                        product.is_preorder
+                          ? "bg-black"
+                          : "bg-black/10"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
+                          product.is_preorder
+                            ? "left-6"
+                            : "left-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {product.is_preorder && (
+                    <div className="mt-4 space-y-4">
+                      {/* Release Date */}
+                      <div>
+                        <label className="mb-2 block text-sm font-medium">
+                          Release Date
+                        </label>
+
+                        <input
+                          type="date"
+                          name="preorder_release_date"
+                          value={
+                            product.preorder_release_date
+                          }
+                          onChange={handleChange}
+                          className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-black"
+                        />
+
+                        <p className="mt-2 text-xs text-black/40">
+                          Optional. Leave blank if you don't know the exact date.
+                        </p>
+                      </div>
+
+                      {/* Pre-order Message */}
+                      <div>
+                        <label className="mb-2 block text-sm font-medium">
+                          Pre-order Message
+                        </label>
+
+                        <input
+                          type="text"
+                          name="preorder_message"
+                          value={
+                            product.preorder_message
+                          }
+                          onChange={handleChange}
+                          placeholder="e.g. Ships within 4 days of your order"
+                          className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-black"
+                        />
+
+                        <p className="mt-2 text-xs text-black/40">
+                          Tell customers when they should expect their order.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Featured */}
               <div className="mt-4 flex items-center justify-between rounded-xl border border-black/10 p-4">
@@ -987,9 +1195,21 @@ export default function AddProductPage() {
                   </span>
 
                   <span className="text-sm font-medium">
-                    {product.stock_quantity ||
-                      "0"}{" "}
-                    units
+                    {stockQuantity} units
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-black/50">
+                    Status
+                  </span>
+
+                  <span className="text-sm font-medium">
+                    {hasStock
+                      ? "In Stock"
+                      : isPreorder
+                      ? "Pre-order"
+                      : "Sold Out"}
                   </span>
                 </div>
 

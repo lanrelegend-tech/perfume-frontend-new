@@ -43,7 +43,6 @@ export default function OrderDetailsPage() {
 
   const [error, setError] = useState("");
 
-  // Confirmation modal
   const [confirmModal, setConfirmModal] =
     useState({
       open: false,
@@ -81,12 +80,8 @@ export default function OrderDetailsPage() {
         );
 
         if (response.status === 401) {
-          localStorage.removeItem(
-            "access_token"
-          );
-          localStorage.removeItem(
-            "refresh_token"
-          );
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
 
           router.push("/admin/login");
           return;
@@ -151,12 +146,6 @@ export default function OrderDetailsPage() {
       return;
     }
 
-    /*
-      PROCESSING -> SHIPPED
-
-      Courier and tracking number are required.
-    */
-
     if (
       order.status === "processing" &&
       newStatus === "shipped"
@@ -192,10 +181,6 @@ export default function OrderDetailsPage() {
 
     let message = `Are you sure you want to change this order from ${oldStatusName} to ${newStatusName}?`;
 
-    /*
-      PROCESSING -> DELIVERED
-    */
-
     if (
       order.status === "processing" &&
       newStatus === "delivered"
@@ -203,10 +188,6 @@ export default function OrderDetailsPage() {
       message =
         "This order is currently Processing.\n\nAre you sure you want to skip the Shipped stage and mark this order as Delivered?";
     }
-
-    /*
-      CANCELLATION
-    */
 
     if (newStatus === "cancelled") {
       if (order.payment_status === "paid") {
@@ -561,6 +542,55 @@ export default function OrderDetailsPage() {
     return "Not available";
   };
 
+  /*
+    PRE-ORDER HELPERS
+  */
+
+  const hasPreorderItems =
+    Boolean(
+      order?.items?.some(
+        (item) =>
+          item.is_preorder === true
+      )
+    );
+
+  const getPreorderMessage = (
+    item
+  ) => {
+    return (
+      item.preorder_message ||
+      "This item was purchased as a pre-order."
+    );
+  };
+
+  const getPreorderReleaseDate = (
+    item
+  ) => {
+    if (!item.preorder_release_date) {
+      return null;
+    }
+
+    const date =
+      new Date(
+        item.preorder_release_date
+      );
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return null;
+    }
+
+    return new Intl.DateTimeFormat(
+      "en-NG",
+      {
+        dateStyle: "medium",
+      }
+    ).format(date);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f7f7f5] text-black">
@@ -761,6 +791,12 @@ export default function OrderDetailsPage() {
                     status={status}
                   />
 
+                  {hasPreorderItems && (
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                      Pre-order included
+                    </span>
+                  )}
+
                 </div>
 
                 <p className="mt-2 text-sm text-black/45">
@@ -774,13 +810,9 @@ export default function OrderDetailsPage() {
 
               <div className="flex flex-wrap gap-3">
 
-                {/* PROCESSING */}
-
                 {order.status ===
                   "processing" && (
                   <div className="flex flex-wrap gap-3">
-
-                    {/* SHIP */}
 
                     <button
                       onClick={() => {
@@ -814,8 +846,6 @@ export default function OrderDetailsPage() {
                       Mark as Shipped
                     </button>
 
-                    {/* SKIP SHIPPING */}
-
                     <button
                       onClick={() =>
                         updateStatus(
@@ -831,8 +861,6 @@ export default function OrderDetailsPage() {
 
                       Skip Shipping
                     </button>
-
-                    {/* CANCEL */}
 
                     <button
                       onClick={() =>
@@ -852,8 +880,6 @@ export default function OrderDetailsPage() {
 
                   </div>
                 )}
-
-                {/* SHIPPED */}
 
                 {order.status ===
                   "shipped" && (
@@ -901,14 +927,10 @@ export default function OrderDetailsPage() {
                   </div>
                 )}
 
-                {/* PENDING */}
-
                 {order.status ===
                   "pending" && (
                   <select
-                    value={
-                      order.status
-                    }
+                    value={order.status}
                     disabled={updating}
                     onChange={(e) =>
                       updateStatus(
@@ -931,14 +953,10 @@ export default function OrderDetailsPage() {
                   </select>
                 )}
 
-                {/* CONFIRMED */}
-
                 {order.status ===
                   "confirmed" && (
                   <select
-                    value={
-                      order.status
-                    }
+                    value={order.status}
                     disabled={updating}
                     onChange={(e) =>
                       updateStatus(
@@ -961,16 +979,12 @@ export default function OrderDetailsPage() {
                   </select>
                 )}
 
-                {/* CANCELLED */}
-
                 {order.status ===
                   "cancelled" && (
                   <div className="rounded-xl bg-red-50 px-5 py-3 text-sm font-medium text-red-700">
                     Order Cancelled
                   </div>
                 )}
-
-                {/* DELIVERED */}
 
                 {order.status ===
                   "delivered" && (
@@ -1010,6 +1024,36 @@ export default function OrderDetailsPage() {
 
               <div className="space-y-6">
 
+                {/* PRE-ORDER NOTICE */}
+
+                {hasPreorderItems && (
+                  <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+
+                    <div className="flex gap-3">
+
+                      <div className="mt-0.5 shrink-0">
+                        <Clock3
+                          size={19}
+                          className="text-amber-700"
+                        />
+                      </div>
+
+                      <div>
+                        <h2 className="text-sm font-semibold text-amber-900">
+                          Pre-order included
+                        </h2>
+
+                        <p className="mt-1 text-xs leading-5 text-amber-800">
+                          This order contains one or more pre-order items. The customer has already paid through Paystack. Pre-order items did not consume current inventory.
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  </section>
+                )}
+
                 {/* PRODUCTS */}
 
                 <section className="rounded-2xl border border-black/10 bg-white">
@@ -1037,6 +1081,15 @@ export default function OrderDetailsPage() {
                         (item) => {
                           const image =
                             getProductImage(
+                              item
+                            );
+
+                          const isPreorder =
+                            item.is_preorder ===
+                            true;
+
+                          const releaseDate =
+                            getPreorderReleaseDate(
                               item
                             );
 
@@ -1070,11 +1123,21 @@ export default function OrderDetailsPage() {
 
                                 <div>
 
-                                  <h3 className="font-medium">
-                                    {getProductName(
-                                      item
+                                  <div className="flex flex-wrap items-center gap-2">
+
+                                    <h3 className="font-medium">
+                                      {getProductName(
+                                        item
+                                      )}
+                                    </h3>
+
+                                    {isPreorder && (
+                                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                                        Pre-order
+                                      </span>
                                     )}
-                                  </h3>
+
+                                  </div>
 
                                   <p className="mt-1 text-xs text-black/40">
                                     {getProductCategory(
@@ -1088,6 +1151,30 @@ export default function OrderDetailsPage() {
                                       item.quantity
                                     }
                                   </p>
+
+                                  {isPreorder && (
+                                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+
+                                      <p className="text-xs font-medium text-amber-900">
+                                        Pre-order
+                                        item
+                                      </p>
+
+                                      <p className="mt-1 text-xs leading-5 text-amber-800">
+                                        {getPreorderMessage(
+                                          item
+                                        )}
+                                      </p>
+
+                                      {releaseDate && (
+                                        <p className="mt-2 text-xs font-medium text-amber-900">
+                                          Expected availability:{" "}
+                                          {releaseDate}
+                                        </p>
+                                      )}
+
+                                    </div>
+                                  )}
 
                                 </div>
 
@@ -1631,9 +1718,7 @@ export default function OrderDetailsPage() {
         </div>
       </main>
 
-      {/* ================================================= */}
       {/* CONFIRMATION MODAL */}
-      {/* ================================================= */}
 
       {confirmModal.open && (
         <div

@@ -90,6 +90,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [status, setStatus] = useState("All");
+  const [preorderFilter, setPreorderFilter] = useState("All");
   const [openMenu, setOpenMenu] = useState(null);
 
   useEffect(() => {
@@ -201,13 +202,25 @@ export default function ProductsPage() {
       category === "All" || productCategoryName === category;
 
     const matchesStatus =
-      status === "All" ||
-      getProductStatus(
-        product.stock_quantity,
-        product.in_stock
-      ) === status;
+  status === "All" ||
+  getProductStatus(
+    product.stock_quantity,
+    product.in_stock
+  ) === status;
 
-    return matchesSearch && matchesCategory && matchesStatus;
+const matchesPreorder =
+  preorderFilter === "All" ||
+  (preorderFilter === "Pre-orders" && product.is_preorder === true) ||
+  (preorderFilter === "Regular" && product.is_preorder !== true);
+
+return (
+  matchesSearch &&
+  matchesCategory &&
+  matchesStatus &&
+  matchesPreorder
+);
+
+
   });
 
   const formatCurrency = (amount) => {
@@ -374,27 +387,31 @@ export default function ProductsPage() {
                   <div className="flex flex-wrap gap-3">
 
                     <FilterButton
-                      icon={<Tag size={15} />}
-                      label={category}
-                      options={categoryOptions}
-                      value={category}
-                      onChange={setCategory}
-                    />
+  icon={<Boxes size={15} />}
+  label={status}
+  options={[
+    "All",
+    "In Stock",
+    "Low Stock",
+    "Out of Stock",
+  ]}
+  value={status}
+  onChange={setStatus}
+/>
 
-                    <FilterButton
-                      icon={<Boxes size={15} />}
-                      label={status}
-                      options={[
-                        "All",
-                        "In Stock",
-                        "Low Stock",
-                        "Out of Stock",
-                      ]}
-                      value={status}
-                      onChange={setStatus}
-                    />
+<FilterButton
+  icon={<Tag size={15} />}
+  label={preorderFilter}
+  options={[
+    "All",
+    "Pre-orders",
+    "Regular",
+  ]}
+  value={preorderFilter}
+  onChange={setPreorderFilter}
+/>
 
-                    <button className="flex h-11 items-center gap-2 rounded-xl border border-black/10 px-4 text-sm">
+<button className="flex h-11 items-center gap-2 rounded-xl border border-black/10 px-4 text-sm">
                       <SlidersHorizontal size={15} />
                       Filter
                     </button>
