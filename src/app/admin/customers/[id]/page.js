@@ -149,24 +149,30 @@ export default function CustomerDetailsPage() {
       "Customer"
     );
   };
+const getAddress = () => {
+  if (!latestOrder) {
+    return ["No delivery address saved."];
+  }
 
-  const getAddress = () => {
-    if (!customer) {
-      return ["No delivery address saved."];
-    }
-
-    const parts = [
-      customer.address,
-      customer.city,
-      customer.state,
-    ].filter(Boolean);
-
-    return parts.length
-      ? parts
-      : ["No delivery address saved."];
-  };
+  return latestOrderAddress.length
+    ? latestOrderAddress
+    : ["No delivery address saved."];
+};
 
   const orders = customer?.order_history || [];
+
+const latestOrder = orders[0] || null;
+
+const latestOrderPhone =
+  latestOrder?.phone || "";
+
+const latestOrderAddress = latestOrder
+  ? [
+      latestOrder.address,
+      latestOrder.city,
+      latestOrder.state,
+    ].filter(Boolean)
+  : [];
 
   const totalOrders = Number(
     customer?.order_count ||
@@ -201,14 +207,13 @@ export default function CustomerDetailsPage() {
   const closeCallModal = () => {
     setCallModal(false);
   };
+const callCustomer = () => {
+  if (!latestOrderPhone) {
+    return;
+  }
 
-  const callCustomer = () => {
-    if (!customer?.phone) {
-      return;
-    }
-
-    window.location.href = `tel:${customer.phone}`;
-  };
+  window.location.href = `tel:${latestOrderPhone}`;
+};
 
   /*
   |--------------------------------------------------------------------------
@@ -654,7 +659,7 @@ export default function CustomerDetailsPage() {
                   <button
                     type="button"
                     onClick={openCallModal}
-                    disabled={!customer.phone}
+                    disabled={!latestOrderPhone}
                     className="flex items-center justify-center gap-2 rounded-xl bg-black px-3 py-3 text-sm text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
                   >
                     <Phone size={16} />
@@ -913,11 +918,11 @@ export default function CustomerDetailsPage() {
                       value={customer.email || "—"}
                     />
 
-                    <DetailRow
-                      icon={<Phone size={16} />}
-                      label="Phone"
-                      value={customer.phone || "—"}
-                    />
+                   <DetailRow
+  icon={<Phone size={16} />}
+  label="Phone"
+  value={latestOrderPhone || "—"}
+/>
 
                   </div>
                 </section>
@@ -939,12 +944,12 @@ export default function CustomerDetailsPage() {
                       </h2>
 
                       <p className="text-xs text-black/40">
-                        Default shipping address
-                      </p>
+  Address from most recent order
+</p>
                     </div>
                   </div>
 
-                  
+
 
                   <div className="mt-5 overflow-hidden rounded-xl bg-[#f7f7f5] p-4 text-sm leading-6 text-black/65">
                     {getAddress().map(
@@ -1030,7 +1035,7 @@ export default function CustomerDetailsPage() {
                     <button
                       type="button"
                       onClick={openCallModal}
-                      disabled={!customer.phone}
+                      disabled={!latestOrderPhone }
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
                     >
                       <Phone size={16} />
@@ -1088,7 +1093,7 @@ export default function CustomerDetailsPage() {
                   </p>
 
                   <p className="mt-1 break-all text-sm text-black/45">
-                    {customer.phone ||
+                    {latestOrderPhone  ||
                       "No phone number saved"}
                   </p>
                 </div>
@@ -1108,7 +1113,7 @@ export default function CustomerDetailsPage() {
               <button
                 type="button"
                 onClick={callCustomer}
-                disabled={!customer.phone}
+                disabled={!latestOrderPhone }
                 className="flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Phone size={16} />
@@ -1271,7 +1276,7 @@ export default function CustomerDetailsPage() {
                   closeActionModal();
                   setCallModal(true);
                 }}
-                disabled={!customer.phone}
+                disabled={!latestOrderPhone }
                 className="flex w-full items-center gap-3 rounded-2xl border border-black/10 p-4 text-left transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white">
@@ -1284,7 +1289,7 @@ export default function CustomerDetailsPage() {
                   </p>
 
                   <p className="mt-1 break-all text-xs text-black/40">
-                    {customer.phone ||
+                    {latestOrderPhone  ||
                       "No phone number saved"}
                   </p>
                 </div>

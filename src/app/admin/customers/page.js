@@ -691,7 +691,7 @@ export default function CustomersPage() {
                               </td>
 
                               <td className="px-6 py-5 text-sm text-black/60">
-                                {customer.phone ||
+                                {customer.phone  ||
                                   "—"}
                               </td>
 
@@ -841,7 +841,7 @@ export default function CustomersPage() {
                             </p>
 
                             <p className="mt-1 text-sm text-black/65">
-                              {customer.phone ||
+                              {customer.phone  ||
                                 "—"}
                             </p>
                           </div>
