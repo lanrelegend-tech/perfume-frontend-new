@@ -250,32 +250,40 @@ function LoginPageContent() {
 
               <Link
                 href="/"
-                className="text-lg font-semibold tracking-[0.25em]"
+                className="text-lg font-semibold text-black tracking-[0.25em]"
               >
                 ORENTEMIST
               </Link>
 
             </div>
 
-            {/* =================================================
-                HEADER
-            ================================================= */}
+           {/* =================================================
+    HEADER
+================================================= */}
 
-            <div className="mb-9">
+<div className="mb-9">
 
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
-                My account
-              </p>
+  <Link
+    href="/"
+    className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-black"
+  >
+    <span aria-hidden="true">←</span>
+    Back to Home
+  </Link>
 
-              <h2 className="text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
-                Sign in
-              </h2>
+  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
+    My account
+  </p>
 
-              <p className="mt-3 text-sm leading-6 text-neutral-500">
-                Enter your details to access your account.
-              </p>
+  <h2 className="text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
+    Sign in to your account
+  </h2>
 
-            </div>
+  <p className="mt-3 text-sm leading-6 text-neutral-500">
+    Enter your email and password to access your ORENTEMIST account.
+  </p>
+
+</div>
 
             {/* =================================================
                 SUCCESS MESSAGE
