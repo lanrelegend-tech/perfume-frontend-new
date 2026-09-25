@@ -682,7 +682,7 @@ export default function AddProductPage() {
                     value={product.name}
                     onChange={handleChange}
                     placeholder="e.g. ORENTEMIST Noir"
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
+                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                   />
                 </div>
 
@@ -772,7 +772,7 @@ export default function AddProductPage() {
 
                 {/* Fragrance Notes */}
                 <div>
-                  <label className="mb-2 block text-sm font-medium">
+                  <label className="mb-2 block text-base sm:text-sm font-medium">
                     Fragrance Notes
                   </label>
 
@@ -808,7 +808,7 @@ export default function AddProductPage() {
                   </label>
 
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-black/40">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base sm:text-sm text-black/40">
                       ₦
                     </span>
 
@@ -836,7 +836,7 @@ export default function AddProductPage() {
                     value={product.size}
                     onChange={handleChange}
                     placeholder="e.g. 100ml"
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
+                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none focus:border-black"
                   />
                 </div>
               </div>
@@ -868,7 +868,7 @@ export default function AddProductPage() {
                     onChange={handleStockChange}
                     placeholder="0"
                     min="0"
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
+                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none focus:border-black"
                   />
 
                   <p className="mt-2 text-xs text-black/40">
@@ -893,7 +893,7 @@ export default function AddProductPage() {
                       handleAvailabilityChange
                     }
                     disabled={hasStock}
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black disabled:cursor-not-allowed disabled:bg-black/5"
+                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none focus:border-black disabled:cursor-not-allowed disabled:bg-black/5"
                   >
                     <option value="true">
                       In Stock
@@ -1066,7 +1066,7 @@ export default function AddProductPage() {
                             product.preorder_release_date
                           }
                           onChange={handleChange}
-                          className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-black"
+                          className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-base sm:text-sm outline-none focus:border-black"
                         />
 
                         <p className="mt-2 text-xs text-black/40">
@@ -1088,7 +1088,7 @@ export default function AddProductPage() {
                           }
                           onChange={handleChange}
                           placeholder="e.g. Ships within 4 days of your order"
-                          className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-black"
+                          className="h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-base sm:text-sm outline-none focus:border-black"
                         />
 
                         <p className="mt-2 text-xs text-black/40">
