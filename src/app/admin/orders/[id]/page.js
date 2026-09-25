@@ -35,21 +35,18 @@ export default function OrderDetailsPage() {
   const [updating, setUpdating] = useState(false);
 
   const [courier, setCourier] = useState("");
-  const [trackingNumber, setTrackingNumber] =
-    useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
 
-  const [savingShipping, setSavingShipping] =
-    useState(false);
+  const [savingShipping, setSavingShipping] = useState(false);
 
   const [error, setError] = useState("");
 
-  const [confirmModal, setConfirmModal] =
-    useState({
-      open: false,
-      status: null,
-      title: "",
-      message: "",
-    });
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    status: null,
+    title: "",
+    message: "",
+  });
 
   useEffect(() => {
     if (!orderId) return;
@@ -135,18 +132,86 @@ export default function OrderDetailsPage() {
   }, [orderId, router]);
 
   /*
-    OPEN CONFIRMATION MODAL
+    ORDER TYPE
+  */
+
+  const isPickupOrder =
+    order?.delivery_method === "pickup";
+
+  /*
+    PRE-ORDER
+  */
+
+  const hasPreorderItems =
+    Boolean(
+      order?.items?.some(
+        (item) =>
+          item.is_preorder === true
+      )
+    );
+
+  const getPreorderMessage = (item) => {
+    return (
+      item.preorder_message ||
+      "This item was purchased as a pre-order."
+    );
+  };
+
+  const getPreorderReleaseDate = (item) => {
+    if (!item.preorder_release_date) {
+      return null;
+    }
+
+    const date = new Date(
+      item.preorder_release_date
+    );
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return null;
+    }
+
+    return new Intl.DateTimeFormat(
+      "en-NG",
+      {
+        dateStyle: "medium",
+      }
+    ).format(date);
+  };
+
+  /*
+    PICKUP LOCATION
+  */
+
+  const pickupLocation =
+    order?.pickup_address ||
+    "Pickup location will be provided by ORENTEMIST.";
+
+  /*
+    OPEN STATUS MODAL
   */
 
   const updateStatus = async (newStatus) => {
     if (!order) return;
 
     if (newStatus === order.status) {
-      setStatus(formatStatus(newStatus));
+      setStatus(
+        formatStatus(newStatus)
+      );
+
       return;
     }
 
+    /*
+      DELIVERY ORDERS REQUIRE
+      COURIER + TRACKING BEFORE SHIPPED
+    */
+
     if (
+      !isPickupOrder &&
       order.status === "processing" &&
       newStatus === "shipped"
     ) {
@@ -155,7 +220,7 @@ export default function OrderDetailsPage() {
         !trackingNumber.trim()
       ) {
         setError(
-          "To mark this order as Shipped, you must enter both the courier and tracking number first."
+          "To mark this delivery order as Shipped, you must enter both the courier and tracking number first."
         );
 
         return;
@@ -185,14 +250,21 @@ export default function OrderDetailsPage() {
       order.status === "processing" &&
       newStatus === "delivered"
     ) {
-      message =
-        "This order is currently Processing.\n\nAre you sure you want to skip the Shipped stage and mark this order as Delivered?";
+      if (isPickupOrder) {
+        message =
+          "This is a pickup order.\n\nAre you sure you want to mark this order as Delivered?";
+      } else {
+        message =
+          "This order is currently Processing.\n\nAre you sure you want to skip the Shipped stage and mark this order as Delivered?";
+      }
     }
 
     if (newStatus === "cancelled") {
-      if (order.payment_status === "paid") {
+      if (
+        order.payment_status === "paid"
+      ) {
         message =
-          "Are you sure you want to cancel this order?\n\nThis order has been paid. Cancelling it will request a full refund, restore the purchased stock, and reverse the coupon usage if one was used.\n\nThis action cannot be undone.";
+          "Are you sure you want to cancel this order?\n\nThis order has been paid. Cancelling it will request a full refund, restore the purchased stock where applicable, and reverse the coupon usage if one was used.\n\nThis action cannot be undone.";
       } else {
         message =
           "Are you sure you want to cancel this order?\n\nThis order has not been paid, so no refund will be made.\n\nThis action cannot be undone.";
@@ -238,7 +310,9 @@ export default function OrderDetailsPage() {
       setError("");
 
       const token =
-        localStorage.getItem("access_token");
+        localStorage.getItem(
+          "access_token"
+        );
 
       if (!token) {
         router.push("/admin/login");
@@ -263,6 +337,7 @@ export default function OrderDetailsPage() {
         localStorage.removeItem(
           "access_token"
         );
+
         localStorage.removeItem(
           "refresh_token"
         );
@@ -542,150 +617,18 @@ export default function OrderDetailsPage() {
     return "Not available";
   };
 
-  /*
-    PRE-ORDER HELPERS
-  */
-
-  const hasPreorderItems =
-    Boolean(
-      order?.items?.some(
-        (item) =>
-          item.is_preorder === true
-      )
-    );
-
-  const getPreorderMessage = (
-    item
-  ) => {
-    return (
-      item.preorder_message ||
-      "This item was purchased as a pre-order."
-    );
-  };
-
-  const getPreorderReleaseDate = (
-    item
-  ) => {
-    if (!item.preorder_release_date) {
-      return null;
-    }
-
-    const date =
-      new Date(
-        item.preorder_release_date
-      );
-
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
-      return null;
-    }
-
-    return new Intl.DateTimeFormat(
-      "en-NG",
-      {
-        dateStyle: "medium",
-      }
-    ).format(date);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#f7f7f5] text-black">
-        <AdminSidebar />
-
-        <main className="lg:ml-[250px]">
-          <div className="pt-16 lg:pt-0">
-            <header className="flex h-[82px] items-center justify-between border-b border-black/10 bg-white px-5 sm:px-8">
-              <div>
-                <p className="text-xs text-black/40">
-                  ORENTEMIST ADMIN
-                </p>
-
-                <h2 className="text-xl font-semibold">
-                  Order Details
-                </h2>
-              </div>
-            </header>
-
-            <div className="flex min-h-[70vh] items-center justify-center">
-              <div className="flex items-center gap-3 text-sm text-black/50">
-                <Loader2
-                  size={18}
-                  className="animate-spin"
-                />
-
-                Loading order...
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (error && !order) {
-    return (
-      <div className="min-h-screen bg-[#f7f7f5] text-black">
-        <AdminSidebar />
-
-        <main className="lg:ml-[250px]">
-          <div className="pt-16 lg:pt-0">
-            <header className="flex h-[82px] items-center justify-between border-b border-black/10 bg-white px-5 sm:px-8">
-              <div>
-                <p className="text-xs text-black/40">
-                  ORENTEMIST ADMIN
-                </p>
-
-                <h2 className="text-xl font-semibold">
-                  Order Details
-                </h2>
-              </div>
-            </header>
-
-            <div className="p-5 sm:p-8">
-              <button
-                onClick={() =>
-                  router.push(
-                    "/admin/orders"
-                  )
-                }
-                className="mb-6 flex items-center gap-2 text-sm text-black/50 transition hover:text-black"
-              >
-                <ArrowLeft size={16} />
-                Back to Orders
-              </button>
-
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-                <h2 className="font-semibold text-red-700">
-                  Unable to load order
-                </h2>
-
-                <p className="mt-2 text-sm text-red-600">
-                  {error}
-                </p>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   const subtotal = getSubtotal();
 
   const shippingFee = Number(
     order?.delivery_fee || 0
   );
 
-  const discount = (() => {
-    const value = Number(
-      order?.coupon_discount_value || 0
-    );
+  const discountValue = Number(
+    order?.coupon_discount_value || 0
+  );
 
-    if (!value) {
+  const discount = (() => {
+    if (!discountValue) {
       return 0;
     }
 
@@ -695,13 +638,13 @@ export default function OrderDetailsPage() {
     ) {
       return Math.min(
         subtotal,
-        (subtotal * value) / 100
+        (subtotal * discountValue) / 100
       );
     }
 
     return Math.min(
       subtotal,
-      value
+      discountValue
     );
   })();
 
@@ -717,17 +660,136 @@ export default function OrderDetailsPage() {
   const canSkipShipping =
     order?.status === "processing";
 
+  /*
+    LOADING
+  */
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f7f7f5] text-black">
+        <AdminSidebar />
+
+        <main className="lg:ml-[250px]">
+          <div className="pt-16 lg:pt-0">
+
+            <header className="flex h-[82px] items-center justify-between border-b border-black/10 bg-white px-5 sm:px-8">
+
+              <div>
+
+                <p className="text-xs text-black/40">
+                  ORENTEMIST ADMIN
+                </p>
+
+                <h2 className="text-xl font-semibold">
+                  Order Details
+                </h2>
+
+              </div>
+
+            </header>
+
+            <div className="flex min-h-[70vh] items-center justify-center">
+
+              <div className="flex items-center gap-3 text-sm text-black/50">
+
+                <Loader2
+                  size={18}
+                  className="animate-spin"
+                />
+
+                Loading order...
+
+              </div>
+
+            </div>
+
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  /*
+    ERROR
+  */
+
+  if (error && !order) {
+    return (
+      <div className="min-h-screen bg-[#f7f7f5] text-black">
+
+        <AdminSidebar />
+
+        <main className="lg:ml-[250px]">
+
+          <div className="pt-16 lg:pt-0">
+
+            <header className="flex h-[82px] items-center justify-between border-b border-black/10 bg-white px-5 sm:px-8">
+
+              <div>
+
+                <p className="text-xs text-black/40">
+                  ORENTEMIST ADMIN
+                </p>
+
+                <h2 className="text-xl font-semibold">
+                  Order Details
+                </h2>
+
+              </div>
+
+            </header>
+
+            <div className="p-5 sm:p-8">
+
+              <button
+                onClick={() =>
+                  router.push(
+                    "/admin/orders"
+                  )
+                }
+                className="mb-6 flex items-center gap-2 text-sm text-black/50 transition hover:text-black"
+              >
+                <ArrowLeft size={16} />
+                Back to Orders
+              </button>
+
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
+
+                <h2 className="font-semibold text-red-700">
+                  Unable to load order
+                </h2>
+
+                <p className="mt-2 text-sm text-red-600">
+                  {error}
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </main>
+
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-black">
+
       <AdminSidebar />
 
       <main className="lg:ml-[250px]">
+
         <div className="pt-16 lg:pt-0">
 
           {/* HEADER */}
 
           <header className="flex h-[82px] items-center justify-between border-b border-black/10 bg-white px-5 sm:px-8">
+
             <div>
+
               <p className="text-xs text-black/40">
                 ORENTEMIST ADMIN
               </p>
@@ -735,9 +797,11 @@ export default function OrderDetailsPage() {
               <h2 className="text-xl font-semibold">
                 Order Details
               </h2>
+
             </div>
 
             <div className="flex items-center gap-3">
+
               <button className="hidden rounded-xl border border-black/10 p-3 sm:block">
                 <Search size={18} />
               </button>
@@ -749,7 +813,9 @@ export default function OrderDetailsPage() {
               <button className="rounded-xl border border-black/10 p-3">
                 <MessageCircle size={18} />
               </button>
+
             </div>
+
           </header>
 
           <div className="p-5 sm:p-8">
@@ -791,6 +857,20 @@ export default function OrderDetailsPage() {
                     status={status}
                   />
 
+                  {isPickupOrder && (
+                    <span className="flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                      <MapPin size={13} />
+                      Pickup
+                    </span>
+                  )}
+
+                  {!isPickupOrder && (
+                    <span className="flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                      <Truck size={13} />
+                      Delivery
+                    </span>
+                  )}
+
                   {hasPreorderItems && (
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
                       Pre-order included
@@ -817,6 +897,16 @@ export default function OrderDetailsPage() {
                     <button
                       onClick={() => {
                         if (
+                          isPickupOrder
+                        ) {
+                          updateStatus(
+                            "delivered"
+                          );
+
+                          return;
+                        }
+
+                        if (
                           !courier.trim() ||
                           !trackingNumber.trim()
                         ) {
@@ -834,33 +924,45 @@ export default function OrderDetailsPage() {
                       disabled={updating}
                       className="flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+
                       {updating ? (
                         <Loader2
                           size={16}
                           className="animate-spin"
                         />
+                      ) : isPickupOrder ? (
+                        <CheckCircle2
+                          size={16}
+                        />
                       ) : (
                         <Truck size={16} />
                       )}
 
-                      Mark as Shipped
+                      {isPickupOrder
+                        ? "Mark as Delivered"
+                        : "Mark as Shipped"}
+
                     </button>
 
-                    <button
-                      onClick={() =>
-                        updateStatus(
-                          "delivered"
-                        )
-                      }
-                      disabled={updating}
-                      className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <CheckCircle2
-                        size={16}
-                      />
+                    {!isPickupOrder && (
+                      <button
+                        onClick={() =>
+                          updateStatus(
+                            "delivered"
+                          )
+                        }
+                        disabled={updating}
+                        className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
 
-                      Skip Shipping
-                    </button>
+                        <CheckCircle2
+                          size={16}
+                        />
+
+                        Skip Shipping
+
+                      </button>
+                    )}
 
                     <button
                       onClick={() =>
@@ -871,11 +973,13 @@ export default function OrderDetailsPage() {
                       disabled={updating}
                       className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+
                       <AlertTriangle
                         size={16}
                       />
 
                       Cancel Order
+
                     </button>
 
                   </div>
@@ -894,6 +998,7 @@ export default function OrderDetailsPage() {
                       disabled={updating}
                       className="flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+
                       {updating ? (
                         <Loader2
                           size={16}
@@ -906,6 +1011,7 @@ export default function OrderDetailsPage() {
                       )}
 
                       Mark as Delivered
+
                     </button>
 
                     <button
@@ -917,11 +1023,13 @@ export default function OrderDetailsPage() {
                       disabled={updating}
                       className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+
                       <AlertTriangle
                         size={16}
                       />
 
                       Cancel Order
+
                     </button>
 
                   </div>
@@ -939,6 +1047,7 @@ export default function OrderDetailsPage() {
                     }
                     className="rounded-xl bg-black px-4 py-3 text-sm text-white outline-none disabled:opacity-50"
                   >
+
                     <option value="pending">
                       Pending
                     </option>
@@ -950,6 +1059,7 @@ export default function OrderDetailsPage() {
                     <option value="cancelled">
                       Cancelled
                     </option>
+
                   </select>
                 )}
 
@@ -965,6 +1075,7 @@ export default function OrderDetailsPage() {
                     }
                     className="rounded-xl bg-black px-4 py-3 text-sm text-white outline-none disabled:opacity-50"
                   >
+
                     <option value="confirmed">
                       Confirmed
                     </option>
@@ -976,6 +1087,7 @@ export default function OrderDetailsPage() {
                     <option value="cancelled">
                       Cancelled
                     </option>
+
                   </select>
                 )}
 
@@ -1003,17 +1115,20 @@ export default function OrderDetailsPage() {
                       disabled={updating}
                       className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+
                       <AlertTriangle
                         size={16}
                       />
 
                       Cancel Order
+
                     </button>
 
                   </div>
                 )}
 
               </div>
+
             </div>
 
             {/* CONTENT */}
@@ -1039,6 +1154,7 @@ export default function OrderDetailsPage() {
                       </div>
 
                       <div>
+
                         <h2 className="text-sm font-semibold text-amber-900">
                           Pre-order included
                         </h2>
@@ -1054,6 +1170,49 @@ export default function OrderDetailsPage() {
                   </section>
                 )}
 
+                {/* PICKUP NOTICE */}
+
+                {isPickupOrder && (
+                  <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+
+                    <div className="flex gap-3">
+
+                      <div className="mt-0.5 shrink-0">
+                        <MapPin
+                          size={19}
+                          className="text-blue-700"
+                        />
+                      </div>
+
+                      <div className="min-w-0">
+
+                        <h2 className="text-sm font-semibold text-blue-900">
+                          Pickup order
+                        </h2>
+
+                        <p className="mt-1 text-xs leading-5 text-blue-800">
+                          This customer selected pickup instead of delivery.
+                        </p>
+
+                        <div className="mt-3 rounded-xl border border-blue-200 bg-white/70 p-3">
+
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600">
+                            Pickup Location
+                          </p>
+
+                          <p className="mt-1 text-sm font-medium leading-5 text-blue-950">
+                            {pickupLocation}
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                  </section>
+                )}
+
                 {/* PRODUCTS */}
 
                 <section className="rounded-2xl border border-black/10 bg-white">
@@ -1061,6 +1220,7 @@ export default function OrderDetailsPage() {
                   <div className="flex items-center justify-between border-b border-black/10 px-5 py-5">
 
                     <div>
+
                       <h2 className="font-semibold">
                         Order Items
                       </h2>
@@ -1068,6 +1228,7 @@ export default function OrderDetailsPage() {
                       <p className="mt-1 text-xs text-black/40">
                         {getItemCount()} items
                       </p>
+
                     </div>
 
                   </div>
@@ -1079,6 +1240,7 @@ export default function OrderDetailsPage() {
                       0 ? (
                       order.items.map(
                         (item) => {
+
                           const image =
                             getProductImage(
                               item
@@ -1147,17 +1309,14 @@ export default function OrderDetailsPage() {
 
                                   <p className="mt-2 text-xs text-black/50">
                                     Quantity:{" "}
-                                    {
-                                      item.quantity
-                                    }
+                                    {item.quantity}
                                   </p>
 
                                   {isPreorder && (
                                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
 
                                       <p className="text-xs font-medium text-amber-900">
-                                        Pre-order
-                                        item
+                                        Pre-order item
                                       </p>
 
                                       <p className="mt-1 text-xs leading-5 text-amber-800">
@@ -1179,6 +1338,7 @@ export default function OrderDetailsPage() {
                                 </div>
 
                                 <p className="font-medium">
+
                                   {formatCurrency(
                                     item.subtotal ||
                                       Number(
@@ -1190,6 +1350,7 @@ export default function OrderDetailsPage() {
                                             0
                                         )
                                   )}
+
                                 </p>
 
                               </div>
@@ -1206,6 +1367,8 @@ export default function OrderDetailsPage() {
 
                   </div>
 
+                  {/* TOTALS */}
+
                   <div className="border-t border-black/10 px-5 py-5">
 
                     <div className="space-y-3 text-sm">
@@ -1218,18 +1381,28 @@ export default function OrderDetailsPage() {
                       />
 
                       <PriceRow
-                        label="Shipping"
-                        value={formatCurrency(
-                          shippingFee
-                        )}
+                        label={
+                          isPickupOrder
+                            ? "Pickup"
+                            : "Shipping"
+                        }
+                        value={
+                          isPickupOrder
+                            ? "Free"
+                            : formatCurrency(
+                                shippingFee
+                              )
+                        }
                       />
 
-                      <PriceRow
-                        label="Discount"
-                        value={`-${formatCurrency(
-                          discount
-                        )}`}
-                      />
+                      {discount > 0 && (
+                        <PriceRow
+                          label="Discount"
+                          value={`-${formatCurrency(
+                            discount
+                          )}`}
+                        />
+                      )}
 
                       <div className="border-t border-black/10 pt-4">
 
@@ -1288,6 +1461,7 @@ export default function OrderDetailsPage() {
                         )
                     ) : (
                       <>
+
                         <TimelineItem
                           status={
                             order.status
@@ -1321,6 +1495,7 @@ export default function OrderDetailsPage() {
                           changedBy={null}
                           note="Customer created the order."
                         />
+
                       </>
                     )}
 
@@ -1347,6 +1522,7 @@ export default function OrderDetailsPage() {
                     </div>
 
                     <div>
+
                       <h2 className="font-semibold">
                         Customer
                       </h2>
@@ -1354,6 +1530,7 @@ export default function OrderDetailsPage() {
                       <p className="text-xs text-black/40">
                         Customer information
                       </p>
+
                     </div>
 
                   </div>
@@ -1388,42 +1565,54 @@ export default function OrderDetailsPage() {
 
                 </section>
 
-                {/* DELIVERY */}
+                {/* FULFILLMENT */}
 
                 <section className="rounded-2xl border border-black/10 bg-white p-5">
 
                   <div className="flex items-center gap-3">
 
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white">
-                      <MapPin
-                        size={18}
-                      />
+
+                      {isPickupOrder ? (
+                        <MapPin size={18} />
+                      ) : (
+                        <Truck size={18} />
+                      )}
+
                     </div>
 
                     <div>
+
                       <h2 className="font-semibold">
-                        Delivery Address
+
+                        {isPickupOrder
+                          ? "Pickup Location"
+                          : "Delivery Address"}
+
                       </h2>
 
                       <p className="text-xs text-black/40">
-                        Shipping information
+
+                        {isPickupOrder
+                          ? "Customer pickup information"
+                          : "Shipping information"}
+
                       </p>
+
                     </div>
 
                   </div>
 
                   <div className="mt-5 rounded-xl bg-[#f7f7f5] p-4 text-sm leading-6 text-black/65">
 
-                    {order.delivery_method ===
-                    "pickup" ? (
+                    {isPickupOrder ? (
                       <>
                         <p className="font-medium text-black">
                           Pickup Order
                         </p>
 
                         <p className="mt-1">
-                          {order.pickup_address ||
-                            "Pickup location will be provided by ORENTEMIST."}
+                          {pickupLocation}
                         </p>
                       </>
                     ) : (
@@ -1435,10 +1624,12 @@ export default function OrderDetailsPage() {
 
                         <p>
                           {order.city || ""}
+
                           {order.city &&
                           order.state
                             ? ", "
                             : ""}
+
                           {order.state || ""}
                         </p>
 
@@ -1465,6 +1656,7 @@ export default function OrderDetailsPage() {
                     </div>
 
                     <div>
+
                       <h2 className="font-semibold">
                         Payment
                       </h2>
@@ -1472,6 +1664,7 @@ export default function OrderDetailsPage() {
                       <p className="text-xs text-black/40">
                         Payment information
                       </p>
+
                     </div>
 
                   </div>
@@ -1512,178 +1705,260 @@ export default function OrderDetailsPage() {
 
                 </section>
 
-                {/* SHIPPING / COURIER */}
+                {/* SHIPPING / PICKUP */}
 
                 <section className="rounded-2xl border border-black/10 bg-white p-5">
 
                   <div className="flex items-center gap-3">
 
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white">
-                      <Truck
-                        size={18}
-                      />
+
+                      {isPickupOrder ? (
+                        <MapPin size={18} />
+                      ) : (
+                        <Truck size={18} />
+                      )}
+
                     </div>
 
                     <div>
+
                       <h2 className="font-semibold">
-                        Shipping & Courier
+
+                        {isPickupOrder
+                          ? "Pickup"
+                          : "Shipping & Courier"}
+
                       </h2>
 
                       <p className="text-xs text-black/40">
-                        Optional delivery information
+
+                        {isPickupOrder
+                          ? "No courier required"
+                          : "Delivery information"}
+
                       </p>
+
                     </div>
 
                   </div>
 
-                  <div className="mt-5 space-y-4">
+                  {isPickupOrder ? (
+                    <div className="mt-5">
 
-                    <div>
-                      <label className="mb-2 block text-xs font-medium text-black/50">
-                        Courier
-                      </label>
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
 
-                      <input
-                        type="text"
-                        value={courier}
-                        onChange={(e) =>
-                          setCourier(
-                            e.target.value
-                          )
-                        }
-                        placeholder="e.g. GIG Logistics"
-                        className="w-full rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 text-sm outline-none transition focus:border-black"
-                      />
+                        <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+                          Pickup Location
+                        </p>
+
+                        <p className="mt-2 text-sm font-medium leading-6 text-blue-950">
+                          {pickupLocation}
+                        </p>
+
+                      </div>
+
+                      <p className="mt-4 text-xs leading-5 text-black/40">
+                        Courier and tracking information are not required for pickup orders. Once the customer receives the order, mark it as Delivered.
+                      </p>
+
                     </div>
+                  ) : (
+                    <div className="mt-5 space-y-4">
 
-                    <div>
-                      <label className="mb-2 block text-xs font-medium text-black/50">
-                        Tracking Number
-                      </label>
+                      <div>
 
-                      <input
-                        type="text"
-                        value={
-                          trackingNumber
+                        <label className="mb-2 block text-xs font-medium text-black/50">
+                          Courier
+                        </label>
+
+                        <input
+                          type="text"
+                          value={courier}
+                          onChange={(e) =>
+                            setCourier(
+                              e.target.value
+                            )
+                          }
+                          placeholder="e.g. GIG Logistics"
+                          className="w-full rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 text-sm outline-none transition focus:border-black"
+                        />
+
+                      </div>
+
+                      <div>
+
+                        <label className="mb-2 block text-xs font-medium text-black/50">
+                          Tracking Number
+                        </label>
+
+                        <input
+                          type="text"
+                          value={
+                            trackingNumber
+                          }
+                          onChange={(e) =>
+                            setTrackingNumber(
+                              e.target.value
+                            )
+                          }
+                          placeholder="Enter if available"
+                          className="w-full rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 text-sm outline-none transition focus:border-black"
+                        />
+
+                      </div>
+
+                      <p className="text-xs leading-5 text-black/40">
+                        Courier and tracking number are required before this order can be marked as Shipped. If you want to skip shipping and mark the order as Delivered, you can leave these fields empty.
+                      </p>
+
+                      <button
+                        onClick={
+                          saveShippingDetails
                         }
-                        onChange={(e) =>
-                          setTrackingNumber(
-                            e.target.value
-                          )
+                        disabled={
+                          savingShipping
                         }
-                        placeholder="Enter if available"
-                        className="w-full rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 text-sm outline-none transition focus:border-black"
-                      />
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+
+                        {savingShipping ? (
+                          <>
+                            <Loader2
+                              size={16}
+                              className="animate-spin"
+                            />
+
+                            Saving...
+
+                          </>
+                        ) : (
+                          <>
+                            <Save
+                              size={16}
+                            />
+
+                            Save Shipping Details
+
+                          </>
+                        )}
+
+                      </button>
+
                     </div>
-
-                    <p className="text-xs leading-5 text-black/40">
-                      Courier and tracking number are required before this order can be marked as Shipped. If you want to skip shipping and mark the order as Delivered, you can leave these fields empty.
-                    </p>
-
-                    <button
-                      onClick={
-                        saveShippingDetails
-                      }
-                      disabled={
-                        savingShipping
-                      }
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {savingShipping ? (
-                        <>
-                          <Loader2
-                            size={16}
-                            className="animate-spin"
-                          />
-
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save
-                            size={16}
-                          />
-
-                          Save Shipping Details
-                        </>
-                      )}
-                    </button>
-
-                  </div>
+                  )}
 
                 </section>
 
                 {/* TRACKING */}
 
-                <section className="rounded-2xl border border-black/10 bg-black p-5 text-white">
+                {!isPickupOrder && (
+                  <section className="rounded-2xl border border-black/10 bg-black p-5 text-white">
 
-                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3">
 
-                    <Truck size={19} />
+                      <Truck size={19} />
 
-                    <div>
-                      <h2 className="font-semibold">
-                        Tracking
-                      </h2>
+                      <div>
 
-                      <p className="text-xs text-white/40">
-                        Delivery tracking information
-                      </p>
-                    </div>
+                        <h2 className="font-semibold">
+                          Tracking
+                        </h2>
 
-                  </div>
+                        <p className="text-xs text-white/40">
+                          Delivery tracking information
+                        </p>
 
-                  <div className="mt-5 space-y-3">
-
-                    <div className="rounded-xl bg-white/10 p-4">
-
-                      <p className="text-xs text-white/40">
-                        Courier
-                      </p>
-
-                      <p className="mt-1 break-all text-sm font-medium">
-                        {order.courier ||
-                          "Not assigned"}
-                      </p>
+                      </div>
 
                     </div>
 
-                    <div className="rounded-xl bg-white/10 p-4">
+                    <div className="mt-5 space-y-3">
 
-                      <p className="text-xs text-white/40">
-                        Tracking Number
-                      </p>
+                      <div className="rounded-xl bg-white/10 p-4">
 
-                      <p className="mt-1 break-all text-sm font-medium">
-                        {order.tracking_number ||
-                          "Not assigned"}
-                      </p>
+                        <p className="text-xs text-white/40">
+                          Courier
+                        </p>
+
+                        <p className="mt-1 break-all text-sm font-medium">
+                          {order.courier ||
+                            "Not assigned"}
+                        </p>
+
+                      </div>
+
+                      <div className="rounded-xl bg-white/10 p-4">
+
+                        <p className="text-xs text-white/40">
+                          Tracking Number
+                        </p>
+
+                        <p className="mt-1 break-all text-sm font-medium">
+                          {order.tracking_number ||
+                            "Not assigned"}
+                        </p>
+
+                      </div>
 
                     </div>
 
-                  </div>
+                    {order.tracking_number && (
+                      <button
+                        onClick={() => {
+                          alert(
+                            `Courier: ${
+                              order.courier ||
+                              "Not specified"
+                            }\nTracking Number: ${order.tracking_number}`
+                          );
+                        }}
+                        className="mt-4 w-full rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:bg-white/90"
+                      >
+                        Track Shipment
+                      </button>
+                    )}
 
-                  {order.tracking_number && (
-                    <button
-                      onClick={() => {
-                        alert(
-                          `Courier: ${
-                            order.courier ||
-                            "Not specified"
-                          }\nTracking Number: ${order.tracking_number}`
-                        );
-                      }}
-                      className="mt-4 w-full rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:bg-white/90"
-                    >
-                      Track Shipment
-                    </button>
-                  )}
+                  </section>
+                )}
 
-                </section>
+                {/* PICKUP DELIVERY NOTICE */}
+
+                {isPickupOrder &&
+                  order.status ===
+                    "processing" && (
+                  <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+
+                    <div className="flex gap-3">
+
+                      <div className="mt-0.5 shrink-0">
+                        <PackageCheck
+                          size={18}
+                          className="text-blue-600"
+                        />
+                      </div>
+
+                      <div>
+
+                        <h3 className="text-sm font-semibold text-blue-800">
+                          Ready for pickup
+                        </h3>
+
+                        <p className="mt-1 text-xs leading-5 text-blue-700">
+                          This order does not need a courier. Once the customer collects the order, mark it as Delivered.
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  </section>
+                )}
 
                 {/* SKIP SHIPPING NOTICE */}
 
-                {canSkipShipping && (
+                {canSkipShipping &&
+                  !isPickupOrder && (
                   <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
 
                     <div className="flex gap-3">
@@ -1696,6 +1971,7 @@ export default function OrderDetailsPage() {
                       </div>
 
                       <div>
+
                         <h3 className="text-sm font-semibold text-amber-800">
                           Skip Shipping
                         </h3>
@@ -1703,6 +1979,7 @@ export default function OrderDetailsPage() {
                         <p className="mt-1 text-xs leading-5 text-amber-700">
                           You can mark this order as Delivered without entering courier or tracking information if the order is being handled directly or does not require shipping.
                         </p>
+
                       </div>
 
                     </div>
@@ -1715,7 +1992,9 @@ export default function OrderDetailsPage() {
             </div>
 
           </div>
+
         </div>
+
       </main>
 
       {/* CONFIRMATION MODAL */}
@@ -1732,6 +2011,7 @@ export default function OrderDetailsPage() {
             })
           }
         >
+
           <div
             className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
             onMouseDown={(e) =>
@@ -1791,6 +2071,7 @@ export default function OrderDetailsPage() {
             </div>
 
           </div>
+
         </div>
       )}
 
@@ -1798,9 +2079,9 @@ export default function OrderDetailsPage() {
   );
 }
 
-/* ===================================================== */
-/* STATUS BADGE */
-/* ===================================================== */
+/* =========================================================
+   STATUS BADGE
+========================================================= */
 
 function OrderStatus({ status }) {
   const normalized =
@@ -1810,23 +2091,37 @@ function OrderStatus({ status }) {
   const styles = {
     pending:
       "bg-amber-50 text-amber-700",
+
     confirmed:
       "bg-blue-50 text-blue-700",
+
     processing:
       "bg-purple-50 text-purple-700",
+
     shipped:
       "bg-indigo-50 text-indigo-700",
+
     delivered:
       "bg-green-50 text-green-700",
+
     cancelled:
       "bg-red-50 text-red-700",
+
+    paid:
+      "bg-green-50 text-green-700",
+
+    unpaid:
+      "bg-amber-50 text-amber-700",
+
+    refunded:
+      "bg-gray-100 text-gray-700",
   };
 
   return (
     <span
-      className={`rounded-full px-3 py-1 text-xs font-medium ${
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${
         styles[normalized] ||
-        "bg-black/5 text-black/60"
+        "bg-gray-100 text-gray-700"
       }`}
     >
       {formatStatus(status)}
@@ -1834,9 +2129,9 @@ function OrderStatus({ status }) {
   );
 }
 
-/* ===================================================== */
-/* PRICE ROW */
-/* ===================================================== */
+/* =========================================================
+   PRICE ROW
+========================================================= */
 
 function PriceRow({
   label,
@@ -1848,9 +2143,10 @@ function PriceRow({
       className={`flex items-center justify-between ${
         bold
           ? "text-base font-semibold"
-          : ""
+          : "text-sm"
       }`}
     >
+
       <span
         className={
           bold
@@ -1861,14 +2157,17 @@ function PriceRow({
         {label}
       </span>
 
-      <span>{value}</span>
+      <span className="text-black">
+        {value}
+      </span>
+
     </div>
   );
 }
 
-/* ===================================================== */
-/* INFO ROW */
-/* ===================================================== */
+/* =========================================================
+   INFO ROW
+========================================================= */
 
 function InfoRow({
   label,
@@ -1878,16 +2177,16 @@ function InfoRow({
   return (
     <div className="flex items-start justify-between gap-4">
 
-      <span className="text-xs text-black/40">
+      <span className="shrink-0 text-xs text-black/40">
         {label}
       </span>
 
       {badge ? (
-        <span className="rounded-full bg-black/5 px-3 py-1 text-xs font-medium">
+        <span className="rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-semibold text-green-700">
           {value}
         </span>
       ) : (
-        <span className="max-w-[65%] break-words text-right text-sm font-medium">
+        <span className="max-w-[65%] break-words text-right text-sm font-medium text-black">
           {value}
         </span>
       )}
@@ -1896,9 +2195,9 @@ function InfoRow({
   );
 }
 
-/* ===================================================== */
-/* TIMELINE ITEM */
-/* ===================================================== */
+/* =========================================================
+   TIMELINE
+========================================================= */
 
 function TimelineItem({
   status,
@@ -1910,35 +2209,75 @@ function TimelineItem({
     String(status || "")
       .toLowerCase();
 
-  let Icon = Clock3;
+  const icons = {
+    pending: Clock3,
+    confirmed: CheckCircle2,
+    processing: PackageCheck,
+    shipped: Truck,
+    delivered: CheckCircle2,
+    cancelled: AlertTriangle,
+    paid: CreditCard,
+  };
 
-  if (
-    normalized === "confirmed" ||
-    normalized === "processing"
-  ) {
-    Icon = PackageCheck;
-  }
+  const Icon =
+    icons[normalized] ||
+    Clock3;
 
-  if (normalized === "shipped") {
-    Icon = Truck;
-  }
+  const iconStyles = {
+    pending:
+      "bg-amber-50 text-amber-700",
 
-  if (normalized === "delivered") {
-    Icon = CheckCircle2;
-  }
+    confirmed:
+      "bg-blue-50 text-blue-700",
 
-  if (normalized === "cancelled") {
-    Icon = AlertTriangle;
-  }
+    processing:
+      "bg-purple-50 text-purple-700",
 
-  if (normalized === "paid") {
-    Icon = CreditCard;
+    shipped:
+      "bg-indigo-50 text-indigo-700",
+
+    delivered:
+      "bg-green-50 text-green-700",
+
+    cancelled:
+      "bg-red-50 text-red-700",
+
+    paid:
+      "bg-green-50 text-green-700",
+  };
+
+  let formattedDate =
+    "Date unavailable";
+
+  if (date) {
+    const parsed =
+      new Date(date);
+
+    if (
+      !Number.isNaN(
+        parsed.getTime()
+      )
+    ) {
+      formattedDate =
+        new Intl.DateTimeFormat(
+          "en-NG",
+          {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }
+        ).format(parsed);
+    }
   }
 
   return (
     <div className="flex gap-4">
 
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white">
+      <div
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+          iconStyles[normalized] ||
+          "bg-gray-100 text-gray-600"
+        }`}
+      >
         <Icon size={16} />
       </div>
 
@@ -1946,35 +2285,32 @@ function TimelineItem({
 
         <div className="flex flex-wrap items-center justify-between gap-2">
 
-          <p className="text-sm font-medium">
+          <p className="text-sm font-semibold">
             {formatStatus(status)}
           </p>
 
-          {date && (
-            <p className="text-xs text-black/35">
-              {new Intl.DateTimeFormat(
-                "en-NG",
-                {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }
-              ).format(
-                new Date(date)
-              )}
-            </p>
-          )}
+          <p className="text-[11px] text-black/40">
+            {formattedDate}
+          </p>
 
         </div>
 
         {note && (
-          <p className="mt-1 text-xs leading-5 text-black/45">
+          <p className="mt-1 text-xs leading-5 text-black/50">
             {note}
           </p>
         )}
 
         {changedBy && (
-          <p className="mt-1 text-xs text-black/35">
-            Changed by {changedBy}
+          <p className="mt-1 text-[10px] text-black/30">
+            Changed by:{" "}
+            {typeof changedBy ===
+            "object"
+              ? changedBy.email ||
+                changedBy.username ||
+                changedBy.name ||
+                "Admin"
+              : changedBy}
           </p>
         )}
 
@@ -1984,18 +2320,18 @@ function TimelineItem({
   );
 }
 
-/* ===================================================== */
-/* FORMAT STATUS */
-/* ===================================================== */
+/* =========================================================
+   FORMAT STATUS
+========================================================= */
 
 function formatStatus(value) {
   if (!value) {
-    return "";
+    return "Unknown";
   }
 
   return String(value)
     .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) =>
-      char.toUpperCase()
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase()
     );
 }
