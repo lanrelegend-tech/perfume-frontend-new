@@ -1126,7 +1126,7 @@ export default function EditProductPage() {
                       product.name || ""
                     }
                     onChange={handleChange}
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition focus:border-black"
+                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none transition focus:border-black"
                   />
                 </div>
 
@@ -1145,7 +1145,7 @@ export default function EditProductPage() {
                       }
                       onChange={handleChange}
                       placeholder="e.g. ORENTEMIST"
-                      className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
+                      className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                     />
                   </div>
 
@@ -1163,7 +1163,7 @@ export default function EditProductPage() {
                       onChange={
                         handleChange
                       }
-                      className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
+                      className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none focus:border-black"
                     >
                       <option value="">
                         Select category
@@ -1203,7 +1203,7 @@ export default function EditProductPage() {
                     }
                     onChange={handleChange}
                     rows={6}
-                    className="w-full resize-none rounded-xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-black"
+                    className="w-full resize-none rounded-xl border border-black/10 bg-white px-4 py-3 text-base sm:text-sm outline-none transition focus:border-black"
                   />
                 </div>
 
@@ -1222,7 +1222,7 @@ export default function EditProductPage() {
                     }
                     onChange={handleChange}
                     placeholder="e.g. Oud, Amber, Vanilla"
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
+                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                   />
 
                   <p className="mt-2 text-xs text-black/40">
@@ -1263,7 +1263,7 @@ export default function EditProductPage() {
                       }
                       onChange={handleChange}
                       min="0"
-                      className="h-12 w-full rounded-xl border border-black/10 bg-white pl-9 pr-4 text-sm outline-none focus:border-black"
+                      className="h-12 w-full rounded-xl border border-black/10 bg-white pl-9 pr-4 text-base sm:text-sm outline-none focus:border-black"
                     />
                   </div>
                 </div>
@@ -1281,7 +1281,7 @@ export default function EditProductPage() {
                     }
                     onChange={handleChange}
                     placeholder="e.g. 100ml"
-                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
+                    className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                   />
                 </div>
               </div>
@@ -1320,7 +1320,7 @@ export default function EditProductPage() {
                   }
                   min="0"
                   placeholder="0"
-                  className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-black"
+                  className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none focus:border-black"
                 />
 
                 <p className="mt-2 text-xs text-black/40">
@@ -1447,7 +1447,7 @@ export default function EditProductPage() {
                           onChange={
                             handleChange
                           }
-                          className="h-12 w-full rounded-xl border border-amber-200 bg-white px-4 text-sm outline-none focus:border-amber-500"
+                          className="h-12 w-full rounded-xl border border-amber-200 bg-white px-4 text-base sm:text-sm outline-none focus:border-amber-500"
                         />
 
                         <p className="mt-2 text-xs text-amber-800/60">
@@ -1476,7 +1476,7 @@ export default function EditProductPage() {
                           rows={3}
                           maxLength={255}
                           placeholder="e.g. Ships within 4 days of your order"
-                          className="w-full resize-none rounded-xl border border-amber-200 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500"
+                          className="w-full resize-none rounded-xl border border-amber-200 bg-white px-4 py-3 text-base sm:text-sm outline-none focus:border-amber-500"
                         />
 
                         <p className="mt-2 text-xs text-amber-800/60">
