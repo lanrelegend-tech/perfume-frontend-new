@@ -699,7 +699,7 @@ export default function AddProductPage() {
                       value={product.brand}
                       onChange={handleChange}
                       placeholder="e.g. ORENTEMIST"
-                      className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
+                      className="h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                     />
                   </div>
 
@@ -761,7 +761,7 @@ export default function AddProductPage() {
                     onChange={handleChange}
                     rows={6}
                     placeholder="Write a description for your product..."
-                    className="w-full resize-none rounded-xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
+                    className="w-full resize-none rounded-xl border border-black/10 bg-white px-4 py-3 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                   />
 
                   <p className="mt-2 text-xs text-black/40">
@@ -782,7 +782,7 @@ export default function AddProductPage() {
                     onChange={handleChange}
                     rows={3}
                     placeholder="e.g. Oud, Amber, Vanilla"
-                    className="w-full resize-none rounded-xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-black/30 focus:border-black"
+                    className="w-full resize-none rounded-xl border border-black/10 bg-white px-4 py-3 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black"
                   />
                 </div>
               </div>
@@ -791,7 +791,7 @@ export default function AddProductPage() {
             {/* Pricing */}
             <section className="rounded-2xl border border-black/10 bg-white p-5 sm:p-6">
               <div className="mb-6">
-                <h2 className="text-base font-semibold">
+                <h2 className="text-base sm:text-sm font-semibold">
                   Pricing
                 </h2>
 
@@ -819,7 +819,7 @@ export default function AddProductPage() {
                       onChange={handleChange}
                       placeholder="0"
                       min="0"
-                      className="h-12 w-full rounded-xl border border-black/10 bg-white pl-9 pr-4 text-sm outline-none focus:border-black"
+                      className="h-12 w-full rounded-xl border border-black/10 bg-white pl-9 pr-4 text-base sm:text-sm outline-none focus:border-black"
                     />
                   </div>
                 </div>
