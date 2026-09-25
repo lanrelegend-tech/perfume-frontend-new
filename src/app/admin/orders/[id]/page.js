@@ -48,88 +48,121 @@ export default function OrderDetailsPage() {
     message: "",
   });
 
+  /*
+    FETCH ORDER
+  */
+
+  const fetchOrder = async ({
+    showLoading = false,
+    redirectOnAuth = true,
+  } = {}) => {
+    if (!orderId) return null;
+
+    try {
+      if (showLoading) {
+        setLoading(true);
+      }
+
+      setError("");
+
+      const token =
+        localStorage.getItem("access_token");
+
+      if (!token) {
+        if (redirectOnAuth) {
+          router.push("/admin/login");
+        }
+
+        return null;
+      }
+
+      const response = await fetch(
+        `${API_URL}/orders/admin/${orderId}/`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+
+        if (redirectOnAuth) {
+          router.push("/admin/login");
+        }
+
+        return null;
+      }
+
+      if (response.status === 403) {
+        throw new Error(
+          "You do not have permission to view this order."
+        );
+      }
+
+      if (response.status === 404) {
+        throw new Error("Order not found.");
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "Failed to load order details."
+        );
+      }
+
+      const data = await response.json();
+
+      setOrder(data);
+
+      setStatus(
+        formatStatus(
+          data.status,
+          data.delivery_method === "pickup"
+        )
+      );
+
+      setCourier(data.courier || "");
+
+      setTrackingNumber(
+        data.tracking_number || ""
+      );
+
+      return data;
+    } catch (err) {
+      console.error(
+        "ORDER DETAILS ERROR:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Failed to load order."
+      );
+
+      return null;
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
+  /*
+    INITIAL LOAD
+  */
+
   useEffect(() => {
     if (!orderId) return;
 
-    const fetchOrder = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const token =
-          localStorage.getItem("access_token");
-
-        if (!token) {
-          router.push("/admin/login");
-          return;
-        }
-
-        const response = await fetch(
-          `${API_URL}/orders/admin/${orderId}/`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            cache: "no-store",
-          }
-        );
-
-        if (response.status === 401) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-
-          router.push("/admin/login");
-          return;
-        }
-
-        if (response.status === 403) {
-          throw new Error(
-            "You do not have permission to view this order."
-          );
-        }
-
-        if (response.status === 404) {
-          throw new Error("Order not found.");
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            "Failed to load order details."
-          );
-        }
-
-        const data = await response.json();
-
-        setOrder(data);
-
-        setStatus(
-          formatStatus(data.status)
-        );
-
-        setCourier(data.courier || "");
-
-        setTrackingNumber(
-          data.tracking_number || ""
-        );
-      } catch (err) {
-        console.error(
-          "ORDER DETAILS ERROR:",
-          err
-        );
-
-        setError(
-          err.message ||
-            "Failed to load order."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOrder();
-  }, [orderId, router]);
+    fetchOrder({
+      showLoading: true,
+    });
+  }, [orderId]);
 
   /*
     ORDER TYPE
@@ -191,6 +224,37 @@ export default function OrderDetailsPage() {
     "Pickup location will be provided by ORENTEMIST.";
 
   /*
+  STATUS DISPLAY
+*/
+
+const getStatusLabel = (
+  orderStatus,
+  pickup = isPickupOrder
+) => {
+  if (
+    pickup &&
+    orderStatus === "processing"
+  ) {
+    return "Preparing Pickup";
+  }
+
+  if (
+    pickup &&
+    orderStatus === "shipped"
+  ) {
+    return "Ready for Pickup";
+  }
+
+  if (
+    pickup &&
+    orderStatus === "delivered"
+  ) {
+    return "Picked Up";
+  }
+
+  return formatStatus(orderStatus);
+};
+  /*
     OPEN STATUS MODAL
   */
 
@@ -199,7 +263,10 @@ export default function OrderDetailsPage() {
 
     if (newStatus === order.status) {
       setStatus(
-        formatStatus(newStatus)
+        getStatusLabel(
+          newStatus,
+          isPickupOrder
+        )
       );
 
       return;
@@ -230,34 +297,76 @@ export default function OrderDetailsPage() {
     const statusNames = {
       pending: "Pending",
       confirmed: "Confirmed",
-      processing: "Processing",
-      shipped: "Shipped",
-      delivered: "Delivered",
+      processing: isPickupOrder
+        ? "Preparing Pickup"
+        : "Processing",
+      shipped: isPickupOrder
+        ? "Ready for Pickup"
+        : "Shipped",
+      delivered: isPickupOrder
+        ? "Picked Up"
+        : "Delivered",
       cancelled: "Cancelled",
     };
 
     const oldStatusName =
       statusNames[order.status] ||
-      order.status;
+      getStatusLabel(
+        order.status,
+        isPickupOrder
+      );
 
     const newStatusName =
       statusNames[newStatus] ||
-      newStatus;
+      getStatusLabel(
+        newStatus,
+        isPickupOrder
+      );
 
     let message = `Are you sure you want to change this order from ${oldStatusName} to ${newStatusName}?`;
 
+    /*
+      PICKUP: PROCESSING -> READY FOR PICKUP
+    */
+
     if (
+      isPickupOrder &&
+      order.status === "processing" &&
+      newStatus === "shipped"
+    ) {
+      message =
+        "This pickup order is ready to be collected.\n\nAre you sure you want to mark this order as Ready for Pickup?\n\nThe customer will be notified that the order is ready to collect.";
+    }
+
+    /*
+      PICKUP: READY -> PICKED UP
+    */
+
+    if (
+      isPickupOrder &&
+      order.status === "shipped" &&
+      newStatus === "delivered"
+    ) {
+      message =
+        "Has the customer collected this pickup order?\n\nMarking this order as Picked Up will complete the order.";
+    }
+
+    /*
+      DELIVERY: PROCESSING -> DELIVERED
+    */
+
+    if (
+      !isPickupOrder &&
       order.status === "processing" &&
       newStatus === "delivered"
     ) {
-      if (isPickupOrder) {
-        message =
-          "This is a pickup order.\n\nAre you sure you want to mark this order as Delivered?";
-      } else {
-        message =
-          "This order is currently Processing.\n\nAre you sure you want to skip the Shipped stage and mark this order as Delivered?";
-      }
+      message =
+        "This order is currently Processing.\n\nAre you sure you want to skip the Shipped stage and mark this order as Delivered?";
     }
+
+    /*
+      CANCEL
+    */
 
     if (newStatus === "cancelled") {
       if (
@@ -366,25 +475,18 @@ export default function OrderDetailsPage() {
         );
       }
 
-      const updatedOrder =
-        await response.json();
+      /*
+        IMPORTANT:
+        Do not rely only on the PATCH response.
+        Fetch the complete order again so product
+        details, IDs, items, timeline and status
+        are completely fresh.
+      */
 
-      setOrder(updatedOrder);
-
-      setCourier(
-        updatedOrder.courier || ""
-      );
-
-      setTrackingNumber(
-        updatedOrder.tracking_number ||
-          ""
-      );
-
-      setStatus(
-        formatStatus(
-          updatedOrder.status
-        )
-      );
+      await fetchOrder({
+        showLoading: false,
+        redirectOnAuth: true,
+      });
     } catch (err) {
       console.error(
         "UPDATE ORDER ERROR:",
@@ -397,7 +499,10 @@ export default function OrderDetailsPage() {
       );
 
       setStatus(
-        formatStatus(order.status)
+        getStatusLabel(
+          order.status,
+          isPickupOrder
+        )
       );
     } finally {
       setUpdating(false);
@@ -478,19 +583,15 @@ export default function OrderDetailsPage() {
           );
         }
 
-        const updatedOrder =
-          await response.json();
+        /*
+          Re-fetch the complete order after
+          saving shipping information as well.
+        */
 
-        setOrder(updatedOrder);
-
-        setCourier(
-          updatedOrder.courier || ""
-        );
-
-        setTrackingNumber(
-          updatedOrder.tracking_number ||
-            ""
-        );
+        await fetchOrder({
+          showLoading: false,
+          redirectOnAuth: true,
+        });
       } catch (err) {
         console.error(
           "SAVE SHIPPING ERROR:",
@@ -854,7 +955,9 @@ export default function OrderDetailsPage() {
                   </h1>
 
                   <OrderStatus
-                    status={status}
+                    status={order.status}
+
+                    isPickup={isPickupOrder}
                   />
 
                   {isPickupOrder && (
@@ -900,7 +1003,7 @@ export default function OrderDetailsPage() {
                           isPickupOrder
                         ) {
                           updateStatus(
-                            "delivered"
+                           "shipped"
                           );
 
                           return;
@@ -939,8 +1042,8 @@ export default function OrderDetailsPage() {
                       )}
 
                       {isPickupOrder
-                        ? "Mark as Delivered"
-                        : "Mark as Shipped"}
+  ? "Mark as Ready for Pickup"
+  : "Mark as Shipped"}
 
                     </button>
 
@@ -1010,7 +1113,9 @@ export default function OrderDetailsPage() {
                         />
                       )}
 
-                      Mark as Delivered
+                      {isPickupOrder
+  ? "Mark as Picked Up"
+  : "Mark as Delivered"}
 
                     </button>
 
@@ -1190,9 +1295,15 @@ export default function OrderDetailsPage() {
                           Pickup order
                         </h2>
 
-                        <p className="mt-1 text-xs leading-5 text-blue-800">
-                          This customer selected pickup instead of delivery.
-                        </p>
+                       <p className="mt-1 text-xs leading-5 text-blue-800">
+  {order.status === "processing"
+    ? "We’ll let the customer know when the order is ready for pickup."
+    : order.status === "shipped"
+    ? "This order is ready for pickup. The customer can now collect it."
+    : order.status === "delivered"
+    ? "The customer has picked up this order."
+    : "This customer selected pickup instead of delivery."}
+</p>
 
                         <div className="mt-3 rounded-xl border border-blue-200 bg-white/70 p-3">
 
