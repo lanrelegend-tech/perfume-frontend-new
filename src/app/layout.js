@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import PWARegister from "@/components/PWARegister";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,14 +15,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: {
-    default: "ORENTEMIST — The Art of Fragrance",
-    template: "%s | ORENTEMIST",
-  },
-
+  title: "ORENTEMIST",
   description:
     "Discover ORENTEMIST — a refined fragrance experience crafted for those who leave an impression.",
-
+  themeColor: "#111111",
   applicationName: "ORENTEMIST",
 
   keywords: [
@@ -74,6 +71,7 @@ export default function RootLayout({ children }) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <PWARegister />
         {children}
       </body>
     </html>
