@@ -552,7 +552,7 @@ export default function CustomersPage() {
                         e.target.value
                       );
                     }}
-                    className="w-full rounded-xl border border-black/10 bg-[#fafafa] py-3 pl-11 pr-4 text-sm outline-none transition focus:border-black/30"
+                   className="w-full rounded-xl border border-black/10 bg-[#fafafa] py-3 pl-11 pr-4 text-base sm:text-sm outline-none transition focus:border-black/30"
                   />
                 </div>
 
@@ -565,7 +565,7 @@ export default function CustomersPage() {
                       e.target.value
                     );
                   }}
-                  className="rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-sm outline-none"
+                  className="rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base sm:text-sm outline-none"
                 >
                   <option value="All">
                     All Customers

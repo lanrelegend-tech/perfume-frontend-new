@@ -201,15 +201,8 @@ export default function SignupPage() {
       let username = baseUsername;
       let result = null;
 
-      /*
-       * Try the normal username first.
-       */
       result = await registerUser(username);
 
-      /*
-       * Automatically create another username
-       * if the generated username already exists.
-       */
       if (
         !result.response.ok &&
         result.data?.username &&
@@ -248,10 +241,6 @@ export default function SignupPage() {
         }
 
         if (!registered && !result.response.ok) {
-          /*
-           * Show password validation errors
-           * clearly if the backend returned them.
-           */
           if (
             result.data?.password &&
             Array.isArray(result.data.password)
@@ -271,9 +260,6 @@ export default function SignupPage() {
         }
       }
 
-      /*
-       * Handle registration errors.
-       */
       if (!result.response.ok) {
         console.error(
           "REGISTER STATUS:",
@@ -290,18 +276,6 @@ export default function SignupPage() {
           result.rawText
         );
 
-        /*
-         * PASSWORD ERRORS
-         *
-         * Example:
-         *
-         * {
-         *   "password": [
-         *     "This password is too common.",
-         *     "This password is entirely numeric."
-         *   ]
-         * }
-         */
         if (
           result.data?.password &&
           Array.isArray(result.data.password)
@@ -313,9 +287,6 @@ export default function SignupPage() {
           return;
         }
 
-        /*
-         * PASSWORD2 ERRORS
-         */
         if (
           result.data?.password2 &&
           Array.isArray(result.data.password2)
@@ -329,9 +300,6 @@ export default function SignupPage() {
           return;
         }
 
-        /*
-         * EMAIL ERRORS
-         */
         if (
           result.data?.email &&
           Array.isArray(result.data.email)
@@ -354,10 +322,6 @@ export default function SignupPage() {
 
       const data = result.data;
 
-      /*
-       * Some backends automatically log the user in
-       * immediately after registration.
-       */
       const accessToken =
         data?.access ||
         data?.access_token ||
@@ -371,9 +335,6 @@ export default function SignupPage() {
         data?.tokens?.refresh ||
         data?.tokens?.refresh_token;
 
-      /*
-       * USER CREATED + AUTHENTICATED
-       */
       if (accessToken) {
         localStorage.setItem(
           "access_token",
@@ -398,9 +359,6 @@ export default function SignupPage() {
         return;
       }
 
-      /*
-       * EMAIL VERIFICATION REQUIRED
-       */
       if (
         data?.verification_required ||
         data?.email_verification_required ||
@@ -421,9 +379,6 @@ export default function SignupPage() {
         return;
       }
 
-      /*
-       * ACCOUNT CREATED BUT NO TOKEN RETURNED
-       */
       setSuccess(
         "Account created successfully. Please sign in."
       );
@@ -445,11 +400,12 @@ export default function SignupPage() {
     <main className="min-h-screen bg-white text-black">
       <div className="min-h-screen flex">
 
-        {/* LEFT DESKTOP PANEL */}
+        {/* DESKTOP BRAND PANEL */}
         <div className="hidden lg:flex lg:w-1/2 bg-black text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_35%)]" />
 
           <div className="relative z-10 flex flex-col justify-between w-full p-12 xl:p-16">
+
             <div>
               <Link
                 href="/"
@@ -488,7 +444,7 @@ export default function SignupPage() {
           <div className="w-full max-w-md">
 
             {/* MOBILE LOGO */}
-            <div className="lg:hidden mb-10 text-center">
+            <div className="lg:hidden mb-8 text-center">
               <Link
                 href="/"
                 className="text-xl sm:text-2xl tracking-[0.3em] font-medium"
@@ -497,23 +453,25 @@ export default function SignupPage() {
               </Link>
             </div>
 
-            {/* HEADER */}
+            {/* CLEAR PAGE HEADING */}
             <div className="mb-8 sm:mb-10">
-              <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-black/40 mb-3 sm:mb-4">
-                Create account
+
+              <p className="text-[11px] uppercase tracking-[0.25em] text-black/40 mb-3">
+                ORENTEMIST ACCOUNT
               </p>
 
-              <h2 className="text-2xl sm:text-4xl font-light tracking-tight">
-                Welcome to ORENTEMIST
+              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+                Create your account
               </h2>
 
-              <p className="mt-3 text-sm leading-6 text-black/50">
-                Create your account to manage your orders
-                and discover your next signature fragrance.
+              <p className="mt-3 text-sm sm:text-base leading-6 text-black/50">
+                Enter your details below to create your
+                ORENTEMIST account.
               </p>
+
             </div>
 
-            {/* GENERAL ERROR */}
+            {/* ERROR */}
             {error && (
               <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm leading-6 text-red-700">
                 {error}
@@ -529,7 +487,7 @@ export default function SignupPage() {
 
             <form
               onSubmit={handleSubmit}
-              className="space-y-5"
+              className="space-y-6"
             >
 
               {/* NAME */}
@@ -538,7 +496,7 @@ export default function SignupPage() {
                 <div>
                   <label
                     htmlFor="first_name"
-                    className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                    className="block text-sm font-semibold text-black mb-2"
                   >
                     First name
                   </label>
@@ -552,14 +510,14 @@ export default function SignupPage() {
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="First name"
-                    className="w-full border-b border-black/20 bg-transparent px-0 py-3.5 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                    className="w-full h-12 border border-black/20 rounded-xl bg-white px-4 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black focus:ring-1 focus:ring-black disabled:opacity-50"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="last_name"
-                    className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                    className="block text-sm font-semibold text-black mb-2"
                   >
                     Last name
                   </label>
@@ -573,7 +531,7 @@ export default function SignupPage() {
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="Last name"
-                    className="w-full border-b border-black/20 bg-transparent px-0 py-3.5 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                    className="w-full h-12 border border-black/20 rounded-xl bg-white px-4 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black focus:ring-1 focus:ring-black disabled:opacity-50"
                   />
                 </div>
 
@@ -583,7 +541,7 @@ export default function SignupPage() {
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                  className="block text-sm font-semibold text-black mb-2"
                 >
                   Email address
                 </label>
@@ -592,12 +550,13 @@ export default function SignupPage() {
                   id="email"
                   name="email"
                   type="email"
+                  inputMode="email"
                   autoComplete="email"
                   value={form.email}
                   onChange={handleChange}
                   disabled={loading}
                   placeholder="you@example.com"
-                  className="w-full border-b border-black/20 bg-transparent px-0 py-3.5 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                  className="w-full h-12 border border-black/20 rounded-xl bg-white px-4 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black focus:ring-1 focus:ring-black disabled:opacity-50"
                 />
               </div>
 
@@ -605,12 +564,13 @@ export default function SignupPage() {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                  className="block text-sm font-semibold text-black mb-2"
                 >
                   Password
                 </label>
 
                 <div className="relative">
+
                   <input
                     id="password"
                     name="password"
@@ -624,10 +584,10 @@ export default function SignupPage() {
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="Create a strong password"
-                    className={`w-full border-b bg-transparent px-0 py-3.5 pr-14 text-sm outline-none transition placeholder:text-black/30 disabled:opacity-50 ${
+                    className={`w-full h-12 rounded-xl bg-white border px-4 pr-16 text-base sm:text-sm outline-none transition placeholder:text-black/30 disabled:opacity-50 ${
                       passwordErrors.length > 0
                         ? "border-red-400 focus:border-red-500"
-                        : "border-black/20 focus:border-black"
+                        : "border-black/20 focus:border-black focus:ring-1 focus:ring-black"
                     }`}
                   />
 
@@ -639,18 +599,19 @@ export default function SignupPage() {
                       )
                     }
                     disabled={loading}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] font-medium tracking-wider text-black/40 hover:text-black"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] font-semibold tracking-wider text-black/40 hover:text-black"
                   >
                     {showPassword
                       ? "HIDE"
                       : "SHOW"}
                   </button>
+
                 </div>
 
-                {/* PASSWORD VALIDATION ERRORS */}
+                {/* PASSWORD ERRORS */}
                 {passwordErrors.length > 0 && (
                   <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                    <p className="text-xs font-medium text-red-800 mb-2">
+                    <p className="text-xs font-semibold text-red-800 mb-2">
                       Please choose a stronger password:
                     </p>
 
@@ -673,11 +634,10 @@ export default function SignupPage() {
                   </div>
                 )}
 
-                {/* PASSWORD HELPER */}
                 {passwordErrors.length === 0 && (
-                  <p className="mt-2 text-[11px] leading-5 text-black/40">
-                    Use at least 8 characters with a mix of
-                    letters, numbers and symbols.
+                  <p className="mt-2 text-xs leading-5 text-black/40">
+                    Use at least 8 characters with letters,
+                    numbers and symbols.
                   </p>
                 )}
               </div>
@@ -686,12 +646,13 @@ export default function SignupPage() {
               <div>
                 <label
                   htmlFor="password2"
-                  className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                  className="block text-sm font-semibold text-black mb-2"
                 >
                   Confirm password
                 </label>
 
                 <div className="relative">
+
                   <input
                     id="password2"
                     name="password2"
@@ -704,8 +665,8 @@ export default function SignupPage() {
                     value={form.password2}
                     onChange={handleChange}
                     disabled={loading}
-                    placeholder="Repeat your password"
-                    className="w-full border-b border-black/20 bg-transparent px-0 py-3.5 pr-14 text-sm outline-none transition placeholder:text-black/30 focus:border-black disabled:opacity-50"
+                    placeholder="Enter your password again"
+                    className="w-full h-12 rounded-xl bg-white border border-black/20 px-4 pr-16 text-base sm:text-sm outline-none transition placeholder:text-black/30 focus:border-black focus:ring-1 focus:ring-black disabled:opacity-50"
                   />
 
                   <button
@@ -716,40 +677,43 @@ export default function SignupPage() {
                       )
                     }
                     disabled={loading}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] font-medium tracking-wider text-black/40 hover:text-black"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] font-semibold tracking-wider text-black/40 hover:text-black"
                   >
                     {showPassword2
                       ? "HIDE"
                       : "SHOW"}
                   </button>
+
                 </div>
               </div>
 
               {/* TERMS */}
-              <p className="text-[11px] sm:text-xs leading-5 text-black/40 pt-1">
+              <p className="text-xs leading-5 text-black/40">
                 By creating an account, you agree to our
                 terms and acknowledge our privacy policy.
               </p>
 
-              {/* SUBMIT */}
+              {/* CREATE ACCOUNT */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-black text-white py-4.5 text-[10px] sm:text-xs uppercase tracking-[0.25em] transition hover:bg-black/85 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full h-12 rounded-xl bg-black text-white text-xs font-semibold uppercase tracking-[0.2em] transition hover:bg-black/85 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading
                   ? "Creating account..."
                   : "Create account"}
               </button>
+
             </form>
 
             {/* LOGIN */}
             <div className="mt-8 text-center">
               <p className="text-sm text-black/50">
                 Already have an account?{" "}
+
                 <Link
                   href="/login"
-                  className="text-black underline underline-offset-4 hover:no-underline"
+                  className="font-medium text-black underline underline-offset-4 hover:no-underline"
                 >
                   Sign in
                 </Link>
@@ -760,7 +724,7 @@ export default function SignupPage() {
             <div className="mt-6 pb-4 text-center">
               <Link
                 href="/"
-                className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/40 hover:text-black transition"
+                className="text-xs uppercase tracking-[0.2em] text-black/40 hover:text-black transition"
               >
                 ← Back to store
               </Link>
@@ -768,6 +732,7 @@ export default function SignupPage() {
 
           </div>
         </div>
+
       </div>
     </main>
   );

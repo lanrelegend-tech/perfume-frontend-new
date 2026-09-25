@@ -19,7 +19,8 @@ export default function ForgotPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -63,10 +64,6 @@ export default function ForgotPasswordPage() {
       );
 
       const data = await response.json().catch(() => ({}));
-
-      // =====================================================
-      // RATE LIMIT
-      // =====================================================
 
       if (response.status === 429) {
         setError(
@@ -176,10 +173,6 @@ export default function ForgotPasswordPage() {
 
       const data = await response.json().catch(() => ({}));
 
-      // =====================================================
-      // RATE LIMIT
-      // =====================================================
-
       if (response.status === 429) {
         setError(
           "Too many attempts. Please wait a few minutes and try again."
@@ -248,10 +241,6 @@ export default function ForgotPasswordPage() {
       );
 
       const data = await response.json().catch(() => ({}));
-
-      // =====================================================
-      // RATE LIMIT
-      // =====================================================
 
       if (response.status === 429) {
         setError(
@@ -327,10 +316,10 @@ export default function ForgotPasswordPage() {
       ===================================================== */}
 
       <header className="border-b border-black/10 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-center px-6">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-center px-5 sm:px-6">
           <Link
             href="/"
-            className="text-[19px] font-semibold tracking-[0.32em] transition-opacity hover:opacity-60"
+            className="text-[18px] font-semibold tracking-[0.28em] sm:text-[19px]"
           >
             ORENTEMIST
           </Link>
@@ -341,7 +330,7 @@ export default function ForgotPasswordPage() {
           MAIN
       ===================================================== */}
 
-      <section className="flex min-h-[calc(100vh-80px)] items-center justify-center px-5 py-12">
+      <section className="flex min-h-[calc(100vh-80px)] items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
 
         <div className="w-full max-w-[500px]">
 
@@ -349,29 +338,27 @@ export default function ForgotPasswordPage() {
               CARD
           ================================================= */}
 
-          <div className="overflow-hidden rounded-[30px] border border-black/10 bg-white shadow-[0_25px_80px_rgba(0,0,0,0.07)]">
-
-            {/* TOP DECORATION */}
+          <div className="overflow-hidden rounded-[24px] border border-black/10 bg-white shadow-[0_20px_70px_rgba(0,0,0,0.07)] sm:rounded-[30px]">
 
             <div className="h-1 bg-black" />
 
-            <div className="p-7 sm:p-10">
+            <div className="p-5 sm:p-10">
 
               {/* =================================================
                   BRAND / ICON
               ================================================= */}
 
-              <div className="mb-8 text-center">
+              <div className="mb-8 text-center sm:mb-9">
 
-                <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.35em] text-black/35">
-                  ORENTEMIST
+                <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.3em] text-black/40">
+                  ORENTEMIST ACCOUNT
                 </p>
 
-                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-black text-white shadow-lg">
+                <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-lg sm:h-16 sm:w-16">
 
                   <svg
-                    width="25"
-                    height="25"
+                    width="24"
+                    height="24"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -399,35 +386,42 @@ export default function ForgotPasswordPage() {
                 </div>
 
                 {/* =================================================
-                    STEP HEADINGS
+                    CLEAR STEP HEADINGS
                 ================================================= */}
 
                 {step === 1 && (
                   <>
-                    <h1 className="text-[30px] font-semibold tracking-tight sm:text-[34px]">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45">
+                      Password recovery
+                    </p>
+
+                    <h1 className="text-[28px] font-bold tracking-tight text-black sm:text-[34px]">
                       Forgot your password?
                     </h1>
 
                     <p className="mx-auto mt-3 max-w-[390px] text-sm leading-6 text-black/50">
-                      No worries. Enter your email and
-                      we&apos;ll send you a secure code to
-                      help you return to your ORENTEMIST
-                      account.
+                      Enter your email address below and
+                      we&apos;ll send you a secure reset code.
                     </p>
                   </>
                 )}
 
                 {step === 2 && (
                   <>
-                    <h1 className="text-[30px] font-semibold tracking-tight sm:text-[34px]">
-                      Check your email.
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45">
+                      Email verification
+                    </p>
+
+                    <h1 className="text-[28px] font-bold tracking-tight text-black sm:text-[34px]">
+                      Check your email
                     </h1>
 
                     <p className="mx-auto mt-3 max-w-[390px] text-sm leading-6 text-black/50">
-                      We sent a 6-digit security code to
+                      We sent a 6-digit verification code
+                      to:
                     </p>
 
-                    <p className="mt-2 break-all text-sm font-semibold text-black">
+                    <p className="mt-2 break-all text-sm font-bold text-black">
                       {email}
                     </p>
                   </>
@@ -435,13 +429,17 @@ export default function ForgotPasswordPage() {
 
                 {step === 3 && (
                   <>
-                    <h1 className="text-[30px] font-semibold tracking-tight sm:text-[34px]">
-                      Create a new password.
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45">
+                      New password
+                    </p>
+
+                    <h1 className="text-[28px] font-bold tracking-tight text-black sm:text-[34px]">
+                      Create a new password
                     </h1>
 
                     <p className="mx-auto mt-3 max-w-[390px] text-sm leading-6 text-black/50">
-                      Choose a new password and continue
-                      your fragrance journey with ORENTEMIST.
+                      Choose a new password for your
+                      ORENTEMIST account.
                     </p>
                   </>
                 )}
@@ -454,8 +452,10 @@ export default function ForgotPasswordPage() {
 
               <div className="mb-8">
 
-                <div className="mb-3 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.16em] text-black/35">
-                  <span>Step {step} of 3</span>
+                <div className="mb-3 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.14em] text-black/40">
+                  <span>
+                    Step {step} of 3
+                  </span>
 
                   <span>
                     {step === 1
@@ -575,7 +575,7 @@ export default function ForgotPasswordPage() {
 
                     <label
                       htmlFor="email"
-                      className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-black/55"
+                      className="mb-2.5 block text-sm font-semibold text-black"
                     >
                       Email address
                     </label>
@@ -589,7 +589,7 @@ export default function ForgotPasswordPage() {
                       }
                       placeholder="you@example.com"
                       autoComplete="email"
-                      className="h-14 w-full rounded-2xl border border-black/15 bg-white px-4 text-sm outline-none transition focus:border-black focus:ring-4 focus:ring-black/5"
+                      className="h-14 w-full rounded-2xl border border-black/15 bg-white px-4 text-base text-black outline-none transition placeholder:text-sm placeholder:text-black/30 focus:border-black focus:ring-4 focus:ring-black/5"
                       required
                     />
 
@@ -633,9 +633,9 @@ export default function ForgotPasswordPage() {
 
                     <label
                       htmlFor="code"
-                      className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-black/55"
+                      className="mb-2.5 block text-sm font-semibold text-black"
                     >
-                      Security code
+                      6-digit verification code
                     </label>
 
                     <input
@@ -654,7 +654,7 @@ export default function ForgotPasswordPage() {
                         setCode(value);
                       }}
                       placeholder="000000"
-                      className="h-16 w-full rounded-2xl border border-black/15 bg-white px-4 text-center text-2xl font-semibold tracking-[0.45em] outline-none transition placeholder:text-black/15 focus:border-black focus:ring-4 focus:ring-black/5"
+                      className="h-16 w-full rounded-2xl border border-black/15 bg-white px-4 text-base text-center font-semibold tracking-[0.4em] text-black outline-none transition placeholder:text-black/15 focus:border-black focus:ring-4 focus:ring-black/5"
                       required
                     />
 
@@ -681,7 +681,7 @@ export default function ForgotPasswordPage() {
                       type="button"
                       onClick={handleResendCode}
                       disabled={loading}
-                      className="text-sm font-semibold underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="text-sm font-semibold text-black underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {loading
                         ? "Sending..."
@@ -719,7 +719,7 @@ export default function ForgotPasswordPage() {
 
                     <label
                       htmlFor="new-password"
-                      className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-black/55"
+                      className="mb-2.5 block text-sm font-semibold text-black"
                     >
                       New password
                     </label>
@@ -739,9 +739,9 @@ export default function ForgotPasswordPage() {
                             e.target.value
                           )
                         }
-                        placeholder="Enter new password"
+                        placeholder="Enter your new password"
                         autoComplete="new-password"
-                        className="h-14 w-full rounded-2xl border border-black/15 bg-white px-4 pr-16 text-sm outline-none transition focus:border-black focus:ring-4 focus:ring-black/5"
+                        className="h-14 w-full rounded-2xl border border-black/15 bg-white px-4 pr-16 text-base text-black outline-none transition placeholder:text-sm placeholder:text-black/30 focus:border-black focus:ring-4 focus:ring-black/5"
                         required
                       />
 
@@ -769,9 +769,9 @@ export default function ForgotPasswordPage() {
 
                     <label
                       htmlFor="confirm-password"
-                      className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em] text-black/55"
+                      className="mb-2.5 block text-sm font-semibold text-black"
                     >
-                      Confirm password
+                      Confirm new password
                     </label>
 
                     <div className="relative">
@@ -789,9 +789,9 @@ export default function ForgotPasswordPage() {
                             e.target.value
                           )
                         }
-                        placeholder="Confirm new password"
+                        placeholder="Enter your password again"
                         autoComplete="new-password"
-                        className="h-14 w-full rounded-2xl border border-black/15 bg-white px-4 pr-16 text-sm outline-none transition focus:border-black focus:ring-4 focus:ring-black/5"
+                        className="h-14 w-full rounded-2xl border border-black/15 bg-white px-4 pr-16 text-base text-black outline-none transition placeholder:text-sm placeholder:text-black/30 focus:border-black focus:ring-4 focus:ring-black/5"
                         required
                       />
 

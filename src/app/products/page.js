@@ -634,21 +634,15 @@ useEffect(() => {
 
               </div>
 
-              <input
-                type="text"
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-                onFocus={() =>
-                  setSearchFocused(true)
-                }
-                onBlur={() =>
-                  setSearchFocused(false)
-                }
-                placeholder="Search perfume, oud, vanilla, rose, musk..."
-                className="h-12 w-full rounded-full border border-black/10 bg-white pl-11 pr-10 text-sm outline-none transition placeholder:text-black/35 focus:border-black/30 focus:shadow-lg focus:shadow-black/[0.03]"
-              />
+             <input
+  type="text"
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+  onFocus={() => setSearchFocused(true)}
+  onBlur={() => setSearchFocused(false)}
+  placeholder="Search perfume, oud, vanilla, rose, musk..."
+  className="h-12 w-full rounded-full border border-black/10 bg-white pl-11 pr-10 text-base sm:text-sm outline-none transition placeholder:text-black/35 focus:border-black/30 focus:shadow-lg focus:shadow-black/[0.03]"
+/>
 
               {search && (
                 <button
@@ -838,14 +832,13 @@ useEffect(() => {
 
               <div className="mt-4 grid grid-cols-2 gap-2">
 
-                {[
-                  ["all", "All"],
-                  ["In Stock", "In Stock"],
-                  ["Low Stock", "Low Stock"],
-                  [
-                    "Out of Stock",
-                    "Out of Stock",
-                  ],
+               {[
+  ["all", "All"],
+  ["In Stock", "In Stock"],
+  ["Low Stock", "Low Stock"],
+  ["Pre-order Available", "Pre-order Available"],
+  ["Sold Out", "Sold Out"],
+
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -880,7 +873,7 @@ useEffect(() => {
                 onChange={(e) =>
                   setSortBy(e.target.value)
                 }
-                className="mt-4 h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-sm outline-none"
+              className="mt-4 h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none"
               >
                 <option value="featured">
                   Featured
@@ -1008,13 +1001,13 @@ useEffect(() => {
               <div className="mt-5 space-y-3">
 
                 {[
-                  ["all", "All"],
-                  ["In Stock", "In Stock"],
-                  ["Low Stock", "Low Stock"],
-                  [
-                    "Out of Stock",
-                    "Out of Stock",
-                  ],
+  ["all", "All"],
+  ["In Stock", "In Stock"],
+  ["Low Stock", "Low Stock"],
+  ["Pre-order Available", "Pre-order Available"],
+  ["Sold Out", "Sold Out"],
+
+                
                 ].map(([value, label]) => (
                   <button
                     key={value}

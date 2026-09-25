@@ -233,7 +233,7 @@ export default function AdminReviewsPage() {
                   setCurrentPage(1);
                 }}
                 placeholder="Search reviews..."
-                className="h-11 w-full rounded-xl border border-black/10 bg-[#f8f8f7] pl-10 pr-10 text-sm outline-none transition focus:border-black"
+                className="h-11 w-full rounded-xl border border-black/10 bg-[#f8f8f7] pl-10 pr-10 text-base sm:text-sm outline-none transition focus:border-black"
               />
 
               {search && (

@@ -370,7 +370,7 @@ return (
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Search products..."
-                      className="h-11 w-full rounded-xl border border-black/10 bg-[#fafafa] pl-11 pr-10 text-sm outline-none transition focus:border-black/30"
+                      className="h-11 w-full rounded-xl border border-black/10 bg-[#fafafa] pl-11 pr-10 text-base sm:text-sm outline-none transition focus:border-black/30"
                     />
 
                     {search && (
@@ -859,7 +859,7 @@ function FilterButton({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 appearance-none rounded-xl border border-black/10 bg-white pl-10 pr-9 text-sm outline-none"
+        className="h-11 appearance-none rounded-xl border border-black/10 bg-white pl-10 pr-9 text-base sm:text-sm outline-none"
       >
 
         {options.map((option) => (

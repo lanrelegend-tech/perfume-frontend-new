@@ -65,8 +65,9 @@ function LoginPageContent() {
       });
 
       const data = await response.json().catch(() => ({}));
+
       console.log("LOGIN STATUS:", response.status);
-     console.log("LOGIN RESPONSE:", data);
+      console.log("LOGIN RESPONSE:", data);
       console.log("LOGIN ERROR VALUE:", data?.error);
 
       if (!response.ok) {
@@ -74,18 +75,12 @@ function LoginPageContent() {
          * =====================================================
          * EMAIL NOT VERIFIED
          * =====================================================
-         *
-         * The backend only returns this after the email and
-         * password have been successfully validated.
-         *
-         * We then request a fresh secure verification-link email.
          */
 
-        if (data?.error === "email_not_verified" ||
-
-                data?.error?.[0] === "email_not_verified"
-
-) {
+        if (
+          data?.error === "email_not_verified" ||
+          data?.error?.[0] === "email_not_verified"
+        ) {
           try {
             const resendResponse = await fetch(
               `${API_URL}/users/resend-verification/`,
@@ -154,7 +149,6 @@ function LoginPageContent() {
         );
       }
 
-      // Save authentication tokens
       localStorage.setItem(
         "access_token",
         accessToken
@@ -167,14 +161,6 @@ function LoginPageContent() {
         );
       }
 
-      /*
-       * If the customer came from a protected action,
-       * such as leaving a product review, return them
-       * to that exact page after login.
-       *
-       * Example:
-       * /login?next=/products/12#reviews
-       */
       const next = searchParams.get("next");
 
       if (next && next.startsWith("/")) {
@@ -200,13 +186,18 @@ function LoginPageContent() {
     <main className="min-h-screen bg-[#fafafa]">
       <div className="grid min-h-screen lg:grid-cols-2">
 
-        {/* LEFT VISUAL SECTION */}
+        {/* =====================================================
+            LEFT VISUAL SECTION
+        ===================================================== */}
+
         <div className="relative hidden overflow-hidden bg-black lg:block">
+
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.12),transparent_45%)]" />
 
           <div className="relative flex h-full flex-col justify-between p-12 text-white xl:p-16">
 
-            {/* Logo */}
+            {/* LOGO */}
+
             <Link
               href="/"
               className="text-xl font-semibold tracking-[0.25em]"
@@ -214,8 +205,10 @@ function LoginPageContent() {
               ORENTEMIST
             </Link>
 
-            {/* Main message */}
+            {/* MAIN MESSAGE */}
+
             <div className="max-w-md">
+
               <p className="mb-5 text-xs uppercase tracking-[0.35em] text-white/50">
                 The art of fragrance
               </p>
@@ -231,32 +224,46 @@ function LoginPageContent() {
                 profile, and your ORENTEMIST fragrance
                 collection.
               </p>
+
             </div>
 
-            {/* Footer */}
+            {/* FOOTER */}
+
             <p className="text-xs text-white/35">
               © {new Date().getFullYear()} ORENTEMIST
             </p>
+
           </div>
         </div>
 
-        {/* LOGIN SECTION */}
+        {/* =====================================================
+            LOGIN SECTION
+        ===================================================== */}
+
         <div className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8">
+
           <div className="w-full max-w-md">
 
             {/* MOBILE LOGO */}
+
             <div className="mb-12 lg:hidden">
+
               <Link
                 href="/"
                 className="text-lg font-semibold tracking-[0.25em]"
               >
                 ORENTEMIST
               </Link>
+
             </div>
 
-            {/* HEADER */}
+            {/* =================================================
+                HEADER
+            ================================================= */}
+
             <div className="mb-9">
-              <p className="mb-3 text-xs font-medium uppercase tracking-[0.25em] text-neutral-400">
+
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
                 My account
               </p>
 
@@ -267,9 +274,13 @@ function LoginPageContent() {
               <p className="mt-3 text-sm leading-6 text-neutral-500">
                 Enter your details to access your account.
               </p>
+
             </div>
 
-            {/* SUCCESS */}
+            {/* =================================================
+                SUCCESS MESSAGE
+            ================================================= */}
+
             {success && (
               <div className="mb-6 flex items-start gap-3 rounded-xl border border-green-100 bg-green-50 px-4 py-3.5 text-sm text-green-700">
 
@@ -292,10 +303,14 @@ function LoginPageContent() {
                 </svg>
 
                 <span>{success}</span>
+
               </div>
             )}
 
-            {/* ERROR */}
+            {/* =================================================
+                ERROR MESSAGE
+            ================================================= */}
+
             {error && (
               <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3.5 text-sm text-red-700">
 
@@ -319,20 +334,28 @@ function LoginPageContent() {
                 </svg>
 
                 <span>{error}</span>
+
               </div>
             )}
 
-            {/* FORM */}
+            {/* =================================================
+                LOGIN FORM
+            ================================================= */}
+
             <form
               onSubmit={handleSubmit}
-              className="space-y-5"
+              className="space-y-6"
             >
 
-              {/* EMAIL */}
+              {/* =================================================
+                  EMAIL
+              ================================================= */}
+
               <div>
+
                 <label
                   htmlFor="email"
-                  className="mb-2 block text-xs font-medium uppercase tracking-wider text-neutral-500"
+                  className="mb-2.5 block text-sm font-semibold text-neutral-900"
                 >
                   Email address
                 </label>
@@ -346,17 +369,22 @@ function LoginPageContent() {
                   onChange={handleChange}
                   placeholder="you@example.com"
                   disabled={loading}
-                  className="h-12 w-full rounded-xl border border-neutral-200 bg-white px-4 text-sm text-neutral-950 outline-none transition placeholder:text-neutral-400 focus:border-black focus:ring-1 focus:ring-black disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-12 w-full rounded-xl border border-neutral-200 bg-white px-4 text-base text-neutral-950 outline-none transition placeholder:text-sm placeholder:text-neutral-400 focus:border-black focus:ring-1 focus:ring-black disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
                 />
+
               </div>
 
-              {/* PASSWORD */}
+              {/* =================================================
+                  PASSWORD
+              ================================================= */}
+
               <div>
-                <div className="mb-2 flex items-center justify-between">
+
+                <div className="mb-2.5 flex items-center justify-between">
 
                   <label
                     htmlFor="password"
-                    className="text-xs font-medium uppercase tracking-wider text-neutral-500"
+                    className="text-sm font-semibold text-neutral-900"
                   >
                     Password
                   </label>
@@ -367,6 +395,7 @@ function LoginPageContent() {
                   >
                     Forgot password?
                   </Link>
+
                 </div>
 
                 <div className="relative">
@@ -384,10 +413,11 @@ function LoginPageContent() {
                     onChange={handleChange}
                     placeholder="Enter your password"
                     disabled={loading}
-                    className="h-12 w-full rounded-xl border border-neutral-200 bg-white px-4 pr-12 text-sm text-neutral-950 outline-none transition placeholder:text-neutral-400 focus:border-black focus:ring-1 focus:ring-black disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-12 w-full rounded-xl border border-neutral-200 bg-white px-4 pr-12 text-base text-neutral-950 outline-none transition placeholder:text-sm placeholder:text-neutral-400 focus:border-black focus:ring-1 focus:ring-black disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
                   />
 
                   {/* PASSWORD TOGGLE */}
+
                   <button
                     type="button"
                     onClick={() =>
@@ -402,6 +432,7 @@ function LoginPageContent() {
                         : "Show password"
                     }
                   >
+
                     {showPassword ? (
                       <svg
                         width="19"
@@ -437,32 +468,47 @@ function LoginPageContent() {
                         />
                       </svg>
                     )}
+
                   </button>
+
                 </div>
+
               </div>
 
-              {/* SUBMIT */}
+              {/* =================================================
+                  SUBMIT
+              ================================================= */}
+
               <button
                 type="submit"
                 disabled={loading}
                 className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-black text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
+
                 {loading ? (
                   <span className="flex items-center gap-2">
 
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
 
                     Signing in...
+
                   </span>
                 ) : (
                   "Sign in"
                 )}
+
               </button>
+
             </form>
 
-            {/* REGISTER */}
+            {/* =================================================
+                REGISTER
+            ================================================= */}
+
             <div className="mt-8 text-center">
+
               <p className="text-sm text-neutral-500">
+
                 Don't have an account?{" "}
 
                 <Link
@@ -471,10 +517,15 @@ function LoginPageContent() {
                 >
                   Create account
                 </Link>
+
               </p>
+
             </div>
 
-            {/* SECURITY NOTE */}
+            {/* =================================================
+                SECURITY NOTE
+            ================================================= */}
+
             <div className="mt-10 flex items-center justify-center gap-2 text-xs text-neutral-400">
 
               <svg
@@ -499,10 +550,13 @@ function LoginPageContent() {
               <span>
                 Your information is securely protected.
               </span>
+
             </div>
 
           </div>
+
         </div>
+
       </div>
     </main>
   );

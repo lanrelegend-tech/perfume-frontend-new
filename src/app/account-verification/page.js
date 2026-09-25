@@ -101,7 +101,10 @@ function AccountVerificationContent() {
           }
         }, 1500);
       } catch (err) {
-        console.error("VERIFY EMAIL LINK ERROR:", err);
+        console.error(
+          "VERIFY EMAIL LINK ERROR:",
+          err
+        );
 
         if (!cancelled) {
           setError(
@@ -203,14 +206,17 @@ function AccountVerificationContent() {
 
       setSuccess(
         data?.message ||
-          "Email verified successfully."
+          "Email verified successfully. Redirecting you to sign in..."
       );
 
       setTimeout(() => {
         router.push("/login");
       }, 1200);
     } catch (err) {
-      console.error("VERIFY EMAIL ERROR:", err);
+      console.error(
+        "VERIFY EMAIL ERROR:",
+        err
+      );
 
       setError(
         "Unable to verify your email. Please check your connection and try again."
@@ -305,7 +311,7 @@ function AccountVerificationContent() {
     <main className="min-h-screen bg-white text-black">
       <div className="min-h-screen flex">
 
-        {/* LEFT DESKTOP PANEL */}
+        {/* DESKTOP BRAND PANEL */}
         <div className="hidden lg:flex lg:w-1/2 bg-black text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_35%)]" />
 
@@ -322,25 +328,25 @@ function AccountVerificationContent() {
 
             <div className="max-w-xl">
               <p className="text-xs uppercase tracking-[0.35em] text-white/50 mb-6">
-                Verify your account
+                ACCOUNT SECURITY
               </p>
 
               <h1 className="text-5xl xl:text-6xl font-light leading-tight tracking-tight">
-                One step
+                Verify your
                 <br />
-                before your journey.
+                email address.
               </h1>
 
               <p className="mt-8 text-white/60 max-w-md leading-7">
-                Verify your email address to secure your
-                ORENTEMIST account and continue shopping
-                with us.
+                Confirm your email address to secure your
+                ORENTEMIST account and continue shopping.
               </p>
             </div>
 
             <p className="text-xs text-white/40 tracking-wide">
               © {new Date().getFullYear()} ORENTEMIST
             </p>
+
           </div>
         </div>
 
@@ -349,7 +355,7 @@ function AccountVerificationContent() {
           <div className="w-full max-w-md">
 
             {/* MOBILE LOGO */}
-            <div className="lg:hidden mb-10 text-center">
+            <div className="lg:hidden mb-8 text-center">
               <Link
                 href="/"
                 className="text-xl sm:text-2xl tracking-[0.3em] font-medium"
@@ -358,20 +364,21 @@ function AccountVerificationContent() {
               </Link>
             </div>
 
-            {/* SECURE LINK VERIFICATION */}
+            {/* LINK VERIFICATION */}
             {token && linkVerifying ? (
               <div className="text-center py-10">
 
-                <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-black/40 mb-4">
-                  Secure verification
+                <p className="text-[11px] uppercase tracking-[0.25em] text-black/40 mb-3">
+                  ACCOUNT VERIFICATION
                 </p>
 
-                <h2 className="text-2xl sm:text-4xl font-light tracking-tight">
+                <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
                   Verifying your email
                 </h2>
 
-                <p className="mt-4 text-sm leading-6 text-black/50">
-                  Please wait while we securely verify your email address.
+                <p className="mt-4 text-sm sm:text-base leading-6 text-black/50">
+                  Please wait while we securely verify your
+                  email address.
                 </p>
 
                 <div className="mt-8 mx-auto h-8 w-8 rounded-full border-2 border-black/10 border-t-black animate-spin" />
@@ -380,23 +387,33 @@ function AccountVerificationContent() {
             ) : (
               <>
 
-                {/* HEADER */}
+                {/* CLEAR HEADING */}
                 <div className="mb-8 sm:mb-10">
 
-                  <p className="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-black/40 mb-3 sm:mb-4">
-                    Email verification
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-black/40 mb-3">
+                    EMAIL VERIFICATION
                   </p>
 
-                  <h2 className="text-2xl sm:text-4xl font-light tracking-tight">
+                  <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
                     Verify your email
                   </h2>
 
-                  <p className="mt-3 text-sm leading-6 text-black/50">
-                    We sent a verification email to:
+                  <p className="mt-3 text-sm sm:text-base leading-6 text-black/50">
+                    We need to confirm your email address
+                    before you can sign in.
                   </p>
 
-                  <p className="mt-2 text-sm font-medium break-all">
-                    {email || "your email address"}
+                </div>
+
+                {/* EMAIL ADDRESS */}
+                <div className="mb-7 rounded-xl border border-black/10 bg-black/[0.02] px-4 py-4">
+
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-black/40 mb-2">
+                    Verification email
+                  </p>
+
+                  <p className="text-sm sm:text-base font-medium break-all">
+                    {email || "Your email address"}
                   </p>
 
                 </div>
@@ -415,20 +432,21 @@ function AccountVerificationContent() {
                   </div>
                 )}
 
-                {/* 6-DIGIT FALLBACK */}
-                <div className="mb-8 rounded-2xl border border-black/10 bg-black/[0.02] px-5 py-5">
+                {/* CODE INSTRUCTIONS */}
+                <div className="mb-6">
 
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-black/40 mb-2">
-                    Alternative verification
-                  </p>
+                  <h3 className="text-base sm:text-lg font-semibold">
+                    Enter your verification code
+                  </h3>
 
-                  <p className="text-sm leading-6 text-black/50">
-                    If you prefer, you can still enter the 6-digit code from your verification email below.
+                  <p className="mt-2 text-sm leading-6 text-black/50">
+                    Open the verification email we sent you
+                    and enter the 6-digit code below.
                   </p>
 
                 </div>
 
-                {/* VERIFICATION FORM */}
+                {/* CODE FORM */}
                 <form
                   onSubmit={handleVerify}
                   className="space-y-6"
@@ -438,9 +456,9 @@ function AccountVerificationContent() {
 
                     <label
                       htmlFor="verification-code"
-                      className="block text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/50 mb-2"
+                      className="block text-sm font-semibold text-black mb-2"
                     >
-                      Verification code
+                      6-digit verification code
                     </label>
 
                     <input
@@ -453,12 +471,8 @@ function AccountVerificationContent() {
                       onChange={handleCodeChange}
                       disabled={loading}
                       placeholder="000000"
-                      className="w-full border-b border-black/20 bg-transparent px-0 py-4 text-2xl tracking-[0.45em] text-center outline-none transition placeholder:text-black/20 focus:border-black disabled:opacity-50"
+                      className="w-full h-14 rounded-xl border border-black/20 bg-white px-4 text-center text-base sm:text-xl tracking-[0.4em] outline-none transition placeholder:text-black/20 focus:border-black focus:ring-1 focus:ring-black disabled:opacity-50"
                     />
-
-                    <p className="mt-3 text-[11px] leading-5 text-black/40 text-center">
-                      Enter the 6-digit code from your email.
-                    </p>
 
                   </div>
 
@@ -469,7 +483,7 @@ function AccountVerificationContent() {
                       code.length !== 6 ||
                       !email
                     }
-                    className="w-full rounded-xl bg-black text-white py-4 text-[10px] sm:text-xs uppercase tracking-[0.25em] transition hover:bg-black/85 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="w-full h-12 rounded-xl bg-black text-white text-xs font-semibold uppercase tracking-[0.2em] transition hover:bg-black/85 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loading
                       ? "Verifying..."
@@ -479,10 +493,14 @@ function AccountVerificationContent() {
                 </form>
 
                 {/* RESEND */}
-                <div className="mt-7 text-center">
+                <div className="mt-8 border-t border-black/10 pt-7 text-center">
 
-                  <p className="text-sm text-black/50">
-                    Didn't receive the email?
+                  <p className="text-sm font-medium text-black">
+                    Didn't receive the code?
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-black/40">
+                    Check your spam or junk folder first.
                   </p>
 
                   <button
@@ -493,7 +511,7 @@ function AccountVerificationContent() {
                       resendCooldown > 0 ||
                       !email
                     }
-                    className="mt-2 text-xs font-medium uppercase tracking-[0.18em] underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {resending
                       ? "Sending..."
@@ -512,7 +530,7 @@ function AccountVerificationContent() {
 
                     <Link
                       href="/login"
-                      className="text-black underline underline-offset-4 hover:no-underline"
+                      className="font-medium text-black underline underline-offset-4 hover:no-underline"
                     >
                       Sign in
                     </Link>
@@ -520,12 +538,12 @@ function AccountVerificationContent() {
 
                 </div>
 
-                {/* BACK HOME */}
+                {/* BACK */}
                 <div className="mt-6 pb-4 text-center">
 
                   <Link
                     href="/"
-                    className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-black/40 hover:text-black transition"
+                    className="text-xs uppercase tracking-[0.2em] text-black/40 hover:text-black transition"
                   >
                     ← Back to store
                   </Link>
@@ -537,6 +555,7 @@ function AccountVerificationContent() {
 
           </div>
         </div>
+
       </div>
     </main>
   );

@@ -1174,7 +1174,7 @@ export default function CheckoutPage() {
                     onChange={handleChange}
                     required
                     placeholder="First name"
-                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
 
@@ -1194,7 +1194,7 @@ export default function CheckoutPage() {
                     onChange={handleChange}
                     required
                     placeholder="Last name"
-                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
 
@@ -1214,7 +1214,7 @@ export default function CheckoutPage() {
                     onChange={handleChange}
                     required
                     placeholder="you@example.com"
-                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
 
@@ -1234,7 +1234,7 @@ export default function CheckoutPage() {
                     onChange={handleChange}
                     required
                     placeholder="08012345678"
-                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
               </div>
@@ -1369,7 +1369,7 @@ export default function CheckoutPage() {
                           onChange={handleChange}
                           required
                           placeholder="Lagos"
-                          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+                          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                         />
                       </div>
 
@@ -1392,7 +1392,7 @@ export default function CheckoutPage() {
                           onBlur={
                             handleSelectShipping
                           }
-                          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+                          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                         />
                       </div>
                     </div>
@@ -1562,7 +1562,7 @@ export default function CheckoutPage() {
                     value={form.country}
                     onChange={handleChange}
                     required
-                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+                    className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
               </div>
@@ -1830,7 +1830,8 @@ export default function CheckoutPage() {
                             }
                           }}
                           placeholder="ENTER CODE"
-                          className="min-w-0 flex-1 rounded-xl border border-black/10 bg-white px-3.5 py-3 text-xs font-medium uppercase tracking-wider outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-gray-400 focus:border-black"
+                          className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+                          
                         />
 
                         <button

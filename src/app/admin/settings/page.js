@@ -1097,7 +1097,7 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="ORENTEMIST"
-                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                       />
                     </div>
 
@@ -1116,7 +1116,7 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="store@example.com"
-                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                       />
                     </div>
 
@@ -1134,7 +1134,7 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="+234..."
-                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                       />
                     </div>
 
@@ -1170,7 +1170,7 @@ export default function SettingsPage() {
                             e.target.value
                           )
                         }
-                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-base sm:text-sm outline-none focus:border-black"
                       >
                         <option value="NGN">
                           NGN — Nigerian Naira
@@ -1278,7 +1278,7 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="support@example.com"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                       />
 
                       <p className="mt-2 text-xs text-gray-500">
@@ -1300,7 +1300,7 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="+234..."
-                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                       />
 
                       <p className="mt-2 text-xs text-gray-500">
@@ -1323,7 +1323,7 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="https://instagram.com/yourstore"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                       />
                     </div>
 
@@ -1342,7 +1342,7 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="https://facebook.com/yourstore"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm  focus:border-black"
                       />
                     </div>
 
@@ -1361,7 +1361,7 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="https://tiktok.com/@yourstore"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                       />
                     </div>
 
@@ -1577,7 +1577,7 @@ export default function SettingsPage() {
                             )
                           }
                           placeholder="e.g. Lagos"
-                          className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
+                          className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                         />
                       </div>
                     )}
@@ -1920,7 +1920,7 @@ export default function SettingsPage() {
                                             e.target.value
                                           )
                                         }
-                                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-black"
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                                       />
                                     </div>
                                   )}

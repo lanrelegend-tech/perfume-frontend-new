@@ -96,7 +96,7 @@ const [email, setEmail] = useState("");
     onChange={(e) => setEmail(e.target.value)}
     placeholder="Enter your email"
     autoComplete="email"
-    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/30"
+    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-base sm:text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/30"
   />
 </div>
 
@@ -111,7 +111,7 @@ const [email, setEmail] = useState("");
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/30"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-base sm:text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/30"
                 />
               </div>
 

@@ -1150,7 +1150,7 @@ const getStatusLabel = (
                         e.target.value
                       )
                     }
-                    className="rounded-xl bg-black px-4 py-3 text-sm text-white outline-none disabled:opacity-50"
+                    className="rounded-xl bg-black px-4 py-3 text-base sm:text-sm text-white outline-none disabled:opacity-50"
                   >
 
                     <option value="pending">
@@ -1178,7 +1178,7 @@ const getStatusLabel = (
                         e.target.value
                       )
                     }
-                    className="rounded-xl bg-black px-4 py-3 text-sm text-white outline-none disabled:opacity-50"
+                   className="rounded-xl bg-black px-4 py-3 text-base sm:text-sm text-white outline-none disabled:opacity-50"
                   >
 
                     <option value="confirmed">
@@ -1892,7 +1892,7 @@ const getStatusLabel = (
                             )
                           }
                           placeholder="e.g. GIG Logistics"
-                          className="w-full rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 text-sm outline-none transition focus:border-black"
+                          className="w-full rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 text-base sm:text-sm outline-none transition focus:border-black"
                         />
 
                       </div>
@@ -1914,7 +1914,7 @@ const getStatusLabel = (
                             )
                           }
                           placeholder="Enter if available"
-                          className="w-full rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 text-sm outline-none transition focus:border-black"
+                          className="w-full rounded-xl border border-black/10 bg-[#f7f7f5] px-4 py-3 text-base sm:text-sm outline-none transition focus:border-black"
                         />
 
                       </div>
