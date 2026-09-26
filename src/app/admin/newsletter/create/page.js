@@ -33,11 +33,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://perfume-backend-sbvd.onrender.com/api";
-
 
 export default function CreateNewsletterCampaignPage() {
   const router = useRouter();
@@ -51,6 +49,7 @@ export default function CreateNewsletterCampaignPage() {
     buttonText: "",
     buttonUrl: "",
     heroImage: "",
+    contentImage: "",
     senderName: "ORENTEMIST",
     senderEmail: "hello@orentemist.online",
   });
@@ -105,6 +104,9 @@ export default function CreateNewsletterCampaignPage() {
   const [uploadingImage, setUploadingImage] =
     useState(false);
 
+  const [uploadingContentImage, setUploadingContentImage] =
+    useState(false);
+
   const [testEmail, setTestEmail] =
     useState("");
 
@@ -117,45 +119,43 @@ export default function CreateNewsletterCampaignPage() {
   const [previewDevice, setPreviewDevice] =
     useState("desktop");
 
-
   const [selectedTemplate, setSelectedTemplate] =
-  useState(null);
-
+    useState(null);
 
   const getToken = () => {
     if (typeof window === "undefined") {
       return null;
     }
 
-    return localStorage.getItem(
-      "access_token"
+    return (
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("accessToken")
     );
   };
-
 
   const authHeaders = () => {
     const token = getToken();
 
     return {
-      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
     };
   };
 
-
   const handleUnauthorized = () => {
-    localStorage.removeItem(
-      "access_token"
-    );
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("refreshToken");
+    }
 
-    localStorage.removeItem(
-      "refresh_token"
-    );
-
-    window.location.href =
-      "/admin/login";
+    router.push("/admin/login");
   };
-
 
   const showNotice = (
     type,
@@ -168,11 +168,10 @@ export default function CreateNewsletterCampaignPage() {
       message,
     });
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       setNotice(null);
     }, 5000);
   };
-
 
   const fetchSubscribers = async () => {
     try {
@@ -188,7 +187,9 @@ export default function CreateNewsletterCampaignPage() {
       const response = await fetch(
         `${API_URL}/newsletter/subscribers/`,
         {
-          headers: authHeaders(),
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
       );
 
@@ -201,22 +202,22 @@ export default function CreateNewsletterCampaignPage() {
       }
 
       const data =
-        await response.json();
+        await response.json().catch(() => []);
 
       if (!response.ok) {
         throw new Error(
           data.detail ||
-            data.message ||
             data.error ||
+            data.message ||
             "Unable to load subscribers."
         );
       }
 
-      const list = Array.isArray(data)
-        ? data
-        : data.results || [];
-
-      setSubscribers(list);
+      setSubscribers(
+        Array.isArray(data)
+          ? data
+          : data.results || []
+      );
     } catch (error) {
       console.error(
         "Newsletter subscribers error:",
@@ -234,97 +235,86 @@ export default function CreateNewsletterCampaignPage() {
     }
   };
 
-
   useEffect(() => {
     fetchSubscribers();
   }, []);
 
+  const activeSubscribers = useMemo(() => {
+    return subscribers.filter(
+      (subscriber) =>
+        subscriber.is_subscribed === true ||
+        subscriber.status === "subscribed" ||
+        subscriber.status === "active"
+    );
+  }, [subscribers]);
 
-  const activeSubscribers =
-    useMemo(() => {
-      return subscribers.filter(
-        (subscriber) =>
-          subscriber.status ===
-            "Subscribed" ||
-          subscriber.status ===
-            "subscribed" ||
-          subscriber.is_subscribed === true
-      );
-    }, [subscribers]);
+  const filteredSubscribers = useMemo(() => {
+    const search =
+      subscriberSearch
+        .trim()
+        .toLowerCase();
 
+    if (!search) {
+      return activeSubscribers;
+    }
 
-  const filteredSubscribers =
-    useMemo(() => {
-      const query =
-        subscriberSearch
-          .trim()
+    return activeSubscribers.filter(
+      (subscriber) => {
+        const name = [
+          subscriber.first_name,
+          subscriber.last_name,
+        ]
+          .filter(Boolean)
+          .join(" ")
           .toLowerCase();
 
-      if (!query) {
-        return activeSubscribers;
-      }
-
-      return activeSubscribers.filter(
-        (subscriber) => {
-          const name = [
-            subscriber.first_name,
-            subscriber.last_name,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-
-          const email = String(
+        const email =
+          String(
             subscriber.email || ""
           ).toLowerCase();
 
-          return (
-            name.includes(query) ||
-            email.includes(query)
-          );
-        }
-      );
-    }, [
-      activeSubscribers,
-      subscriberSearch,
-    ]);
-
+        return (
+          name.includes(search) ||
+          email.includes(search)
+        );
+      }
+    );
+  }, [
+    activeSubscribers,
+    subscriberSearch,
+  ]);
 
   const recipientCount =
     Number(
       audienceData.recipient_count || 0
     );
 
-
   const updateField = (
     field,
     value
   ) => {
-    setCampaignForm(
-      (previous) => ({
-        ...previous,
-        [field]: value,
-      })
-    );
+    setCampaignForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
   };
 
-
-  const toggleSubscriber = (
-    id
-  ) => {
+  const toggleSubscriber = (id) => {
     setSelectedSubscribers(
-      (previous) =>
-        previous.includes(id)
-          ? previous.filter(
-              (item) => item !== id
-            )
-          : [
-              ...previous,
-              id,
-            ]
+      (previous) => {
+        if (previous.includes(id)) {
+          return previous.filter(
+            (item) => item !== id
+          );
+        }
+
+        return [
+          ...previous,
+          id,
+        ];
+      }
     );
   };
-
 
   const selectAllVisible = () => {
     const visibleIds =
@@ -335,20 +325,23 @@ export default function CreateNewsletterCampaignPage() {
       );
 
     setSelectedSubscribers(
-      (previous) => [
-        ...new Set([
-          ...previous,
-          ...visibleIds,
-        ]),
-      ]
+      (previous) => {
+        const merged = new Set(
+          previous
+        );
+
+        visibleIds.forEach((id) => {
+          merged.add(id);
+        });
+
+        return Array.from(merged);
+      }
     );
   };
-
 
   const clearSelected = () => {
     setSelectedSubscribers([]);
   };
-
 
   const addExcludeEmail = () => {
     const email =
@@ -360,13 +353,15 @@ export default function CreateNewsletterCampaignPage() {
       return;
     }
 
-    if (!email.includes("@")) {
+    if (
+      !email.includes("@") ||
+      !email.includes(".")
+    ) {
       showNotice(
         "error",
         "Invalid email",
-        "Enter a valid email address."
+        "Please enter a valid email address."
       );
-
       return;
     }
 
@@ -387,19 +382,16 @@ export default function CreateNewsletterCampaignPage() {
     setExcludeEmailInput("");
   };
 
-
   const removeExcludeEmail = (
     email
   ) => {
     setExcludeEmails(
       (previous) =>
         previous.filter(
-          (item) =>
-            item !== email
+          (item) => item !== email
         )
     );
   };
-
 
   const getAudiencePayload = () => {
     let include = [
@@ -407,30 +399,25 @@ export default function CreateNewsletterCampaignPage() {
     ];
 
     if (
-  recipientType === "both"
-) {
-  include = [
-    "subscribers",
-    "customers",
-  ];
-}
+      recipientType === "both"
+    ) {
+      include = [
+        "subscribers",
+        "customers",
+      ];
+    }
 
     return {
       recipient_type:
         recipientType,
-
       include,
-
       exclude: [],
-
       exclude_emails:
         excludeEmails,
-
       selected_subscriber_ids:
         selectedSubscribers,
     };
   };
-
 
   const previewAudience = async () => {
     try {
@@ -463,11 +450,7 @@ export default function CreateNewsletterCampaignPage() {
       }
 
       const data =
-        await response
-          .json()
-          .catch(
-            () => ({})
-          );
+        await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
@@ -481,25 +464,41 @@ export default function CreateNewsletterCampaignPage() {
       setAudienceData({
         recipient_count:
           Number(
-            data.recipient_count ||
-              data.count ||
-              0
+            data.recipient_count || 0
           ),
-
-        counts:
-          data.counts || {
-            subscribers: 0,
-            users: 0,
-            customers: 0,
-            both: 0,
-            everyone: 0,
-            selected: 0,
-          },
-
+        counts: {
+          subscribers:
+            Number(
+              data.counts
+                ?.subscribers || 0
+            ),
+          users:
+            Number(
+              data.counts?.users || 0
+            ),
+          customers:
+            Number(
+              data.counts
+                ?.customers || 0
+            ),
+          both:
+            Number(
+              data.counts?.both || 0
+            ),
+          everyone:
+            Number(
+              data.counts
+                ?.everyone || 0
+            ),
+          selected:
+            Number(
+              data.counts
+                ?.selected || 0
+            ),
+        },
         excluded_count:
           Number(
-            data.excluded_count ||
-              0
+            data.excluded_count || 0
           ),
       });
     } catch (error) {
@@ -512,48 +511,28 @@ export default function CreateNewsletterCampaignPage() {
         "error",
         "Audience preview failed",
         error.message ||
-          "Unable to calculate recipients."
+          "Unable to calculate the final audience."
       );
-
-      setAudienceData({
-        recipient_count: 0,
-        counts: {
-          subscribers: 0,
-          users: 0,
-          customers: 0,
-          both: 0,
-          everyone: 0,
-          selected: 0,
-        },
-        excluded_count: 0,
-      });
     } finally {
       setAudienceLoading(false);
     }
   };
 
-
   useEffect(() => {
-    if (
-      loadingSubscribers
-    ) {
-      return;
-    }
-
-    const timeout =
-      setTimeout(() => {
+    const timer =
+      window.setTimeout(() => {
         previewAudience();
-      }, 250);
+      }, 350);
 
-    return () =>
-      clearTimeout(timeout);
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [
     recipientType,
     selectedSubscribers,
     excludeEmails,
     loadingSubscribers,
   ]);
-
 
   const validateCampaign = () => {
     if (
@@ -562,9 +541,8 @@ export default function CreateNewsletterCampaignPage() {
       showNotice(
         "error",
         "Campaign name required",
-        "Enter a name for this newsletter campaign."
+        "Please enter a campaign name."
       );
-
       return false;
     }
 
@@ -574,9 +552,8 @@ export default function CreateNewsletterCampaignPage() {
       showNotice(
         "error",
         "Subject required",
-        "Enter an email subject."
+        "Please enter an email subject."
       );
-
       return false;
     }
 
@@ -586,9 +563,8 @@ export default function CreateNewsletterCampaignPage() {
       showNotice(
         "error",
         "Heading required",
-        "Enter the main newsletter heading."
+        "Please enter a newsletter heading."
       );
-
       return false;
     }
 
@@ -597,10 +573,9 @@ export default function CreateNewsletterCampaignPage() {
     ) {
       showNotice(
         "error",
-        "Newsletter content required",
-        "Add some content to your newsletter."
+        "Newsletter body required",
+        "Please enter the newsletter content."
       );
-
       return false;
     }
 
@@ -611,183 +586,230 @@ export default function CreateNewsletterCampaignPage() {
       showNotice(
         "error",
         "Button URL required",
-        "Add a URL for your newsletter button."
+        "Add a URL when using a call-to-action button."
       );
-
       return false;
     }
 
     if (
-      recipientType ===
-        "selected" &&
+      recipientType === "selected" &&
       selectedSubscribers.length === 0
     ) {
       showNotice(
         "error",
-        "No recipients selected",
-        "Select at least one subscriber."
+        "No subscribers selected",
+        "Please select at least one subscriber."
       );
-
       return false;
     }
 
-    if (
-      recipientCount === 0
-    ) {
+    if (recipientCount <= 0) {
       showNotice(
         "error",
         "No recipients",
-        "Choose an audience that contains recipients."
+        "There are no eligible recipients for this campaign."
       );
-
       return false;
     }
 
     return true;
   };
 
-const handleImageUpload = async (
-  event
-) => {
-  const file =
-    event.target.files?.[0];
+  const handleTemplateImageUpload = async (
+    event,
+    field
+  ) => {
+    const file =
+      event.target.files?.[0];
 
-  if (!file) {
-    return;
-  }
+    if (!file) {
+      return;
+    }
 
-  if (
-    !file.type.startsWith(
-      "image/"
-    )
-  ) {
-    showNotice(
-      "error",
-      "Invalid image",
-      "Please select an image file."
-    );
+    if (
+      !file.type.startsWith(
+        "image/"
+      )
+    ) {
+      showNotice(
+        "error",
+        "Invalid image",
+        "Please select an image file."
+      );
 
-    event.target.value = "";
-    return;
-  }
+      event.target.value = "";
+      return;
+    }
 
-  if (
-    file.size >
-    10 * 1024 * 1024
-  ) {
-    showNotice(
-      "error",
-      "Image too large",
-      "Please choose an image smaller than 10MB."
-    );
+    if (
+      file.size >
+      10 * 1024 * 1024
+    ) {
+      showNotice(
+        "error",
+        "Image too large",
+        "Please choose an image smaller than 10MB."
+      );
 
-    event.target.value = "";
-    return;
-  }
+      event.target.value = "";
+      return;
+    }
 
-  try {
-    setUploadingImage(true);
+    try {
+      if (
+        field === "heroImage"
+      ) {
+        setUploadingImage(true);
+      } else {
+        setUploadingContentImage(
+          true
+        );
+      }
 
-    const localPreview =
-      URL.createObjectURL(
+      const localPreview =
+        URL.createObjectURL(
+          file
+        );
+
+      updateField(
+        field,
+        localPreview
+      );
+
+      const token = getToken();
+
+      if (!token) {
+        handleUnauthorized();
+        return;
+      }
+
+      const formData =
+        new FormData();
+
+      formData.append(
+        "image",
         file
       );
 
-    updateField(
-      "heroImage",
-      localPreview
-    );
-
-    const token = getToken();
-
-    if (!token) {
-      handleUnauthorized();
-      return;
-    }
-
-    const formData =
-      new FormData();
-
-    formData.append(
-      "image",
-      file
-    );
-
-    const response =
-      await fetch(
-        `${API_URL}/newsletter/upload-image/`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
-
-    if (
-      response.status === 401 ||
-      response.status === 403
-    ) {
-      handleUnauthorized();
-      return;
-    }
-
-    const data =
-      await response
-        .json()
-        .catch(
-          () => ({})
+      const response =
+        await fetch(
+          `${API_URL}/newsletter/upload-image/`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          }
         );
 
-    if (!response.ok) {
-      throw new Error(
-        data.detail ||
-          data.error ||
-          data.message ||
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        handleUnauthorized();
+        return;
+      }
+
+      const data =
+        await response
+          .json()
+          .catch(
+            () => ({})
+          );
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            data.error ||
+            data.message ||
+            "Unable to upload newsletter image."
+        );
+      }
+
+      if (!data.url) {
+        throw new Error(
+          "Image uploaded but no image URL was returned."
+        );
+      }
+
+      updateField(
+        field,
+        data.url
+      );
+
+      showNotice(
+        "success",
+        field ===
+          "heroImage"
+          ? "Hero image uploaded"
+          : "Content image uploaded",
+        "Your newsletter image has been uploaded successfully."
+      );
+    } catch (error) {
+      console.error(
+        "Newsletter image upload error:",
+        error
+      );
+
+      showNotice(
+        "error",
+        "Image upload failed",
+        error.message ||
           "Unable to upload newsletter image."
       );
-    }
 
-    if (!data.url) {
-      throw new Error(
-        "Image uploaded but no image URL was returned."
+      updateField(
+        field,
+        ""
       );
+    } finally {
+      if (
+        field === "heroImage"
+      ) {
+        setUploadingImage(false);
+      } else {
+        setUploadingContentImage(
+          false
+        );
+      }
+
+      event.target.value = "";
+    }
+  };
+
+  const applyNewsletterTemplate = (
+    template
+  ) => {
+    if (!template) {
+      return;
     }
 
-    updateField(
-      "heroImage",
-      data.url
+    setSelectedTemplate(
+      template.id
+    );
+
+    setCampaignForm(
+      (previous) => ({
+        ...previous,
+        ...template.data,
+        heroImage: "",
+        contentImage: "",
+        senderName:
+          previous.senderName ||
+          "ORENTEMIST",
+        senderEmail:
+          previous.senderEmail ||
+          "hello@orentemist.online",
+      })
     );
 
     showNotice(
       "success",
-      "Image uploaded",
-      "Your newsletter image has been uploaded successfully."
+      `${template.title} template applied`,
+      "The template has been loaded. You can now edit the text and add your images."
     );
-  } catch (error) {
-    console.error(
-      "Newsletter image upload error:",
-      error
-    );
-
-    showNotice(
-      "error",
-      "Image upload failed",
-      error.message ||
-        "Unable to upload newsletter image."
-    );
-
-    updateField(
-      "heroImage",
-      ""
-    );
-  } finally {
-    setUploadingImage(false);
-    event.target.value = "";
-  }
-};
-
+  };
 
   const escapeHtml = (
     value
@@ -795,234 +817,318 @@ const handleImageUpload = async (
     return String(
       value || ""
     )
-      .replaceAll(
-        "&",
+      .replace(
+        /&/g,
         "&amp;"
       )
-      .replaceAll(
-        "<",
+      .replace(
+        /</g,
         "&lt;"
       )
-      .replaceAll(
-        ">",
+      .replace(
+        />/g,
         "&gt;"
       )
-      .replaceAll(
-        '"',
+      .replace(
+        /"/g,
         "&quot;"
       )
-      .replaceAll(
-        "'",
+      .replace(
+        /'/g,
         "&#039;"
       );
   };
 
+  const buildPreviewHtml =
+    () => {
+      const safeHeading =
+        escapeHtml(
+          campaignForm.heading
+        );
 
-  const buildPreviewHtml = () => {
-    const bodyHtml =
-      escapeHtml(
-        campaignForm.body
-      ).replace(
-        /\n/g,
-        "<br />"
-      );
+      const bodyLines =
+        (
+          campaignForm.body ||
+          ""
+        ).split("\n");
 
-    const hero =
-      campaignForm.heroImage
-        ? `
-          <img
-            src="${escapeHtml(
-              campaignForm.heroImage
-            )}"
-            alt="ORENTEMIST"
-            style="
-              width:100%;
-              display:block;
-              max-height:420px;
-              object-fit:cover;
-            "
-          />
-        `
-        : "";
+      const safeBody =
+        bodyLines
+          .map(
+            (line) =>
+              escapeHtml(line)
+          )
+          .join("<br />");
 
-    const button =
-      campaignForm.buttonText &&
-      campaignForm.buttonUrl
-        ? `
-          <div style="text-align:center;margin-top:30px;">
-            <a
-              href="${escapeHtml(
-                campaignForm.buttonUrl
-              )}"
-              style="
-                display:inline-block;
-                background:#000;
-                color:#fff;
-                text-decoration:none;
-                padding:14px 28px;
-                border-radius:8px;
-                font-family:Arial,sans-serif;
-                font-size:14px;
-                font-weight:600;
-              "
-            >
-              ${escapeHtml(
-                campaignForm.buttonText
-              )}
-            </a>
-          </div>
-        `
-        : "";
+      const heroImage =
+        campaignForm.heroImage
+          ? `
+            <div style="margin:0;">
+              <img
+                src="${escapeHtml(
+                  campaignForm.heroImage
+                )}"
+                alt="ORENTEMIST"
+                style="
+                  width:100%;
+                  display:block;
+                  max-height:420px;
+                  object-fit:cover;
+                "
+              />
+            </div>
+          `
+          : "";
 
-    return `
+      const contentImage =
+        campaignForm.contentImage
+          ? `
+            <div style="margin-top:28px;">
+              <img
+                src="${escapeHtml(
+                  campaignForm.contentImage
+                )}"
+                alt="ORENTEMIST newsletter content"
+                style="
+                  width:100%;
+                  display:block;
+                  max-height:420px;
+                  object-fit:cover;
+                "
+              />
+            </div>
+          `
+          : "";
+
+      const button =
+        campaignForm.buttonText &&
+        campaignForm.buttonUrl
+          ? `
+            <div style="margin-top:30px;text-align:center;">
+              <a
+                href="${escapeHtml(
+                  campaignForm.buttonUrl
+                )}"
+                style="
+                  display:inline-block;
+                  background:#000000;
+                  color:#ffffff;
+                  text-decoration:none;
+                  padding:14px 28px;
+                  border-radius:8px;
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:14px;
+                  font-weight:600;
+                "
+              >
+                ${escapeHtml(
+                  campaignForm.buttonText
+                )}
+              </a>
+            </div>
+          `
+          : "";
+
+      return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+/>
+<title>ORENTEMIST</title>
+</head>
+
+<body
+  style="
+    margin:0;
+    padding:0;
+    background:#f5f5f5;
+  "
+>
+
+<div
+  style="
+    width:100%;
+    padding:30px 15px;
+    box-sizing:border-box;
+    background:#f5f5f5;
+    font-family:Arial,Helvetica,sans-serif;
+  "
+>
+
+  <div
+    style="
+      width:100%;
+      max-width:600px;
+      margin:0 auto;
+      background:#ffffff;
+      overflow:hidden;
+    "
+  >
+
+    <div
+      style="
+        padding:30px 30px 20px;
+        text-align:center;
+      "
+    >
       <div
         style="
-          margin:0;
-          padding:20px 10px;
-          background:#f5f5f5;
-          font-family:Arial,Helvetica,sans-serif;
+          font-size:20px;
+          font-weight:700;
+          letter-spacing:4px;
+          color:#000000;
         "
       >
-        <div
-          style="
-            width:100%;
-            max-width:680px;
-            margin:0 auto;
-            background:#ffffff;
-            overflow:hidden;
-          "
-        >
-
-          ${hero}
-
-          <div
-            style="
-              padding:36px 22px;
-            "
-          >
-
-            <div
-              style="
-                margin-bottom:24px;
-                font-size:12px;
-                font-weight:700;
-                letter-spacing:3px;
-                text-align:center;
-                color:#000;
-              "
-            >
-              ORENTEMIST
-            </div>
-
-            <h1
-              style="
-                margin:0;
-                color:#111;
-                font-size:30px;
-                line-height:1.2;
-                text-align:center;
-                font-weight:600;
-              "
-            >
-              ${escapeHtml(
-                campaignForm.heading
-              )}
-            </h1>
-
-            <div
-              style="
-                margin-top:24px;
-                color:#555;
-                font-size:15px;
-                line-height:1.8;
-              "
-            >
-              ${bodyHtml}
-            </div>
-
-            ${button}
-
-            <div
-              style="
-                margin-top:40px;
-                padding-top:20px;
-                border-top:1px solid #eee;
-                text-align:center;
-                color:#999;
-                font-size:11px;
-                line-height:1.6;
-              "
-            >
-              You are receiving this email from ORENTEMIST.
-              <br />
-              © ORENTEMIST
-            </div>
-
-          </div>
-        </div>
+        ORENTEMIST
       </div>
-    `;
-  };
+    </div>
 
+    ${heroImage}
 
-  const buildCampaignPayload = () => {
-    const audience =
-      getAudiencePayload();
+    <div
+      style="
+        padding:40px 40px 20px;
+      "
+    >
+      <h1
+        style="
+          margin:0;
+          color:#000000;
+          font-size:30px;
+          line-height:1.25;
+          font-weight:700;
+        "
+      >
+        ${safeHeading}
+      </h1>
+    </div>
 
-    return {
-      name:
-        campaignForm.name.trim(),
+    <div
+      style="
+        padding:0 40px 30px;
+      "
+    >
+      <div
+        style="
+          color:#444444;
+          font-size:16px;
+          line-height:1.8;
+        "
+      >
+        ${safeBody}
+      </div>
 
-      subject:
-        campaignForm.subject.trim(),
+      ${contentImage}
 
-      preview:
-        campaignForm.preview.trim(),
+      ${button}
+    </div>
 
-      heading:
-        campaignForm.heading.trim(),
+    <div
+      style="
+        padding:30px 40px;
+        border-top:1px solid #eeeeee;
+        text-align:center;
+      "
+    >
+      <p
+        style="
+          margin:0;
+          color:#999999;
+          font-size:12px;
+          line-height:1.6;
+        "
+      >
+        You are receiving this email from ORENTEMIST.
+      </p>
 
-      body:
-        campaignForm.body.trim(),
+      <p
+        style="
+          margin:10px 0 0;
+          color:#999999;
+          font-size:12px;
+        "
+      >
+        ORENTEMIST
+      </p>
+    </div>
 
-      button_text:
-        campaignForm.buttonText.trim(),
+  </div>
 
-      button_url:
-        campaignForm.buttonUrl.trim(),
+</div>
 
-      hero_image:
-        campaignForm.heroImage,
-
-      sender_name:
-        campaignForm.senderName.trim(),
-
-      sender_email:
-        campaignForm.senderEmail.trim(),
-
-      recipient_type:
-        audience.recipient_type,
-
-      recipient_ids:
-        selectedSubscribers,
-
-      include:
-        audience.include,
-
-      exclude:
-        audience.exclude,
-
-      exclude_emails:
-        audience.exclude_emails,
-
-      selected_subscriber_ids:
-        selectedSubscribers,
-
-      audience_config:
-        audience,
+</body>
+</html>
+`;
     };
-  };
 
+  const previewHtml =
+    buildPreviewHtml();
+
+  const buildCampaignPayload =
+    () => {
+      const audience =
+        getAudiencePayload();
+
+      return {
+        name:
+          campaignForm.name.trim(),
+
+        subject:
+          campaignForm.subject.trim(),
+
+        preview:
+          campaignForm.preview.trim(),
+
+        heading:
+          campaignForm.heading.trim(),
+
+        body:
+          campaignForm.body.trim(),
+
+        button_text:
+          campaignForm.buttonText.trim(),
+
+        button_url:
+          campaignForm.buttonUrl.trim(),
+
+        hero_image:
+          campaignForm.heroImage,
+
+        content_image:
+          campaignForm.contentImage,
+
+        sender_name:
+          campaignForm.senderName.trim(),
+
+        sender_email:
+          campaignForm.senderEmail.trim(),
+
+        recipient_type:
+          audience.recipient_type,
+
+        recipient_ids:
+          selectedSubscribers,
+
+        include:
+          audience.include,
+
+        exclude:
+          audience.exclude,
+
+        exclude_emails:
+          audience.exclude_emails,
+
+        selected_subscriber_ids:
+          selectedSubscribers,
+
+        audience_config:
+          audience,
+      };
+    };
 
   const createCampaign =
     async () => {
@@ -1031,8 +1137,7 @@ const handleImageUpload = async (
           `${API_URL}/newsletter/campaigns/`,
           {
             method: "POST",
-            headers:
-              authHeaders(),
+            headers: authHeaders(),
             body: JSON.stringify(
               buildCampaignPayload()
             ),
@@ -1059,13 +1164,12 @@ const handleImageUpload = async (
           data.detail ||
             data.error ||
             data.message ||
-            "Unable to create newsletter."
+            "Unable to create newsletter campaign."
         );
       }
 
       return data;
     };
-
 
   const handleSaveDraft =
     async () => {
@@ -1076,17 +1180,12 @@ const handleImageUpload = async (
       try {
         setSaving(true);
 
-        const data =
-          await createCampaign();
-
-        if (!data) {
-          return;
-        }
+        await createCampaign();
 
         showNotice(
           "success",
           "Draft saved",
-          "Your newsletter campaign has been saved as a draft."
+          "Your newsletter campaign has been saved successfully."
         );
       } catch (error) {
         console.error(
@@ -1104,7 +1203,6 @@ const handleImageUpload = async (
         setSaving(false);
       }
     };
-
 
   const handleSendCampaign =
     async () => {
@@ -1128,19 +1226,17 @@ const handleImageUpload = async (
       try {
         setSending(true);
 
-        const createData =
+        const campaign =
           await createCampaign();
 
-        if (!createData) {
+        if (!campaign) {
           return;
         }
 
         const campaignId =
-          createData.id ||
-          createData.campaign_id ||
-          createData.brevo_campaign_id ||
-          createData.campaign?.id ||
-          createData.campaign?.brevo_campaign_id;
+          campaign.id ||
+          campaign.campaign_id ||
+          campaign.brevo_campaign_id;
 
         if (!campaignId) {
           throw new Error(
@@ -1148,38 +1244,35 @@ const handleImageUpload = async (
           );
         }
 
-        const sendResponse =
+        const response =
           await fetch(
             `${API_URL}/newsletter/campaigns/${campaignId}/send/`,
             {
               method: "POST",
-              headers:
-                authHeaders(),
+              headers: authHeaders(),
             }
           );
 
         if (
-          sendResponse.status ===
-            401 ||
-          sendResponse.status ===
-            403
+          response.status === 401 ||
+          response.status === 403
         ) {
           handleUnauthorized();
           return;
         }
 
-        const sendData =
-          await sendResponse
+        const data =
+          await response
             .json()
             .catch(
               () => ({})
             );
 
-        if (!sendResponse.ok) {
+        if (!response.ok) {
           throw new Error(
-            sendData.detail ||
-              sendData.error ||
-              sendData.message ||
+            data.detail ||
+              data.error ||
+              data.message ||
               "Unable to send newsletter."
           );
         }
@@ -1187,14 +1280,14 @@ const handleImageUpload = async (
         showNotice(
           "success",
           "Newsletter sent",
-          `Your newsletter has been sent to ${recipientCount.toLocaleString()} recipient${
+          `Your newsletter was sent to ${recipientCount.toLocaleString()} recipient${
             recipientCount === 1
               ? ""
               : "s"
           }.`
         );
 
-        setTimeout(() => {
+        window.setTimeout(() => {
           router.push(
             "/admin/newsletter"
           );
@@ -1207,144 +1300,176 @@ const handleImageUpload = async (
 
         showNotice(
           "error",
-          "Newsletter failed",
+          "Unable to send newsletter",
           error.message ||
-            "Unable to send newsletter."
+            "Please try again."
         );
       } finally {
         setSending(false);
       }
     };
 
-const handleSendTest = async () => {
-  if (!testEmail.trim()) {
-    showNotice(
-      "error",
-      "Test email required",
-      "Enter an email address for the test."
-    );
+  const handleSendTest =
+    async () => {
+      const email =
+        testEmail.trim();
 
-    return;
-  }
-
-  if (!campaignForm.subject.trim()) {
-    showNotice(
-      "error",
-      "Subject required",
-      "Add an email subject before sending a test."
-    );
-
-    return;
-  }
-
-  if (!campaignForm.heading.trim()) {
-    showNotice(
-      "error",
-      "Heading required",
-      "Add a newsletter heading before sending a test."
-    );
-
-    return;
-  }
-
-  if (!campaignForm.body.trim()) {
-    showNotice(
-      "error",
-      "Newsletter content required",
-      "Add some newsletter content before sending a test."
-    );
-
-    return;
-  }
-
-  try {
-    setTestLoading(true);
-
-    const response = await fetch(
-      `${API_URL}/newsletter/campaigns/test/`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          email: testEmail.trim(),
-
-          subject:
-            campaignForm.subject.trim(),
-
-          preview:
-            campaignForm.preview.trim(),
-
-          heading:
-            campaignForm.heading.trim(),
-
-          body:
-            campaignForm.body.trim(),
-
-          button_text:
-            campaignForm.buttonText.trim(),
-
-          button_url:
-            campaignForm.buttonUrl.trim(),
-
-          hero_image:
-            campaignForm.heroImage,
-
-          sender_name:
-            campaignForm.senderName.trim(),
-
-          sender_email:
-            campaignForm.senderEmail.trim(),
-        }),
+      if (!email) {
+        showNotice(
+          "error",
+          "Test email required",
+          "Enter an email address to receive the test."
+        );
+        return;
       }
-    );
 
-    if (
-      response.status === 401 ||
-      response.status === 403
-    ) {
-      handleUnauthorized();
-      return;
-    }
+      if (
+        !email.includes("@") ||
+        !email.includes(".")
+      ) {
+        showNotice(
+          "error",
+          "Invalid test email",
+          "Please enter a valid email address."
+        );
+        return;
+      }
 
-    const data = await response
-      .json()
-      .catch(() => ({}));
+      if (
+        !campaignForm.subject.trim()
+      ) {
+        showNotice(
+          "error",
+          "Subject required",
+          "Add an email subject before sending a test."
+        );
+        return;
+      }
 
-    if (!response.ok) {
-      throw new Error(
-        data.detail ||
-          data.error ||
-          data.message ||
-          "Unable to send test email."
-      );
-    }
+      if (
+        !campaignForm.heading.trim()
+      ) {
+        showNotice(
+          "error",
+          "Heading required",
+          "Add a newsletter heading before sending a test."
+        );
+        return;
+      }
 
-    showNotice(
-      "success",
-      "Test email sent",
-      `The test newsletter was sent to ${testEmail.trim()}.`
-    );
-  } catch (error) {
-    console.error(
-      "Test email error:",
-      error
-    );
+      if (
+        !campaignForm.body.trim()
+      ) {
+        showNotice(
+          "error",
+          "Newsletter body required",
+          "Add newsletter content before sending a test."
+        );
+        return;
+      }
 
-    showNotice(
-      "error",
-      "Test failed",
-      error.message ||
-        "Unable to send test email."
-    );
-  } finally {
-    setTestLoading(false);
-  }
-};
+      try {
+        setTestLoading(true);
 
+        const token =
+          getToken();
 
-  const previewHtml =
-    buildPreviewHtml();
+        if (!token) {
+          handleUnauthorized();
+          return;
+        }
 
+        const response =
+          await fetch(
+            `${API_URL}/newsletter/campaigns/test/`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                email,
+
+                subject:
+                  campaignForm.subject.trim(),
+
+                preview:
+                  campaignForm.preview.trim(),
+
+                heading:
+                  campaignForm.heading.trim(),
+
+                body:
+                  campaignForm.body.trim(),
+
+                button_text:
+                  campaignForm.buttonText.trim(),
+
+                button_url:
+                  campaignForm.buttonUrl.trim(),
+
+                hero_image:
+                  campaignForm.heroImage,
+
+                content_image:
+                  campaignForm.contentImage,
+
+                sender_name:
+                  campaignForm.senderName.trim(),
+
+                sender_email:
+                  campaignForm.senderEmail.trim(),
+              }),
+            }
+          );
+
+        if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          handleUnauthorized();
+          return;
+        }
+
+        const data =
+          await response
+            .json()
+            .catch(
+              () => ({})
+            );
+
+        if (!response.ok) {
+          throw new Error(
+            data.detail ||
+              data.error ||
+              data.message ||
+              "Unable to send test email."
+          );
+        }
+
+        showNotice(
+          "success",
+          "Test email sent",
+          `The newsletter test was sent to ${email}.`
+        );
+      } catch (error) {
+        console.error(
+          "Newsletter test error:",
+          error
+        );
+
+        showNotice(
+          "error",
+          "Test email failed",
+          error.message ||
+            "Unable to send the test email."
+        );
+      } finally {
+        setTestLoading(false);
+      }
+    };
 
   const audienceOptions = [
     {
@@ -1388,7 +1513,7 @@ const handleSendTest = async () => {
       title:
         "Subscribers + Customers",
       description:
-        "Combines registered users and paid customers.",
+        "Combines newsletter subscribers and paid customers.",
       icon: Users,
       count:
         audienceData.counts
@@ -1420,197 +1545,235 @@ const handleSendTest = async () => {
   ];
 
   const newsletterTemplates = [
-  {
-    id: "holiday",
-    title: "Holiday / Festive",
-    description:
-      "Perfect for Christmas, Valentine's Day, Eid, New Year and other celebrations.",
-    icon: "🎉",
-    data: {
-      name: "Holiday Collection",
-      subject: "Celebrate the season with ORENTEMIST",
-      preview:
-        "Discover something special for the season.",
-      heading: "Make This Season More Memorable",
-      body:
-        "Celebrate the season with a fragrance that feels as special as the moment itself.\n\nExplore our carefully selected fragrances and find the perfect scent for yourself or someone special.",
-      buttonText: "Shop the Collection",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "holiday",
+      title: "Holiday / Festive",
+      description:
+        "Perfect for Christmas, Valentine's Day, Eid, New Year and other celebrations.",
+      icon: "🎉",
+      data: {
+        name: "Holiday Collection",
+        subject:
+          "Celebrate the season with ORENTEMIST",
+        preview:
+          "Discover something special for the season.",
+        heading:
+          "Make This Season More Memorable",
+        body:
+          "Celebrate the season with a fragrance that feels as special as the moment itself.\n\nExplore our carefully selected fragrances and find the perfect scent for yourself or someone special.",
+        buttonText:
+          "Shop the Collection",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
 
-  {
-    id: "new-arrival",
-    title: "New Arrival",
-    description:
-      "Announce a new fragrance, collection or product.",
-    icon: "✨",
-    data: {
-      name: "New Arrival",
-      subject: "Something new has arrived at ORENTEMIST",
-      preview:
-        "Discover our latest fragrance arrival.",
-      heading: "Meet Our New Arrival",
-      body:
-        "Something new has arrived at ORENTEMIST.\n\nDiscover a fragrance created for those who want to leave a lasting impression.",
-      buttonText: "Discover Now",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "new-arrival",
+      title: "New Arrival",
+      description:
+        "Announce a new fragrance, collection or product.",
+      icon: "✨",
+      data: {
+        name: "New Arrival",
+        subject:
+          "Something new has arrived at ORENTEMIST",
+        preview:
+          "Discover our latest fragrance arrival.",
+        heading:
+          "Meet Our New Arrival",
+        body:
+          "Something new has arrived at ORENTEMIST.\n\nDiscover a fragrance created for those who want to leave a lasting impression.",
+        buttonText:
+          "Discover Now",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
 
-  {
-    id: "notice",
-    title: "Important Notice",
-    description:
-      "For announcements, service updates and important customer information.",
-    icon: "📢",
-    data: {
-      name: "Important Notice",
-      subject: "Important update from ORENTEMIST",
-      preview:
-        "We have an important update for you.",
-      heading: "An Important Update",
-      body:
-        "We wanted to share an important update with you.\n\nPlease take a moment to read the information below.",
-      buttonText: "",
-      buttonUrl: "",
+    {
+      id: "notice",
+      title: "Important Notice",
+      description:
+        "For announcements, service updates and important customer information.",
+      icon: "📢",
+      data: {
+        name: "Important Notice",
+        subject:
+          "Important update from ORENTEMIST",
+        preview:
+          "We have an important update for you.",
+        heading:
+          "An Important Update",
+        body:
+          "We wanted to share an important update with you.\n\nPlease take a moment to read the information below.",
+        buttonText: "",
+        buttonUrl: "",
+      },
     },
-  },
 
-  {
-    id: "promotion",
-    title: "Promotion / Sale",
-    description:
-      "Promote discounts, special offers and limited-time deals.",
-    icon: "🏷️",
-    data: {
-      name: "Special Promotion",
-      subject: "A special offer is waiting for you",
-      preview:
-        "Enjoy something special from ORENTEMIST.",
-      heading: "Something Special, Just For You",
-      body:
-        "For a limited time, enjoy a special offer from ORENTEMIST.\n\nDon't miss the opportunity to discover your next signature fragrance.",
-      buttonText: "Shop Now",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "promotion",
+      title: "Promotion / Sale",
+      description:
+        "Promote discounts, special offers and limited-time deals.",
+      icon: "🏷️",
+      data: {
+        name: "Special Promotion",
+        subject:
+          "A special offer is waiting for you",
+        preview:
+          "Enjoy something special from ORENTEMIST.",
+        heading:
+          "Something Special, Just For You",
+        body:
+          "For a limited time, enjoy a special offer from ORENTEMIST.\n\nDon't miss the opportunity to discover your next signature fragrance.",
+        buttonText: "Shop Now",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
 
-  {
-    id: "seasonal",
-    title: "Seasonal",
-    description:
-      "Create campaigns around a season or changing fragrance mood.",
-    icon: "🌸",
-    data: {
-      name: "Seasonal Fragrances",
-      subject: "Find your fragrance for the season",
-      preview:
-        "Discover scents made for the season.",
-      heading: "A New Season. A New Scent.",
-      body:
-        "Every season has its own mood.\n\nDiscover fragrances that complement the moment and make every day feel a little more memorable.",
-      buttonText: "Explore Fragrances",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "seasonal",
+      title: "Seasonal",
+      description:
+        "Create campaigns around a season or changing fragrance mood.",
+      icon: "🌸",
+      data: {
+        name: "Seasonal Fragrances",
+        subject:
+          "Find your fragrance for the season",
+        preview:
+          "Discover scents made for the season.",
+        heading:
+          "A New Season. A New Scent.",
+        body:
+          "Every season has its own mood.\n\nDiscover fragrances that complement the moment and make every day feel a little more memorable.",
+        buttonText:
+          "Explore Fragrances",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
 
-  {
-    id: "featured",
-    title: "Featured Collection",
-    description:
-      "Highlight a group of fragrances or your current favourites.",
-    icon: "💎",
-    data: {
-      name: "Featured Collection",
-      subject: "Discover our featured fragrances",
-      preview:
-        "Explore the fragrances we're loving right now.",
-      heading: "Our Featured Fragrances",
-      body:
-        "We've selected a few fragrances we think deserve your attention.\n\nExplore the collection and discover a scent that feels uniquely yours.",
-      buttonText: "View Collection",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "featured",
+      title: "Featured Collection",
+      description:
+        "Highlight a group of fragrances or your current favourites.",
+      icon: "💎",
+      data: {
+        name: "Featured Collection",
+        subject:
+          "Discover our featured fragrances",
+        preview:
+          "Explore the fragrances we're loving right now.",
+        heading:
+          "Our Featured Fragrances",
+        body:
+          "We've selected a few fragrances we think deserve your attention.\n\nExplore the collection and discover a scent that feels uniquely yours.",
+        buttonText:
+          "View Collection",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
 
-  {
-    id: "restock",
-    title: "Back In Stock",
-    description:
-      "Let customers know that a popular fragrance is available again.",
-    icon: "📦",
-    data: {
-      name: "Back In Stock",
-      subject: "It's back — your favourite fragrance has returned",
-      preview:
-        "The fragrance you've been waiting for is available again.",
-      heading: "Back In Stock",
-      body:
-        "You asked. It's back.\n\nOne of our most requested fragrances is available again. If you've been waiting to get yours, now is the time.",
-      buttonText: "Shop Now",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "restock",
+      title: "Back In Stock",
+      description:
+        "Let customers know that a popular fragrance is available again.",
+      icon: "📦",
+      data: {
+        name: "Back In Stock",
+        subject:
+          "It's back — your favourite fragrance has returned",
+        preview:
+          "The fragrance you've been waiting for is available again.",
+        heading:
+          "Back In Stock",
+        body:
+          "You asked. It's back.\n\nOne of our most requested fragrances is available again. If you've been waiting to get yours, now is the time.",
+        buttonText:
+          "Shop Now",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
 
-  {
-    id: "welcome",
-    title: "Welcome",
-    description:
-      "Welcome new subscribers and introduce them to ORENTEMIST.",
-    icon: "👋",
-    data: {
-      name: "Welcome to ORENTEMIST",
-      subject: "Welcome to ORENTEMIST",
-      preview:
-        "We're glad to have you with us.",
-      heading: "Welcome to ORENTEMIST",
-      body:
-        "Welcome to ORENTEMIST.\n\nWe're here to help you discover fragrances that match your personality, mood and style.",
-      buttonText: "Explore ORENTEMIST",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "welcome",
+      title: "Welcome",
+      description:
+        "Welcome new subscribers and introduce them to ORENTEMIST.",
+      icon: "👋",
+      data: {
+        name:
+          "Welcome to ORENTEMIST",
+        subject:
+          "Welcome to ORENTEMIST",
+        preview:
+          "We're glad to have you with us.",
+        heading:
+          "Welcome to ORENTEMIST",
+        body:
+          "Welcome to ORENTEMIST.\n\nWe're here to help you discover fragrances that match your personality, mood and style.",
+        buttonText:
+          "Explore ORENTEMIST",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
 
-  {
-    id: "brand-story",
-    title: "Brand Story",
-    description:
-      "Share your story, philosophy or what makes ORENTEMIST different.",
-    icon: "🖤",
-    data: {
-      name: "The ORENTEMIST Story",
-      subject: "The story behind ORENTEMIST",
-      preview:
-        "Discover what inspires ORENTEMIST.",
-      heading: "More Than A Fragrance",
-      body:
-        "At ORENTEMIST, we believe fragrance is more than something you wear.\n\nIt is part of how you express yourself, create memories and leave an impression.",
-      buttonText: "Discover Our Story",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "brand-story",
+      title: "Brand Story",
+      description:
+        "Share your story, philosophy or what makes ORENTEMIST different.",
+      icon: "🖤",
+      data: {
+        name:
+          "The ORENTEMIST Story",
+        subject:
+          "The story behind ORENTEMIST",
+        preview:
+          "Discover what inspires ORENTEMIST.",
+        heading:
+          "More Than A Fragrance",
+        body:
+          "At ORENTEMIST, we believe fragrance is more than something you wear.\n\nIt is part of how you express yourself, create memories and leave an impression.",
+        buttonText:
+          "Discover Our Story",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
 
-  {
-    id: "gift-guide",
-    title: "Gift Guide",
-    description:
-      "Help customers find fragrances for birthdays, celebrations and special occasions.",
-    icon: "🎁",
-    data: {
-      name: "Gift Guide",
-      subject: "Find the perfect fragrance gift",
-      preview:
-        "A thoughtful fragrance makes a memorable gift.",
-      heading: "The Perfect Gift Is A Fragrance",
-      body:
-        "Looking for something special for someone you love?\n\nExplore our fragrances and find a gift they'll remember long after the moment has passed.",
-      buttonText: "Shop Gift Ideas",
-      buttonUrl: "https://www.orentemist.online",
+    {
+      id: "gift-guide",
+      title: "Gift Guide",
+      description:
+        "Help customers find fragrances for birthdays, celebrations and special occasions.",
+      icon: "🎁",
+      data: {
+        name: "Gift Guide",
+        subject:
+          "Find the perfect fragrance gift",
+        preview:
+          "A thoughtful fragrance makes a memorable gift.",
+        heading:
+          "The Perfect Gift Is A Fragrance",
+        body:
+          "Looking for something special for someone you love?\n\nExplore our fragrances and find a gift they'll remember long after the moment has passed.",
+        buttonText:
+          "Shop Gift Ideas",
+        buttonUrl:
+          "https://www.orentemist.online",
+      },
     },
-  },
-];
-
+  ];
 
   return (
     <div className="min-h-screen bg-[#f7f7f7] text-black">
@@ -1686,7 +1849,6 @@ const handleSendTest = async () => {
             </div>
           )}
 
-
           {/* HEADER */}
 
           <header className="sticky top-0 z-30 border-b border-black/10 bg-white/95 backdrop-blur">
@@ -1696,6 +1858,7 @@ const handleSendTest = async () => {
               <div className="flex min-w-0 items-center gap-2 sm:gap-3">
 
                 <button
+                  type="button"
                   onClick={() =>
                     router.push(
                       "/admin/newsletter"
@@ -1720,10 +1883,10 @@ const handleSendTest = async () => {
 
               </div>
 
-
               <div className="flex shrink-0 items-center gap-2">
 
                 <button
+                  type="button"
                   onClick={
                     handleSaveDraft
                   }
@@ -1749,8 +1912,8 @@ const handleSendTest = async () => {
 
                 </button>
 
-
                 <button
+                  type="button"
                   onClick={
                     handleSendCampaign
                   }
@@ -1786,7 +1949,6 @@ const handleSendTest = async () => {
 
           </header>
 
-
           {/* PAGE */}
 
           <div className="p-3 sm:p-5 lg:p-8">
@@ -1796,7 +1958,6 @@ const handleSendTest = async () => {
               {/* LEFT */}
 
               <div className="min-w-0 space-y-5">
-
 
                 {/* CAMPAIGN */}
 
@@ -1813,7 +1974,6 @@ const handleSendTest = async () => {
                     </p>
 
                   </div>
-
 
                   <div className="space-y-5 p-4 sm:p-5">
 
@@ -1839,7 +1999,6 @@ const handleSendTest = async () => {
 
                     </div>
 
-
                     <div>
 
                       <label className="mb-2 block text-sm font-medium">
@@ -1861,7 +2020,6 @@ const handleSendTest = async () => {
                       />
 
                     </div>
-
 
                     <div>
 
@@ -1891,132 +2049,136 @@ const handleSendTest = async () => {
 
                 {/* TEMPLATES */}
 
-<section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
 
-  <div className="border-b border-black/10 p-4 sm:p-5">
+                  <div className="border-b border-black/10 p-4 sm:p-5">
 
-    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-4">
 
-      <div>
+                      <div>
 
-        <h3 className="font-semibold">
-          Newsletter Templates
-        </h3>
+                        <h3 className="font-semibold">
+                          Newsletter Templates
+                        </h3>
 
-        <p className="mt-1 text-xs leading-5 text-black/40">
-          Use a template as a starting point, then customize
-          the content for your campaign.
-        </p>
+                        <p className="mt-1 text-xs leading-5 text-black/40">
+                          Click a template to load its content. You can edit it before sending.
+                        </p>
 
-      </div>
+                      </div>
 
-      {selectedTemplate && (
-        <button
-          type="button"
-          onClick={() =>
-            setSelectedTemplate(null)
-          }
-          className="shrink-0 text-xs font-medium text-black/45 hover:text-black"
-        >
-          Clear selection
-        </button>
-      )}
+                      {selectedTemplate && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedTemplate(
+                              null
+                            )
+                          }
+                          className="shrink-0 text-xs font-medium text-black/45 hover:text-black"
+                        >
+                          Clear selection
+                        </button>
+                      )}
 
-    </div>
+                    </div>
 
-  </div>
+                  </div>
 
+                  <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
 
-  <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
+                    {newsletterTemplates.map(
+                      (template) => {
+                        const isSelected =
+                          selectedTemplate ===
+                          template.id;
 
-    {newsletterTemplates.map(
-      (template) => {
+                        return (
+                          <button
+                            key={
+                              template.id
+                            }
+                            type="button"
+                            onClick={() =>
+                              applyNewsletterTemplate(
+                                template
+                              )
+                            }
+                            className={`group rounded-2xl border p-4 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-black/20 ${
+                              isSelected
+                                ? "border-black bg-black text-white shadow-lg"
+                                : "border-black/10 bg-white hover:-translate-y-0.5 hover:border-black/30 hover:bg-black/[0.02]"
+                            }`}
+                          >
 
-        const isSelected =
-          selectedTemplate ===
-          template.id;
+                            <div className="flex items-start justify-between gap-3">
 
-        return (
-          <button
-            key={template.id}
-            type="button"
-            onClick={() =>
-              applyNewsletterTemplate(
-                template
-              )
-            }
-            className={`group rounded-2xl border p-4 text-left transition ${
-              isSelected
-                ? "border-black bg-black text-white"
-                : "border-black/10 bg-white hover:border-black/30 hover:bg-black/[0.02]"
-            }`}
-          >
+                              <div
+                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${
+                                  isSelected
+                                    ? "bg-white/10"
+                                    : "bg-black/[0.04]"
+                                }`}
+                              >
+                                {
+                                  template.icon
+                                }
+                              </div>
 
-            <div className="flex items-start justify-between gap-3">
+                              {isSelected && (
+                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-black">
+                                  <Check
+                                    size={14}
+                                  />
+                                </div>
+                              )}
 
-              <div
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${
-                  isSelected
-                    ? "bg-white/10"
-                    : "bg-black/[0.04]"
-                }`}
-              >
-                {template.icon}
-              </div>
+                            </div>
 
-              {isSelected && (
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-black">
-                  <Check size={14} />
-                </div>
-              )}
+                            <div className="mt-4">
 
-            </div>
+                              <p className="text-sm font-semibold">
+                                {
+                                  template.title
+                                }
+                              </p>
 
+                              <p
+                                className={`mt-1 text-xs leading-5 ${
+                                  isSelected
+                                    ? "text-white/55"
+                                    : "text-black/45"
+                                }`}
+                              >
+                                {
+                                  template.description
+                                }
+                              </p>
 
-            <div className="mt-4">
+                            </div>
 
-              <p className="text-sm font-semibold">
-                {template.title}
-              </p>
+                            <div
+                              className={`mt-4 text-xs font-medium ${
+                                isSelected
+                                  ? "text-white/70"
+                                  : "text-black/45 group-hover:text-black"
+                              }`}
+                            >
+                              {isSelected
+                                ? "Template selected"
+                                : "Click to use template →"}
+                            </div>
 
-              <p
-                className={`mt-1 text-xs leading-5 ${
-                  isSelected
-                    ? "text-white/55"
-                    : "text-black/45"
-                }`}
-              >
-                {template.description}
-              </p>
+                          </button>
+                        );
+                      }
+                    )}
 
-            </div>
+                  </div>
 
+                </section>
 
-            <div
-              className={`mt-4 text-xs font-medium ${
-                isSelected
-                  ? "text-white/70"
-                  : "text-black/45 group-hover:text-black"
-              }`}
-            >
-              {isSelected
-                ? "Template selected"
-                : "Use as starting point →"}
-            </div>
-
-          </button>
-        );
-      }
-    )}
-
-  </div>
-
-</section>
-
-
-
-
-                {/* IMAGE */}
+                {/* HERO IMAGE */}
 
                 <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
 
@@ -2031,7 +2193,6 @@ const handleSendTest = async () => {
                     </p>
 
                   </div>
-
 
                   <div className="p-4 sm:p-5">
 
@@ -2069,10 +2230,18 @@ const handleSendTest = async () => {
                         <input
                           type="file"
                           accept="image/*"
-                          onChange={
-                            handleImageUpload
+                          onChange={(
+                            event
+                          ) =>
+                            handleTemplateImageUpload(
+                              event,
+                              "heroImage"
+                            )
                           }
                           className="hidden"
+                          disabled={
+                            uploadingImage
+                          }
                         />
 
                         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white">
@@ -2089,11 +2258,13 @@ const handleSendTest = async () => {
                         </div>
 
                         <p className="mt-4 text-sm font-medium">
-                          Upload hero image
+                          {uploadingImage
+                            ? "Uploading hero image..."
+                            : "Upload hero image"}
                         </p>
 
                         <p className="mt-1 max-w-sm text-xs leading-5 text-black/40">
-                          JPG, PNG or WebP.
+                          JPG, PNG or WebP · maximum 10MB.
                         </p>
 
                       </label>
@@ -2104,6 +2275,102 @@ const handleSendTest = async () => {
 
                 </section>
 
+                {/* CONTENT IMAGE */}
+
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+
+                  <div className="border-b border-black/10 p-4 sm:p-5">
+
+                    <h3 className="font-semibold">
+                      Content Image
+                    </h3>
+
+                    <p className="mt-1 text-xs leading-5 text-black/40">
+                      Add a second image that appears inside the newsletter below the main text.
+                    </p>
+
+                  </div>
+
+                  <div className="p-4 sm:p-5">
+
+                    {campaignForm.contentImage ? (
+
+                      <div className="relative overflow-hidden rounded-2xl border border-black/10">
+
+                        <img
+                          src={
+                            campaignForm.contentImage
+                          }
+                          alt="Newsletter content"
+                          className="h-[220px] w-full object-cover sm:h-[340px]"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateField(
+                              "contentImage",
+                              ""
+                            )
+                          }
+                          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-lg"
+                        >
+                          <X size={16} />
+                        </button>
+
+                      </div>
+
+                    ) : (
+
+                      <label className="flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-black/15 bg-black/[0.02] px-5 text-center hover:border-black/30">
+
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(
+                            event
+                          ) =>
+                            handleTemplateImageUpload(
+                              event,
+                              "contentImage"
+                            )
+                          }
+                          className="hidden"
+                          disabled={
+                            uploadingContentImage
+                          }
+                        />
+
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white">
+
+                          {uploadingContentImage ? (
+                            <Loader2
+                              size={22}
+                              className="animate-spin"
+                            />
+                          ) : (
+                            <Upload size={22} />
+                          )}
+
+                        </div>
+
+                        <p className="mt-4 text-sm font-medium">
+                          {uploadingContentImage
+                            ? "Uploading content image..."
+                            : "Upload content image"}
+                        </p>
+
+                        <p className="mt-1 max-w-sm text-xs leading-5 text-black/40">
+                          JPG, PNG or WebP · maximum 10MB.
+                        </p>
+
+                      </label>
+
+                    )}
+
+                  </div>
+
+                </section>
 
                 {/* CONTENT */}
 
@@ -2120,7 +2387,6 @@ const handleSendTest = async () => {
                     </p>
 
                   </div>
-
 
                   <div className="space-y-5 p-4 sm:p-5">
 
@@ -2145,7 +2411,6 @@ const handleSendTest = async () => {
                       />
 
                     </div>
-
 
                     <div>
 
@@ -2174,7 +2439,6 @@ const handleSendTest = async () => {
 
                 </section>
 
-
                 {/* BUTTON */}
 
                 <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
@@ -2190,7 +2454,6 @@ const handleSendTest = async () => {
                     </p>
 
                   </div>
-
 
                   <div className="grid gap-5 p-4 sm:grid-cols-2 sm:p-5">
 
@@ -2215,7 +2478,6 @@ const handleSendTest = async () => {
                       />
 
                     </div>
-
 
                     <div>
 
@@ -2244,7 +2506,6 @@ const handleSendTest = async () => {
 
                 </section>
 
-
                 {/* RECIPIENTS */}
 
                 <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
@@ -2265,7 +2526,6 @@ const handleSendTest = async () => {
 
                       </div>
 
-
                       <div className="flex shrink-0 items-center gap-2">
 
                         {audienceLoading && (
@@ -2284,7 +2544,6 @@ const handleSendTest = async () => {
                     </div>
 
                   </div>
-
 
                   <div className="space-y-3 p-3 sm:space-y-4 sm:p-5">
 
@@ -2329,7 +2588,6 @@ const handleSendTest = async () => {
                                 />
                               </div>
 
-
                               <div className="min-w-0 flex-1">
 
                                 <div className="flex items-start justify-between gap-2">
@@ -2349,7 +2607,6 @@ const handleSendTest = async () => {
 
                                 </div>
 
-
                                 <p
                                   className={`mt-1 text-xs leading-5 ${
                                     active
@@ -2361,7 +2618,6 @@ const handleSendTest = async () => {
                                     option.description
                                   }
                                 </p>
-
 
                                 <p
                                   className={`mt-2 text-xs font-medium ${
@@ -2381,7 +2637,6 @@ const handleSendTest = async () => {
                         );
                       }
                     )}
-
 
                     {/* SELECTED */}
 
@@ -2403,7 +2658,6 @@ const handleSendTest = async () => {
                             </p>
 
                           </div>
-
 
                           <div className="grid grid-cols-2 gap-2">
 
@@ -2431,7 +2685,6 @@ const handleSendTest = async () => {
 
                         </div>
 
-
                         <div className="mt-4">
 
                           <input
@@ -2451,7 +2704,6 @@ const handleSendTest = async () => {
 
                         </div>
 
-
                         <div className="mt-3 max-h-[350px] overflow-y-auto rounded-xl border border-black/10 bg-white">
 
                           {loadingSubscribers ? (
@@ -2465,7 +2717,8 @@ const handleSendTest = async () => {
 
                             </div>
 
-                          ) : filteredSubscribers.length === 0 ? (
+                          ) : filteredSubscribers.length ===
+                            0 ? (
 
                             <div className="p-7 text-center">
 
@@ -2544,7 +2797,6 @@ const handleSendTest = async () => {
                                       )}
                                     </div>
 
-
                                     <div className="min-w-0 flex-1">
 
                                       <p className="truncate text-sm font-medium">
@@ -2571,7 +2823,6 @@ const handleSendTest = async () => {
 
                       </div>
                     )}
-
 
                     {/* EXCLUDE */}
 
@@ -2600,7 +2851,6 @@ const handleSendTest = async () => {
                         </div>
 
                       </div>
-
 
                       <div className="mt-4 flex gap-2">
 
@@ -2642,7 +2892,6 @@ const handleSendTest = async () => {
                         </button>
 
                       </div>
-
 
                       {excludeEmails.length >
                         0 && (
@@ -2687,7 +2936,6 @@ const handleSendTest = async () => {
 
                     </div>
 
-
                     {/* SUMMARY */}
 
                     <div className="rounded-2xl bg-black p-4 text-white sm:p-5">
@@ -2706,7 +2954,6 @@ const handleSendTest = async () => {
 
                         </div>
 
-
                         <button
                           type="button"
                           onClick={
@@ -2717,6 +2964,7 @@ const handleSendTest = async () => {
                           }
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-50"
                         >
+
                           {audienceLoading ? (
                             <Loader2
                               size={17}
@@ -2727,10 +2975,10 @@ const handleSendTest = async () => {
                               size={17}
                             />
                           )}
+
                         </button>
 
                       </div>
-
 
                       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
 
@@ -2794,7 +3042,6 @@ const handleSendTest = async () => {
 
                 </section>
 
-
                 {/* TEST */}
 
                 <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
@@ -2810,7 +3057,6 @@ const handleSendTest = async () => {
                     </p>
 
                   </div>
-
 
                   <div className="p-4 sm:p-5">
 
@@ -2868,7 +3114,6 @@ const handleSendTest = async () => {
 
               </div>
 
-
               {/* PREVIEW */}
 
               <div className="min-w-0">
@@ -2890,7 +3135,6 @@ const handleSendTest = async () => {
                         </p>
 
                       </div>
-
 
                       <button
                         type="button"
@@ -2915,7 +3159,6 @@ const handleSendTest = async () => {
                     </div>
 
                   </div>
-
 
                   <div className="p-3 sm:p-5">
 
@@ -2944,7 +3187,6 @@ const handleSendTest = async () => {
 
                       </button>
 
-
                       <button
                         type="button"
                         onClick={() =>
@@ -2969,7 +3211,6 @@ const handleSendTest = async () => {
                       </button>
 
                     </div>
-
 
                     <div className="flex min-h-[520px] items-start justify-center overflow-hidden rounded-2xl border border-black/10 bg-[#eeeeee] p-2 sm:min-h-[620px] sm:p-3">
 
@@ -3008,7 +3249,6 @@ const handleSendTest = async () => {
 
       </main>
 
-
       {/* FULL PREVIEW */}
 
       {showPreview && (
@@ -3031,7 +3271,6 @@ const handleSendTest = async () => {
                 </p>
 
               </div>
-
 
               <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 
@@ -3060,7 +3299,6 @@ const handleSendTest = async () => {
 
                 </button>
 
-
                 <button
                   type="button"
                   onClick={() =>
@@ -3086,7 +3324,6 @@ const handleSendTest = async () => {
 
                 </button>
 
-
                 <button
                   type="button"
                   onClick={() =>
@@ -3102,7 +3339,6 @@ const handleSendTest = async () => {
               </div>
 
             </div>
-
 
             <div className="flex flex-1 items-start justify-center overflow-auto bg-[#eeeeee] p-2 sm:p-8">
 
