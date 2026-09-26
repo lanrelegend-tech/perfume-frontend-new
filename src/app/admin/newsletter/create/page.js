@@ -118,6 +118,10 @@ export default function CreateNewsletterCampaignPage() {
     useState("desktop");
 
 
+  const [selectedTemplate, setSelectedTemplate] =
+  useState(null);
+
+
   const getToken = () => {
     if (typeof window === "undefined") {
       return null;
@@ -1415,6 +1419,198 @@ const handleSendTest = async () => {
     },
   ];
 
+  const newsletterTemplates = [
+  {
+    id: "holiday",
+    title: "Holiday / Festive",
+    description:
+      "Perfect for Christmas, Valentine's Day, Eid, New Year and other celebrations.",
+    icon: "🎉",
+    data: {
+      name: "Holiday Collection",
+      subject: "Celebrate the season with ORENTEMIST",
+      preview:
+        "Discover something special for the season.",
+      heading: "Make This Season More Memorable",
+      body:
+        "Celebrate the season with a fragrance that feels as special as the moment itself.\n\nExplore our carefully selected fragrances and find the perfect scent for yourself or someone special.",
+      buttonText: "Shop the Collection",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+
+  {
+    id: "new-arrival",
+    title: "New Arrival",
+    description:
+      "Announce a new fragrance, collection or product.",
+    icon: "✨",
+    data: {
+      name: "New Arrival",
+      subject: "Something new has arrived at ORENTEMIST",
+      preview:
+        "Discover our latest fragrance arrival.",
+      heading: "Meet Our New Arrival",
+      body:
+        "Something new has arrived at ORENTEMIST.\n\nDiscover a fragrance created for those who want to leave a lasting impression.",
+      buttonText: "Discover Now",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+
+  {
+    id: "notice",
+    title: "Important Notice",
+    description:
+      "For announcements, service updates and important customer information.",
+    icon: "📢",
+    data: {
+      name: "Important Notice",
+      subject: "Important update from ORENTEMIST",
+      preview:
+        "We have an important update for you.",
+      heading: "An Important Update",
+      body:
+        "We wanted to share an important update with you.\n\nPlease take a moment to read the information below.",
+      buttonText: "",
+      buttonUrl: "",
+    },
+  },
+
+  {
+    id: "promotion",
+    title: "Promotion / Sale",
+    description:
+      "Promote discounts, special offers and limited-time deals.",
+    icon: "🏷️",
+    data: {
+      name: "Special Promotion",
+      subject: "A special offer is waiting for you",
+      preview:
+        "Enjoy something special from ORENTEMIST.",
+      heading: "Something Special, Just For You",
+      body:
+        "For a limited time, enjoy a special offer from ORENTEMIST.\n\nDon't miss the opportunity to discover your next signature fragrance.",
+      buttonText: "Shop Now",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+
+  {
+    id: "seasonal",
+    title: "Seasonal",
+    description:
+      "Create campaigns around a season or changing fragrance mood.",
+    icon: "🌸",
+    data: {
+      name: "Seasonal Fragrances",
+      subject: "Find your fragrance for the season",
+      preview:
+        "Discover scents made for the season.",
+      heading: "A New Season. A New Scent.",
+      body:
+        "Every season has its own mood.\n\nDiscover fragrances that complement the moment and make every day feel a little more memorable.",
+      buttonText: "Explore Fragrances",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+
+  {
+    id: "featured",
+    title: "Featured Collection",
+    description:
+      "Highlight a group of fragrances or your current favourites.",
+    icon: "💎",
+    data: {
+      name: "Featured Collection",
+      subject: "Discover our featured fragrances",
+      preview:
+        "Explore the fragrances we're loving right now.",
+      heading: "Our Featured Fragrances",
+      body:
+        "We've selected a few fragrances we think deserve your attention.\n\nExplore the collection and discover a scent that feels uniquely yours.",
+      buttonText: "View Collection",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+
+  {
+    id: "restock",
+    title: "Back In Stock",
+    description:
+      "Let customers know that a popular fragrance is available again.",
+    icon: "📦",
+    data: {
+      name: "Back In Stock",
+      subject: "It's back — your favourite fragrance has returned",
+      preview:
+        "The fragrance you've been waiting for is available again.",
+      heading: "Back In Stock",
+      body:
+        "You asked. It's back.\n\nOne of our most requested fragrances is available again. If you've been waiting to get yours, now is the time.",
+      buttonText: "Shop Now",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+
+  {
+    id: "welcome",
+    title: "Welcome",
+    description:
+      "Welcome new subscribers and introduce them to ORENTEMIST.",
+    icon: "👋",
+    data: {
+      name: "Welcome to ORENTEMIST",
+      subject: "Welcome to ORENTEMIST",
+      preview:
+        "We're glad to have you with us.",
+      heading: "Welcome to ORENTEMIST",
+      body:
+        "Welcome to ORENTEMIST.\n\nWe're here to help you discover fragrances that match your personality, mood and style.",
+      buttonText: "Explore ORENTEMIST",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+
+  {
+    id: "brand-story",
+    title: "Brand Story",
+    description:
+      "Share your story, philosophy or what makes ORENTEMIST different.",
+    icon: "🖤",
+    data: {
+      name: "The ORENTEMIST Story",
+      subject: "The story behind ORENTEMIST",
+      preview:
+        "Discover what inspires ORENTEMIST.",
+      heading: "More Than A Fragrance",
+      body:
+        "At ORENTEMIST, we believe fragrance is more than something you wear.\n\nIt is part of how you express yourself, create memories and leave an impression.",
+      buttonText: "Discover Our Story",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+
+  {
+    id: "gift-guide",
+    title: "Gift Guide",
+    description:
+      "Help customers find fragrances for birthdays, celebrations and special occasions.",
+    icon: "🎁",
+    data: {
+      name: "Gift Guide",
+      subject: "Find the perfect fragrance gift",
+      preview:
+        "A thoughtful fragrance makes a memorable gift.",
+      heading: "The Perfect Gift Is A Fragrance",
+      body:
+        "Looking for something special for someone you love?\n\nExplore our fragrances and find a gift they'll remember long after the moment has passed.",
+      buttonText: "Shop Gift Ideas",
+      buttonUrl: "https://www.orentemist.online",
+    },
+  },
+];
+
 
   return (
     <div className="min-h-screen bg-[#f7f7f7] text-black">
@@ -1692,6 +1888,132 @@ const handleSendTest = async () => {
                   </div>
 
                 </section>
+
+                {/* TEMPLATES */}
+
+<section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+
+  <div className="border-b border-black/10 p-4 sm:p-5">
+
+    <div className="flex items-start justify-between gap-4">
+
+      <div>
+
+        <h3 className="font-semibold">
+          Newsletter Templates
+        </h3>
+
+        <p className="mt-1 text-xs leading-5 text-black/40">
+          Use a template as a starting point, then customize
+          the content for your campaign.
+        </p>
+
+      </div>
+
+      {selectedTemplate && (
+        <button
+          type="button"
+          onClick={() =>
+            setSelectedTemplate(null)
+          }
+          className="shrink-0 text-xs font-medium text-black/45 hover:text-black"
+        >
+          Clear selection
+        </button>
+      )}
+
+    </div>
+
+  </div>
+
+
+  <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
+
+    {newsletterTemplates.map(
+      (template) => {
+
+        const isSelected =
+          selectedTemplate ===
+          template.id;
+
+        return (
+          <button
+            key={template.id}
+            type="button"
+            onClick={() =>
+              applyNewsletterTemplate(
+                template
+              )
+            }
+            className={`group rounded-2xl border p-4 text-left transition ${
+              isSelected
+                ? "border-black bg-black text-white"
+                : "border-black/10 bg-white hover:border-black/30 hover:bg-black/[0.02]"
+            }`}
+          >
+
+            <div className="flex items-start justify-between gap-3">
+
+              <div
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${
+                  isSelected
+                    ? "bg-white/10"
+                    : "bg-black/[0.04]"
+                }`}
+              >
+                {template.icon}
+              </div>
+
+              {isSelected && (
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-black">
+                  <Check size={14} />
+                </div>
+              )}
+
+            </div>
+
+
+            <div className="mt-4">
+
+              <p className="text-sm font-semibold">
+                {template.title}
+              </p>
+
+              <p
+                className={`mt-1 text-xs leading-5 ${
+                  isSelected
+                    ? "text-white/55"
+                    : "text-black/45"
+                }`}
+              >
+                {template.description}
+              </p>
+
+            </div>
+
+
+            <div
+              className={`mt-4 text-xs font-medium ${
+                isSelected
+                  ? "text-white/70"
+                  : "text-black/45 group-hover:text-black"
+              }`}
+            >
+              {isSelected
+                ? "Template selected"
+                : "Use as starting point →"}
+            </div>
+
+          </button>
+        );
+      }
+    )}
+
+  </div>
+
+</section>
+
+
 
 
                 {/* IMAGE */}
