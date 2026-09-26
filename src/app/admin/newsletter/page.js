@@ -517,119 +517,95 @@ export default function NewsletterPage() {
     }
   };
 
-  const handleCampaignSubmit = async (event) => {
-    event.preventDefault();
+const handleCampaignSubmit = async (event) => {
+  event.preventDefault();
 
-    if (!campaignForm.name.trim()) {
-      showNotice(
-        "error",
-        "Campaign name required",
-        "Enter a name for this campaign."
-      );
-      return;
-    }
+  if (!campaignForm.templateId) {
+    showNotice(
+      "error",
+      "Template required",
+      "Choose a newsletter template first."
+    );
+    return;
+  }
 
-    if (!campaignForm.subject.trim()) {
-      showNotice(
-        "error",
-        "Subject required",
-        "Enter the email subject."
-      );
-      return;
-    }
+  if (subscribedCount === 0) {
+    showNotice(
+      "error",
+      "No subscribers",
+      "There are no active newsletter subscribers."
+    );
+    return;
+  }
 
-    if (!campaignForm.templateId) {
-      showNotice(
-        "error",
-        "Template required",
-        "Choose a Brevo email template."
-      );
-      return;
-    }
+  const confirmed = window.confirm(
+    `Send this newsletter to ${subscribedCount.toLocaleString()} active subscriber${
+      subscribedCount === 1 ? "" : "s"
+    }?`
+  );
 
-    if (subscribedCount === 0) {
-      showNotice(
-        "error",
-        "No subscribers",
-        "There are no active newsletter subscribers."
-      );
-      return;
-    }
+  if (!confirmed) {
+    return;
+  }
 
-    const confirmed = window.confirm(
-      `Send this newsletter to ${subscribedCount.toLocaleString()} active subscriber${
-        subscribedCount === 1 ? "" : "s"
-      }?`
+  try {
+    setCampaignLoading(true);
+
+    const response = await fetch(
+      `${API_URL}/newsletter/campaigns/${campaignForm.templateId}/send/`,
+      {
+        method: "POST",
+        headers: authHeaders(),
+      }
     );
 
-    if (!confirmed) {
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      handleUnauthorized();
       return;
     }
 
-    try {
-      setCampaignLoading(true);
+    const data =
+      await response.json().catch(() => ({}));
 
-      const response = await fetch(
-        `${API_URL}/newsletter/campaigns/`,
-        {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({
-            name: campaignForm.name.trim(),
-            subject: campaignForm.subject.trim(),
-            preview: campaignForm.preview.trim(),
-            template_id:
-              campaignForm.templateId,
-            sender_name:
-              campaignForm.senderName.trim(),
-            sender_email:
-              campaignForm.senderEmail.trim(),
-          }),
-        }
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+          data.error ||
+          data.message ||
+          "Unable to send newsletter."
       );
-
-      if (response.status === 401 || response.status === 403) {
-        handleUnauthorized();
-        return;
-      }
-
-      const data =
-        await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            data.error ||
-            data.message ||
-            "Unable to send newsletter."
-        );
-      }
-
-      showNotice(
-        "success",
-        "Newsletter sent",
-        "Your newsletter campaign has been sent through Brevo."
-      );
-
-      closeCampaignModal();
-
-      await fetchCampaigns();
-    } catch (error) {
-      console.error(
-        "Newsletter campaign error:",
-        error
-      );
-
-      showNotice(
-        "error",
-        "Newsletter failed",
-        error.message ||
-          "Unable to send the newsletter."
-      );
-    } finally {
-      setCampaignLoading(false);
     }
-  };
+
+    showNotice(
+      "success",
+      "Newsletter sent",
+      "Your newsletter has been sent successfully through Brevo."
+    );
+
+    closeCampaignModal();
+
+    await fetchCampaigns();
+  } catch (error) {
+    console.error(
+      "Newsletter campaign error:",
+      error
+    );
+
+    showNotice(
+      "error",
+      "Newsletter failed",
+      error.message ||
+        "Unable to send the newsletter."
+    );
+  } finally {
+    setCampaignLoading(false);
+  }
+};
+
+
 
   const selectedTemplateHtml =
     selectedTemplate?.html_content ||
@@ -641,7 +617,7 @@ export default function NewsletterPage() {
     <div className="min-h-screen bg-[#f7f7f7] text-black">
       <AdminSidebar />
 
-      <main className="lg:ml-[250px]">
+      <main className="lg:ml-[280px]">
         <div className="pt-16 lg:pt-0">
           {/* HEADER */}
 
@@ -1678,13 +1654,13 @@ export default function NewsletterPage() {
           <div className="my-8 w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-black/10 p-5">
               <div>
-                <h3 className="text-lg font-semibold">
-                  Create Newsletter
-                </h3>
+              <h3 className="text-lg font-semibold">
+  Send Newsletter
+</h3>
 
-                <p className="mt-1 text-xs text-black/40">
-                  Send an ORENTEMIST campaign through Brevo
-                </p>
+<p className="mt-1 text-xs text-black/40">
+  Select a saved Brevo newsletter and send it to your subscribers
+</p>
               </div>
 
               <button
@@ -1702,7 +1678,7 @@ export default function NewsletterPage() {
               <div className="space-y-5">
                 <div>
                   <label className="mb-2 block text-sm font-medium">
-                    Campaign Name
+                      Newsletter
                   </label>
 
                   <input
