@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { useRouter } from "next/navigation";
+
 import AdminSidebar from "@/components/AdminSidebar";
+
 import {
   ArrowLeft,
   Upload,
@@ -26,9 +33,11 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://perfume-backend-sbvd.onrender.com/api";
+
 
 export default function CreateNewsletterCampaignPage() {
   const router = useRouter();
@@ -49,7 +58,9 @@ export default function CreateNewsletterCampaignPage() {
   const [recipientType, setRecipientType] =
     useState("subscribers");
 
-  const [subscribers, setSubscribers] = useState([]);
+  const [subscribers, setSubscribers] =
+    useState([]);
+
   const [loadingSubscribers, setLoadingSubscribers] =
     useState(true);
 
@@ -75,22 +86,30 @@ export default function CreateNewsletterCampaignPage() {
         subscribers: 0,
         users: 0,
         customers: 0,
+        both: 0,
         everyone: 0,
+        selected: 0,
       },
       excluded_count: 0,
     });
 
-  const [saving, setSaving] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [saving, setSaving] =
+    useState(false);
+
+  const [sending, setSending] =
+    useState(false);
+
   const [testLoading, setTestLoading] =
     useState(false);
 
   const [uploadingImage, setUploadingImage] =
     useState(false);
 
-  const [testEmail, setTestEmail] = useState("");
+  const [testEmail, setTestEmail] =
+    useState("");
 
-  const [notice, setNotice] = useState(null);
+  const [notice, setNotice] =
+    useState(null);
 
   const [showPreview, setShowPreview] =
     useState(false);
@@ -98,9 +117,17 @@ export default function CreateNewsletterCampaignPage() {
   const [previewDevice, setPreviewDevice] =
     useState("desktop");
 
+
   const getToken = () => {
-    return localStorage.getItem("access_token");
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    return localStorage.getItem(
+      "access_token"
+    );
   };
+
 
   const authHeaders = () => {
     const token = getToken();
@@ -111,12 +138,20 @@ export default function CreateNewsletterCampaignPage() {
     };
   };
 
-  const handleUnauthorized = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
 
-    window.location.href = "/admin/login";
+  const handleUnauthorized = () => {
+    localStorage.removeItem(
+      "access_token"
+    );
+
+    localStorage.removeItem(
+      "refresh_token"
+    );
+
+    window.location.href =
+      "/admin/login";
   };
+
 
   const showNotice = (
     type,
@@ -133,6 +168,7 @@ export default function CreateNewsletterCampaignPage() {
       setNotice(null);
     }, 5000);
   };
+
 
   const fetchSubscribers = async () => {
     try {
@@ -160,7 +196,8 @@ export default function CreateNewsletterCampaignPage() {
         return;
       }
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       if (!response.ok) {
         throw new Error(
@@ -193,91 +230,97 @@ export default function CreateNewsletterCampaignPage() {
     }
   };
 
+
   useEffect(() => {
     fetchSubscribers();
   }, []);
 
-  const activeSubscribers = useMemo(() => {
-    return subscribers.filter(
-      (subscriber) =>
-        subscriber.status === "Subscribed" ||
-        subscriber.status === "subscribed" ||
-        subscriber.is_subscribed === true
-    );
-  }, [subscribers]);
 
-  const filteredSubscribers = useMemo(() => {
-    const query =
-      subscriberSearch.trim().toLowerCase();
+  const activeSubscribers =
+    useMemo(() => {
+      return subscribers.filter(
+        (subscriber) =>
+          subscriber.status ===
+            "Subscribed" ||
+          subscriber.status ===
+            "subscribed" ||
+          subscriber.is_subscribed === true
+      );
+    }, [subscribers]);
 
-    if (!query) {
-      return activeSubscribers;
-    }
 
-    return activeSubscribers.filter(
-      (subscriber) => {
-        const name = [
-          subscriber.first_name,
-          subscriber.last_name,
-        ]
-          .filter(Boolean)
-          .join(" ")
+  const filteredSubscribers =
+    useMemo(() => {
+      const query =
+        subscriberSearch
+          .trim()
           .toLowerCase();
 
-        const email = String(
-          subscriber.email || ""
-        ).toLowerCase();
-
-        return (
-          name.includes(query) ||
-          email.includes(query)
-        );
+      if (!query) {
+        return activeSubscribers;
       }
-    );
-  }, [
-    activeSubscribers,
-    subscriberSearch,
-  ]);
 
-  const selectedSubscriberObjects =
-    useMemo(() => {
       return activeSubscribers.filter(
         (subscriber) => {
-          const id =
-            subscriber.id ||
-            subscriber.email;
+          const name = [
+            subscriber.first_name,
+            subscriber.last_name,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
 
-          return selectedSubscribers.includes(id);
+          const email = String(
+            subscriber.email || ""
+          ).toLowerCase();
+
+          return (
+            name.includes(query) ||
+            email.includes(query)
+          );
         }
       );
     }, [
       activeSubscribers,
-      selectedSubscribers,
+      subscriberSearch,
     ]);
 
+
   const recipientCount =
-    audienceData.recipient_count || 0;
+    Number(
+      audienceData.recipient_count || 0
+    );
+
 
   const updateField = (
     field,
     value
   ) => {
-    setCampaignForm((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
+    setCampaignForm(
+      (previous) => ({
+        ...previous,
+        [field]: value,
+      })
+    );
   };
 
-  const toggleSubscriber = (id) => {
+
+  const toggleSubscriber = (
+    id
+  ) => {
     setSelectedSubscribers(
       (previous) =>
         previous.includes(id)
           ? previous.filter(
               (item) => item !== id
             )
-          : [...previous, id]
+          : [
+              ...previous,
+              id,
+            ]
     );
   };
+
 
   const selectAllVisible = () => {
     const visibleIds =
@@ -287,19 +330,21 @@ export default function CreateNewsletterCampaignPage() {
           subscriber.email
       );
 
-    setSelectedSubscribers((previous) => {
-      const combined = [
-        ...previous,
-        ...visibleIds,
-      ];
-
-      return [...new Set(combined)];
-    });
+    setSelectedSubscribers(
+      (previous) => [
+        ...new Set([
+          ...previous,
+          ...visibleIds,
+        ]),
+      ]
+    );
   };
+
 
   const clearSelected = () => {
     setSelectedSubscribers([]);
   };
+
 
   const addExcludeEmail = () => {
     const email =
@@ -317,68 +362,71 @@ export default function CreateNewsletterCampaignPage() {
         "Invalid email",
         "Enter a valid email address."
       );
+
       return;
     }
 
-    if (excludeEmails.includes(email)) {
+    if (
+      excludeEmails.includes(email)
+    ) {
       setExcludeEmailInput("");
       return;
     }
 
-    setExcludeEmails((previous) => [
-      ...previous,
-      email,
-    ]);
+    setExcludeEmails(
+      (previous) => [
+        ...previous,
+        email,
+      ]
+    );
 
     setExcludeEmailInput("");
   };
 
-  const removeExcludeEmail = (email) => {
-    setExcludeEmails((previous) =>
-      previous.filter(
-        (item) => item !== email
-      )
+
+  const removeExcludeEmail = (
+    email
+  ) => {
+    setExcludeEmails(
+      (previous) =>
+        previous.filter(
+          (item) =>
+            item !== email
+        )
     );
   };
 
+
   const getAudiencePayload = () => {
-    let include = [];
+    let include = [
+      recipientType,
+    ];
 
-    if (recipientType === "subscribers") {
-      include = ["subscribers"];
-    }
-
-    if (recipientType === "users") {
-      include = ["users"];
-    }
-
-    if (recipientType === "customers") {
-      include = ["customers"];
-    }
-
-    if (recipientType === "both") {
+    if (
+      recipientType === "both"
+    ) {
       include = [
-        "subscribers",
+        "users",
         "customers",
       ];
     }
 
-    if (recipientType === "everyone") {
-      include = ["everyone"];
-    }
-
-    if (recipientType === "selected") {
-      include = ["selected"];
-    }
-
     return {
+      recipient_type:
+        recipientType,
+
       include,
+
       exclude: [],
-      exclude_emails: excludeEmails,
+
+      exclude_emails:
+        excludeEmails,
+
       selected_subscriber_ids:
         selectedSubscribers,
     };
   };
+
 
   const previewAudience = async () => {
     try {
@@ -411,9 +459,11 @@ export default function CreateNewsletterCampaignPage() {
       }
 
       const data =
-        await response.json().catch(
-          () => ({})
-        );
+        await response
+          .json()
+          .catch(
+            () => ({})
+          );
 
       if (!response.ok) {
         throw new Error(
@@ -431,16 +481,21 @@ export default function CreateNewsletterCampaignPage() {
               data.count ||
               0
           ),
+
         counts:
           data.counts || {
             subscribers: 0,
             users: 0,
             customers: 0,
+            both: 0,
             everyone: 0,
+            selected: 0,
           },
+
         excluded_count:
           Number(
-            data.excluded_count || 0
+            data.excluded_count ||
+              0
           ),
       });
     } catch (error) {
@@ -462,7 +517,9 @@ export default function CreateNewsletterCampaignPage() {
           subscribers: 0,
           users: 0,
           customers: 0,
+          both: 0,
           everyone: 0,
+          selected: 0,
         },
         excluded_count: 0,
       });
@@ -471,16 +528,21 @@ export default function CreateNewsletterCampaignPage() {
     }
   };
 
+
   useEffect(() => {
-    if (loadingSubscribers) {
+    if (
+      loadingSubscribers
+    ) {
       return;
     }
 
-    const timeout = setTimeout(() => {
-      previewAudience();
-    }, 250);
+    const timeout =
+      setTimeout(() => {
+        previewAudience();
+      }, 250);
 
-    return () => clearTimeout(timeout);
+    return () =>
+      clearTimeout(timeout);
   }, [
     recipientType,
     selectedSubscribers,
@@ -488,8 +550,11 @@ export default function CreateNewsletterCampaignPage() {
     loadingSubscribers,
   ]);
 
+
   const validateCampaign = () => {
-    if (!campaignForm.name.trim()) {
+    if (
+      !campaignForm.name.trim()
+    ) {
       showNotice(
         "error",
         "Campaign name required",
@@ -499,7 +564,9 @@ export default function CreateNewsletterCampaignPage() {
       return false;
     }
 
-    if (!campaignForm.subject.trim()) {
+    if (
+      !campaignForm.subject.trim()
+    ) {
       showNotice(
         "error",
         "Subject required",
@@ -509,7 +576,9 @@ export default function CreateNewsletterCampaignPage() {
       return false;
     }
 
-    if (!campaignForm.heading.trim()) {
+    if (
+      !campaignForm.heading.trim()
+    ) {
       showNotice(
         "error",
         "Heading required",
@@ -519,7 +588,9 @@ export default function CreateNewsletterCampaignPage() {
       return false;
     }
 
-    if (!campaignForm.body.trim()) {
+    if (
+      !campaignForm.body.trim()
+    ) {
       showNotice(
         "error",
         "Newsletter content required",
@@ -542,25 +613,27 @@ export default function CreateNewsletterCampaignPage() {
       return false;
     }
 
-    if (recipientType === "selected") {
-      if (
-        selectedSubscribers.length === 0
-      ) {
-        showNotice(
-          "error",
-          "No recipients selected",
-          "Select at least one subscriber."
-        );
+    if (
+      recipientType ===
+        "selected" &&
+      selectedSubscribers.length === 0
+    ) {
+      showNotice(
+        "error",
+        "No recipients selected",
+        "Select at least one subscriber."
+      );
 
-        return false;
-      }
+      return false;
     }
 
-    if (recipientCount === 0) {
+    if (
+      recipientCount === 0
+    ) {
       showNotice(
         "error",
         "No recipients",
-        "Choose at least one recipient before continuing."
+        "Choose an audience that contains recipients."
       );
 
       return false;
@@ -569,7 +642,8 @@ export default function CreateNewsletterCampaignPage() {
     return true;
   };
 
-  const handleImageUpload = async (
+
+  const handleImageUpload = (
     event
   ) => {
     const file =
@@ -579,7 +653,11 @@ export default function CreateNewsletterCampaignPage() {
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
+    if (
+      !file.type.startsWith(
+        "image/"
+      )
+    ) {
       showNotice(
         "error",
         "Invalid image",
@@ -589,7 +667,10 @@ export default function CreateNewsletterCampaignPage() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (
+      file.size >
+      10 * 1024 * 1024
+    ) {
       showNotice(
         "error",
         "Image too large",
@@ -603,82 +684,74 @@ export default function CreateNewsletterCampaignPage() {
       setUploadingImage(true);
 
       const localPreview =
-        URL.createObjectURL(file);
+        URL.createObjectURL(
+          file
+        );
 
       updateField(
         "heroImage",
         localPreview
-      );
-
-      showNotice(
-        "success",
-        "Image selected",
-        "The image is now shown in your newsletter preview."
-      );
-    } catch (error) {
-      console.error(
-        "Image upload error:",
-        error
-      );
-
-      showNotice(
-        "error",
-        "Image upload failed",
-        "Unable to select the image."
       );
     } finally {
       setUploadingImage(false);
     }
   };
 
-  const buildPreviewHtml = () => {
-    const escapeHtml = (value) => {
-      return String(value || "")
-        .replaceAll(
-          "&",
-          "&amp;"
-        )
-        .replaceAll(
-          "<",
-          "&lt;"
-        )
-        .replaceAll(
-          ">",
-          "&gt;"
-        )
-        .replaceAll(
-          '"',
-          "&quot;"
-        )
-        .replaceAll(
-          "'",
-          "&#039;"
-        );
-    };
 
-    const bodyHtml = escapeHtml(
-      campaignForm.body
-    ).replace(
-      /\n/g,
-      "<br />"
-    );
+  const escapeHtml = (
+    value
+  ) => {
+    return String(
+      value || ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  };
+
+
+  const buildPreviewHtml = () => {
+    const bodyHtml =
+      escapeHtml(
+        campaignForm.body
+      ).replace(
+        /\n/g,
+        "<br />"
+      );
 
     const hero =
       campaignForm.heroImage
         ? `
-        <img
-          src="${escapeHtml(
-            campaignForm.heroImage
-          )}"
-          alt="ORENTEMIST"
-          style="
-            width:100%;
-            display:block;
-            max-height:420px;
-            object-fit:cover;
-          "
-        />
-      `
+          <img
+            src="${escapeHtml(
+              campaignForm.heroImage
+            )}"
+            alt="ORENTEMIST"
+            style="
+              width:100%;
+              display:block;
+              max-height:420px;
+              object-fit:cover;
+            "
+          />
+        `
         : "";
 
     const button =
@@ -714,7 +787,7 @@ export default function CreateNewsletterCampaignPage() {
       <div
         style="
           margin:0;
-          padding:40px 20px;
+          padding:20px 10px;
           background:#f5f5f5;
           font-family:Arial,Helvetica,sans-serif;
         "
@@ -728,16 +801,18 @@ export default function CreateNewsletterCampaignPage() {
             overflow:hidden;
           "
         >
+
           ${hero}
 
           <div
             style="
-              padding:42px 34px;
+              padding:36px 22px;
             "
           >
+
             <div
               style="
-                margin-bottom:28px;
+                margin-bottom:24px;
                 font-size:12px;
                 font-weight:700;
                 letter-spacing:3px;
@@ -752,7 +827,7 @@ export default function CreateNewsletterCampaignPage() {
               style="
                 margin:0;
                 color:#111;
-                font-size:32px;
+                font-size:30px;
                 line-height:1.2;
                 text-align:center;
                 font-weight:600;
@@ -765,11 +840,10 @@ export default function CreateNewsletterCampaignPage() {
 
             <div
               style="
-                margin-top:25px;
+                margin-top:24px;
                 color:#555;
                 font-size:15px;
                 line-height:1.8;
-                text-align:left;
               "
             >
               ${bodyHtml}
@@ -779,8 +853,8 @@ export default function CreateNewsletterCampaignPage() {
 
             <div
               style="
-                margin-top:45px;
-                padding-top:22px;
+                margin-top:40px;
+                padding-top:20px;
                 border-top:1px solid #eee;
                 text-align:center;
                 color:#999;
@@ -788,294 +862,88 @@ export default function CreateNewsletterCampaignPage() {
                 line-height:1.6;
               "
             >
-              You are receiving this email because
-              you subscribed to ORENTEMIST newsletters.
+              You are receiving this email from ORENTEMIST.
               <br />
               © ORENTEMIST
             </div>
+
           </div>
         </div>
       </div>
     `;
   };
 
+
   const buildCampaignPayload = () => {
+    const audience =
+      getAudiencePayload();
+
     return {
-      name: campaignForm.name.trim(),
+      name:
+        campaignForm.name.trim(),
+
       subject:
         campaignForm.subject.trim(),
+
       preview:
         campaignForm.preview.trim(),
+
       heading:
         campaignForm.heading.trim(),
+
       body:
         campaignForm.body.trim(),
+
       button_text:
         campaignForm.buttonText.trim(),
+
       button_url:
         campaignForm.buttonUrl.trim(),
+
       hero_image:
         campaignForm.heroImage,
+
       sender_name:
         campaignForm.senderName.trim(),
+
       sender_email:
         campaignForm.senderEmail.trim(),
 
       recipient_type:
-        recipientType,
+        audience.recipient_type,
 
       recipient_ids:
         selectedSubscribers,
 
       include:
-        getAudiencePayload().include,
+        audience.include,
 
       exclude:
-        getAudiencePayload().exclude,
+        audience.exclude,
 
       exclude_emails:
-        excludeEmails,
+        audience.exclude_emails,
 
       selected_subscriber_ids:
         selectedSubscribers,
 
-      audience_config: {
-        include:
-          getAudiencePayload().include,
-        exclude:
-          getAudiencePayload().exclude,
-        exclude_emails:
-          excludeEmails,
-        selected_subscriber_ids:
-          selectedSubscribers,
-      },
+      audience_config:
+        audience,
     };
   };
 
-  const createCampaign = async () => {
-    const response = await fetch(
-      `${API_URL}/newsletter/campaigns/`,
-      {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(
-          buildCampaignPayload()
-        ),
-      }
-    );
 
-    if (
-      response.status === 401 ||
-      response.status === 403
-    ) {
-      handleUnauthorized();
-      return null;
-    }
-
-    const data =
-      await response
-        .json()
-        .catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(
-        data.detail ||
-          data.error ||
-          data.message ||
-          "Unable to create newsletter."
-      );
-    }
-
-    return data;
-  };
-
-  const handleSaveDraft = async () => {
-    if (!validateCampaign()) {
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      const data =
-        await createCampaign();
-
-      if (!data) {
-        return;
-      }
-
-      showNotice(
-        "success",
-        "Draft saved",
-        "Your newsletter campaign has been saved as a draft."
-      );
-    } catch (error) {
-      console.error(
-        "Save campaign error:",
-        error
-      );
-
-      showNotice(
-        "error",
-        "Unable to save draft",
-        error.message ||
-          "Please try again."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSendCampaign = async () => {
-    if (!validateCampaign()) {
-      return;
-    }
-
-    const confirmed =
-      window.confirm(
-        `Send this newsletter to ${recipientCount.toLocaleString()} recipient${
-          recipientCount === 1
-            ? ""
-            : "s"
-        }?`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setSending(true);
-
-      const createData =
-        await createCampaign();
-
-      if (!createData) {
-        return;
-      }
-
-      const campaignId =
-        createData.id ||
-        createData.campaign_id ||
-        createData.brevo_campaign_id ||
-        createData.campaign
-          ?.id ||
-        createData.campaign
-          ?.brevo_campaign_id;
-
-      if (!campaignId) {
-        throw new Error(
-          "Campaign was created but no campaign ID was returned."
-        );
-      }
-
-      const sendResponse =
-        await fetch(
-          `${API_URL}/newsletter/campaigns/${campaignId}/send/`,
-          {
-            method: "POST",
-            headers: authHeaders(),
-          }
-        );
-
-      if (
-        sendResponse.status === 401 ||
-        sendResponse.status === 403
-      ) {
-        handleUnauthorized();
-        return;
-      }
-
-      const sendData =
-        await sendResponse
-          .json()
-          .catch(() => ({}));
-
-      if (!sendResponse.ok) {
-        throw new Error(
-          sendData.detail ||
-            sendData.error ||
-            sendData.message ||
-            "Unable to send newsletter."
-        );
-      }
-
-      showNotice(
-        "success",
-        "Newsletter sent",
-        `Your newsletter has been sent to ${recipientCount.toLocaleString()} recipient${
-          recipientCount === 1
-            ? ""
-            : "s"
-        }.`
-      );
-
-      setTimeout(() => {
-        router.push(
-          "/admin/newsletter"
-        );
-      }, 1200);
-    } catch (error) {
-      console.error(
-        "Send campaign error:",
-        error
-      );
-
-      showNotice(
-        "error",
-        "Newsletter failed",
-        error.message ||
-          "Unable to send newsletter."
-      );
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleSendTest = async () => {
-    if (!testEmail.trim()) {
-      showNotice(
-        "error",
-        "Test email required",
-        "Enter an email address for the test."
-      );
-
-      return;
-    }
-
-    if (!campaignForm.subject.trim()) {
-      showNotice(
-        "error",
-        "Subject required",
-        "Add an email subject before sending a test."
-      );
-
-      return;
-    }
-
-    try {
-      setTestLoading(true);
-
-      const payload =
-        buildCampaignPayload();
-
-      payload.name =
-        campaignForm.name.trim() ||
-        "ORENTEMIST Test Newsletter";
-
-      payload.recipient_type =
-        "subscribers";
-
-      payload.recipient_ids = [];
-
+  const createCampaign =
+    async () => {
       const response =
         await fetch(
           `${API_URL}/newsletter/campaigns/`,
           {
             method: "POST",
-            headers: authHeaders(),
+            headers:
+              authHeaders(),
             body: JSON.stringify(
-              payload
+              buildCampaignPayload()
             ),
           }
         );
@@ -1085,178 +953,434 @@ export default function CreateNewsletterCampaignPage() {
         response.status === 403
       ) {
         handleUnauthorized();
-        return;
+        return null;
       }
 
       const data =
         await response
           .json()
-          .catch(() => ({}));
+          .catch(
+            () => ({})
+          );
 
       if (!response.ok) {
         throw new Error(
           data.detail ||
             data.error ||
             data.message ||
-            "Unable to prepare test newsletter."
+            "Unable to create newsletter."
         );
       }
 
-      const campaignId =
-        data.id ||
-        data.campaign_id ||
-        data.brevo_campaign_id ||
-        data.campaign
-          ?.id ||
-        data.campaign
-          ?.brevo_campaign_id;
+      return data;
+    };
 
-      if (!campaignId) {
-        throw new Error(
-          "Unable to identify the test campaign."
-        );
-      }
 
-      const testResponse =
-        await fetch(
-          `${API_URL}/newsletter/campaigns/test/`,
-          {
-            method: "POST",
-            headers: authHeaders(),
-            body: JSON.stringify({
-              email:
-                testEmail.trim(),
-              campaign_id:
-                campaignId,
-            }),
-          }
-        );
-
-      if (
-        testResponse.status === 401 ||
-        testResponse.status === 403
-      ) {
-        handleUnauthorized();
+  const handleSaveDraft =
+    async () => {
+      if (!validateCampaign()) {
         return;
       }
 
-      const testData =
-        await testResponse
-          .json()
-          .catch(() => ({}));
+      try {
+        setSaving(true);
 
-      if (!testResponse.ok) {
-        throw new Error(
-          testData.detail ||
-            testData.error ||
-            testData.message ||
-            "Unable to send test email."
+        const data =
+          await createCampaign();
+
+        if (!data) {
+          return;
+        }
+
+        showNotice(
+          "success",
+          "Draft saved",
+          "Your newsletter campaign has been saved as a draft."
         );
+      } catch (error) {
+        console.error(
+          "Save campaign error:",
+          error
+        );
+
+        showNotice(
+          "error",
+          "Unable to save draft",
+          error.message ||
+            "Please try again."
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+
+  const handleSendCampaign =
+    async () => {
+      if (!validateCampaign()) {
+        return;
       }
 
-      showNotice(
-        "success",
-        "Test email sent",
-        `The test newsletter was sent to ${testEmail.trim()}.`
-      );
-    } catch (error) {
-      console.error(
-        "Test email error:",
-        error
-      );
+      const confirmed =
+        window.confirm(
+          `Send this newsletter to ${recipientCount.toLocaleString()} recipient${
+            recipientCount === 1
+              ? ""
+              : "s"
+          }?`
+        );
 
-      showNotice(
-        "error",
-        "Test failed",
-        error.message ||
-          "Unable to send test email."
-      );
-    } finally {
-      setTestLoading(false);
-    }
-  };
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setSending(true);
+
+        const createData =
+          await createCampaign();
+
+        if (!createData) {
+          return;
+        }
+
+        const campaignId =
+          createData.id ||
+          createData.campaign_id ||
+          createData.brevo_campaign_id ||
+          createData.campaign?.id ||
+          createData.campaign?.brevo_campaign_id;
+
+        if (!campaignId) {
+          throw new Error(
+            "Campaign was created but no campaign ID was returned."
+          );
+        }
+
+        const sendResponse =
+          await fetch(
+            `${API_URL}/newsletter/campaigns/${campaignId}/send/`,
+            {
+              method: "POST",
+              headers:
+                authHeaders(),
+            }
+          );
+
+        if (
+          sendResponse.status ===
+            401 ||
+          sendResponse.status ===
+            403
+        ) {
+          handleUnauthorized();
+          return;
+        }
+
+        const sendData =
+          await sendResponse
+            .json()
+            .catch(
+              () => ({})
+            );
+
+        if (!sendResponse.ok) {
+          throw new Error(
+            sendData.detail ||
+              sendData.error ||
+              sendData.message ||
+              "Unable to send newsletter."
+          );
+        }
+
+        showNotice(
+          "success",
+          "Newsletter sent",
+          `Your newsletter has been sent to ${recipientCount.toLocaleString()} recipient${
+            recipientCount === 1
+              ? ""
+              : "s"
+          }.`
+        );
+
+        setTimeout(() => {
+          router.push(
+            "/admin/newsletter"
+          );
+        }, 1200);
+      } catch (error) {
+        console.error(
+          "Send campaign error:",
+          error
+        );
+
+        showNotice(
+          "error",
+          "Newsletter failed",
+          error.message ||
+            "Unable to send newsletter."
+        );
+      } finally {
+        setSending(false);
+      }
+    };
+
+
+  const handleSendTest =
+    async () => {
+      if (
+        !testEmail.trim()
+      ) {
+        showNotice(
+          "error",
+          "Test email required",
+          "Enter an email address for the test."
+        );
+
+        return;
+      }
+
+      if (
+        !campaignForm.subject.trim()
+      ) {
+        showNotice(
+          "error",
+          "Subject required",
+          "Add an email subject before sending a test."
+        );
+
+        return;
+      }
+
+      try {
+        setTestLoading(true);
+
+        const payload =
+          buildCampaignPayload();
+
+        /*
+         * Test emails do not need a real
+         * audience. We create the campaign
+         * from the current content only.
+         */
+        payload.name =
+          campaignForm.name.trim() ||
+          "ORENTEMIST Test Newsletter";
+
+        payload.recipient_type =
+          "subscribers";
+
+        payload.include = [
+          "subscribers",
+        ];
+
+        const response =
+          await fetch(
+            `${API_URL}/newsletter/campaigns/`,
+            {
+              method: "POST",
+              headers:
+                authHeaders(),
+              body: JSON.stringify(
+                payload
+              ),
+            }
+          );
+
+        if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          handleUnauthorized();
+          return;
+        }
+
+        const data =
+          await response
+            .json()
+            .catch(
+              () => ({})
+            );
+
+        if (!response.ok) {
+          throw new Error(
+            data.detail ||
+              data.error ||
+              data.message ||
+              "Unable to prepare test newsletter."
+          );
+        }
+
+        const campaignId =
+          data.id ||
+          data.campaign_id ||
+          data.brevo_campaign_id ||
+          data.campaign?.id ||
+          data.campaign?.brevo_campaign_id;
+
+        if (!campaignId) {
+          throw new Error(
+            "Unable to identify the test campaign."
+          );
+        }
+
+        const testResponse =
+          await fetch(
+            `${API_URL}/newsletter/campaigns/test/`,
+            {
+              method: "POST",
+              headers:
+                authHeaders(),
+              body: JSON.stringify({
+                email:
+                  testEmail.trim(),
+                campaign_id:
+                  campaignId,
+              }),
+            }
+          );
+
+        if (
+          testResponse.status ===
+            401 ||
+          testResponse.status ===
+            403
+        ) {
+          handleUnauthorized();
+          return;
+        }
+
+        const testData =
+          await testResponse
+            .json()
+            .catch(
+              () => ({})
+            );
+
+        if (!testResponse.ok) {
+          throw new Error(
+            testData.detail ||
+              testData.error ||
+              testData.message ||
+              "Unable to send test email."
+          );
+        }
+
+        showNotice(
+          "success",
+          "Test email sent",
+          `The test newsletter was sent to ${testEmail.trim()}.`
+        );
+      } catch (error) {
+        console.error(
+          "Test email error:",
+          error
+        );
+
+        showNotice(
+          "error",
+          "Test failed",
+          error.message ||
+            "Unable to send test email."
+        );
+      } finally {
+        setTestLoading(false);
+      }
+    };
+
 
   const previewHtml =
     buildPreviewHtml();
 
+
   const audienceOptions = [
     {
       id: "subscribers",
-      title: "Newsletter Subscribers",
+      title:
+        "Newsletter Subscribers",
       description:
-        "People who explicitly subscribed to receive ORENTEMIST newsletters.",
+        "People who subscribed to the ORENTEMIST newsletter.",
       icon: Mail,
       count:
         audienceData.counts
-          ?.subscribers ??
-        activeSubscribers.length,
+          ?.subscribers ?? 0,
     },
+
     {
       id: "users",
-      title: "Registered Users",
+      title:
+        "Registered Users",
       description:
-        "Customers who have an ORENTEMIST account and an email address.",
+        "Registered ORENTEMIST accounts with an email address.",
       icon: UserPlus,
       count:
-        audienceData.counts?.users ??
-        0,
+        audienceData.counts
+          ?.users ?? 0,
     },
+
     {
       id: "customers",
-      title: "Customers Who Bought",
+      title:
+        "Customers Who Bought",
       description:
-        "Email addresses from customers with successful paid orders, including guest buyers.",
+        "Customers with successful paid orders, including guest buyers.",
       icon: ShoppingBag,
       count:
         audienceData.counts
-          ?.customers ??
-        0,
+          ?.customers ?? 0,
     },
+
     {
       id: "both",
-      title: "Subscribers + Customers",
+      title:
+        "Subscribers + Customers",
       description:
-        "Combines active newsletter subscribers with customers who have purchased.",
+        "Combines registered users and paid customers.",
       icon: Users,
       count:
-        (audienceData.counts
-          ?.subscribers || 0) +
-        (audienceData.counts
-          ?.customers || 0),
+        audienceData.counts
+          ?.both ?? 0,
     },
+
     {
       id: "everyone",
-      title: "Everyone",
+      title:
+        "Everyone",
       description:
-        "Combines all available subscriber, registered-user and customer email audiences with duplicates removed.",
+        "Combines subscribers, registered users and paid customers with duplicates removed.",
       icon: UserCheck,
       count:
         audienceData.counts
-          ?.everyone ??
-        0,
+          ?.everyone ?? 0,
     },
+
     {
       id: "selected",
-      title: "Selected Subscribers",
+      title:
+        "Selected Subscribers",
       description:
-        "Choose exactly which active newsletter subscribers should receive this campaign.",
+        "Choose exactly which subscribers should receive the campaign.",
       icon: UserRound,
       count:
         selectedSubscribers.length,
     },
   ];
 
+
   return (
     <div className="min-h-screen bg-[#f7f7f7] text-black">
+
       <AdminSidebar />
 
       <main className="lg:ml-[280px]">
+
         <div className="pt-16 lg:pt-0">
 
           {/* NOTICE */}
 
           {notice && (
-            <div className="fixed right-4 top-4 z-[100] w-[calc(100%-2rem)] max-w-md">
+            <div className="fixed left-3 right-3 top-3 z-[100] sm:left-auto sm:right-4 sm:w-[calc(100%-2rem)] sm:max-w-md">
+
               <div
                 className={`rounded-2xl border bg-white p-4 shadow-2xl ${
                   notice.type ===
@@ -1265,7 +1389,9 @@ export default function CreateNewsletterCampaignPage() {
                     : "border-green-200"
                 }`}
               >
+
                 <div className="flex items-start gap-3">
+
                   <div
                     className={`mt-0.5 ${
                       notice.type ===
@@ -1287,6 +1413,7 @@ export default function CreateNewsletterCampaignPage() {
                   </div>
 
                   <div className="min-w-0 flex-1">
+
                     <p className="text-sm font-semibold">
                       {notice.title}
                     </p>
@@ -1294,6 +1421,7 @@ export default function CreateNewsletterCampaignPage() {
                     <p className="mt-1 text-xs leading-5 text-black/55">
                       {notice.message}
                     </p>
+
                   </div>
 
                   <button
@@ -1301,51 +1429,66 @@ export default function CreateNewsletterCampaignPage() {
                     onClick={() =>
                       setNotice(null)
                     }
-                    className="text-black/30 hover:text-black"
+                    className="shrink-0 text-black/30 hover:text-black"
                   >
                     <X size={17} />
                   </button>
+
                 </div>
+
               </div>
+
             </div>
           )}
 
+
           {/* HEADER */}
 
-          <header className="sticky top-0 z-30 border-b border-black/10 bg-white/90 backdrop-blur">
-            <div className="flex min-h-[82px] items-center justify-between gap-4 px-5 py-4 sm:px-8">
-              <div className="flex min-w-0 items-center gap-3">
+          <header className="sticky top-0 z-30 border-b border-black/10 bg-white/95 backdrop-blur">
+
+            <div className="flex min-h-[72px] items-center justify-between gap-3 px-3 py-3 sm:min-h-[82px] sm:px-8 sm:py-4">
+
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+
                 <button
                   onClick={() =>
                     router.push(
                       "/admin/newsletter"
                     )
                   }
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-black/10 hover:bg-black/5"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-black/10 hover:bg-black/5 sm:h-10 sm:w-10"
                 >
-                  <ArrowLeft size={18} />
+                  <ArrowLeft size={17} />
                 </button>
 
                 <div className="min-w-0">
-                  <h2 className="truncate text-xl font-semibold sm:text-2xl">
+
+                  <h2 className="truncate text-lg font-semibold sm:text-2xl">
                     Create Campaign
                   </h2>
 
-                  <p className="mt-1 hidden text-xs text-black/45 sm:block sm:text-sm">
+                  <p className="mt-1 hidden text-sm text-black/45 sm:block">
                     Build and send an ORENTEMIST newsletter
                   </p>
+
                 </div>
+
               </div>
 
+
               <div className="flex shrink-0 items-center gap-2">
+
                 <button
-                  onClick={handleSaveDraft}
+                  onClick={
+                    handleSaveDraft
+                  }
                   disabled={
                     saving ||
                     sending
                   }
-                  className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-medium hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/10 bg-white text-sm font-medium hover:bg-black/5 disabled:opacity-50 sm:h-auto sm:w-auto sm:gap-2 sm:px-4 sm:py-2.5"
                 >
+
                   {saving ? (
                     <Loader2
                       size={15}
@@ -1358,16 +1501,21 @@ export default function CreateNewsletterCampaignPage() {
                   <span className="hidden sm:inline">
                     Save Draft
                   </span>
+
                 </button>
 
+
                 <button
-                  onClick={handleSendCampaign}
+                  onClick={
+                    handleSendCampaign
+                  }
                   disabled={
                     saving ||
                     sending
                   }
-                  className="flex items-center gap-2 rounded-xl bg-black px-3 py-2.5 text-sm font-medium text-white hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+                  className="flex h-9 items-center justify-center gap-2 rounded-xl bg-black px-3 text-sm font-medium text-white hover:bg-black/80 disabled:opacity-50 sm:h-auto sm:px-4 sm:py-2.5"
                 >
+
                   {sending ? (
                     <Loader2
                       size={15}
@@ -1384,22 +1532,33 @@ export default function CreateNewsletterCampaignPage() {
                   <span className="sm:hidden">
                     Send
                   </span>
+
                 </button>
+
               </div>
+
             </div>
+
           </header>
 
-          <div className="p-5 sm:p-8">
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
+
+          {/* PAGE */}
+
+          <div className="p-3 sm:p-5 lg:p-8">
+
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
 
               {/* LEFT */}
 
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-5">
 
-                {/* CAMPAIGN DETAILS */}
 
-                <section className="rounded-2xl border border-black/10 bg-white">
-                  <div className="border-b border-black/10 p-5">
+                {/* CAMPAIGN */}
+
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+
+                  <div className="border-b border-black/10 p-4 sm:p-5">
+
                     <h3 className="font-semibold">
                       Campaign Details
                     </h3>
@@ -1407,11 +1566,14 @@ export default function CreateNewsletterCampaignPage() {
                     <p className="mt-1 text-xs text-black/40">
                       Set the basic information for your newsletter.
                     </p>
+
                   </div>
 
-                  <div className="space-y-5 p-5">
+
+                  <div className="space-y-5 p-4 sm:p-5">
 
                     <div>
+
                       <label className="mb-2 block text-sm font-medium">
                         Campaign Name
                       </label>
@@ -1429,9 +1591,12 @@ export default function CreateNewsletterCampaignPage() {
                         placeholder="e.g. September New Arrivals"
                         className="h-11 w-full rounded-xl border border-black/10 px-4 text-base outline-none focus:border-black sm:text-sm"
                       />
+
                     </div>
 
+
                     <div>
+
                       <label className="mb-2 block text-sm font-medium">
                         Email Subject
                       </label>
@@ -1446,12 +1611,15 @@ export default function CreateNewsletterCampaignPage() {
                             event.target.value
                           )
                         }
-                        placeholder="e.g. Discover the latest from ORENTEMIST"
+                        placeholder="Discover the latest from ORENTEMIST"
                         className="h-11 w-full rounded-xl border border-black/10 px-4 text-base outline-none focus:border-black sm:text-sm"
                       />
+
                     </div>
 
+
                     <div>
+
                       <label className="mb-2 block text-sm font-medium">
                         Preview Text
                       </label>
@@ -1466,22 +1634,23 @@ export default function CreateNewsletterCampaignPage() {
                             event.target.value
                           )
                         }
-                        placeholder="The short preview shown beside the subject in the inbox"
+                        placeholder="Short inbox preview"
                         className="h-11 w-full rounded-xl border border-black/10 px-4 text-base outline-none focus:border-black sm:text-sm"
                       />
 
-                      <p className="mt-2 text-xs text-black/35">
-                        Keep this short. It appears next to the subject in many email clients.
-                      </p>
                     </div>
 
                   </div>
+
                 </section>
 
-                {/* HERO IMAGE */}
 
-                <section className="rounded-2xl border border-black/10 bg-white">
-                  <div className="border-b border-black/10 p-5">
+                {/* IMAGE */}
+
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+
+                  <div className="border-b border-black/10 p-4 sm:p-5">
+
                     <h3 className="font-semibold">
                       Hero Image
                     </h3>
@@ -1489,17 +1658,22 @@ export default function CreateNewsletterCampaignPage() {
                     <p className="mt-1 text-xs text-black/40">
                       Add a large image at the top of your newsletter.
                     </p>
+
                   </div>
 
-                  <div className="p-5">
+
+                  <div className="p-4 sm:p-5">
+
                     {campaignForm.heroImage ? (
+
                       <div className="relative overflow-hidden rounded-2xl border border-black/10">
+
                         <img
                           src={
                             campaignForm.heroImage
                           }
                           alt="Newsletter hero"
-                          className="h-[260px] w-full object-cover sm:h-[340px]"
+                          className="h-[220px] w-full object-cover sm:h-[340px]"
                         />
 
                         <button
@@ -1510,13 +1684,17 @@ export default function CreateNewsletterCampaignPage() {
                               ""
                             )
                           }
-                          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-lg backdrop-blur hover:bg-white"
+                          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-lg"
                         >
                           <X size={16} />
                         </button>
+
                       </div>
+
                     ) : (
-                      <label className="flex min-h-[230px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-black/15 bg-black/[0.02] px-5 text-center transition hover:border-black/30 hover:bg-black/[0.04]">
+
+                      <label className="flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-black/15 bg-black/[0.02] px-5 text-center hover:border-black/30">
+
                         <input
                           type="file"
                           accept="image/*"
@@ -1527,6 +1705,7 @@ export default function CreateNewsletterCampaignPage() {
                         />
 
                         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white">
+
                           {uploadingImage ? (
                             <Loader2
                               size={22}
@@ -1535,6 +1714,7 @@ export default function CreateNewsletterCampaignPage() {
                           ) : (
                             <Upload size={22} />
                           )}
+
                         </div>
 
                         <p className="mt-4 text-sm font-medium">
@@ -1542,29 +1722,39 @@ export default function CreateNewsletterCampaignPage() {
                         </p>
 
                         <p className="mt-1 max-w-sm text-xs leading-5 text-black/40">
-                          JPG, PNG or WebP. Your final image will be hosted on Cloudinary so it can load inside emails.
+                          JPG, PNG or WebP.
                         </p>
+
                       </label>
+
                     )}
+
                   </div>
+
                 </section>
+
 
                 {/* CONTENT */}
 
-                <section className="rounded-2xl border border-black/10 bg-white">
-                  <div className="border-b border-black/10 p-5">
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+
+                  <div className="border-b border-black/10 p-4 sm:p-5">
+
                     <h3 className="font-semibold">
                       Newsletter Content
                     </h3>
 
                     <p className="mt-1 text-xs text-black/40">
-                      Write the content your subscribers will receive.
+                      Write the content your audience will receive.
                     </p>
+
                   </div>
 
-                  <div className="space-y-5 p-5">
+
+                  <div className="space-y-5 p-4 sm:p-5">
 
                     <div>
+
                       <label className="mb-2 block text-sm font-medium">
                         Heading
                       </label>
@@ -1582,9 +1772,12 @@ export default function CreateNewsletterCampaignPage() {
                         placeholder="A new fragrance experience"
                         className="h-11 w-full rounded-xl border border-black/10 px-4 text-base outline-none focus:border-black sm:text-sm"
                       />
+
                     </div>
 
+
                     <div>
+
                       <label className="mb-2 block text-sm font-medium">
                         Details / Body
                       </label>
@@ -1599,35 +1792,39 @@ export default function CreateNewsletterCampaignPage() {
                             event.target.value
                           )
                         }
-                        rows={9}
+                        rows={8}
                         placeholder="Write the main details of your newsletter here..."
                         className="w-full resize-y rounded-xl border border-black/10 px-4 py-3 text-base leading-7 outline-none focus:border-black sm:text-sm"
                       />
 
-                      <p className="mt-2 text-xs text-black/35">
-                        Separate paragraphs with a new line.
-                      </p>
                     </div>
 
                   </div>
+
                 </section>
+
 
                 {/* BUTTON */}
 
-                <section className="rounded-2xl border border-black/10 bg-white">
-                  <div className="border-b border-black/10 p-5">
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+
+                  <div className="border-b border-black/10 p-4 sm:p-5">
+
                     <h3 className="font-semibold">
                       Call To Action
                     </h3>
 
                     <p className="mt-1 text-xs text-black/40">
-                      Add an optional button to your newsletter.
+                      Add an optional button.
                     </p>
+
                   </div>
 
-                  <div className="grid gap-5 p-5 sm:grid-cols-2">
+
+                  <div className="grid gap-5 p-4 sm:grid-cols-2 sm:p-5">
 
                     <div>
+
                       <label className="mb-2 block text-sm font-medium">
                         Button Text
                       </label>
@@ -1645,9 +1842,12 @@ export default function CreateNewsletterCampaignPage() {
                         placeholder="Shop Now"
                         className="h-11 w-full rounded-xl border border-black/10 px-4 text-base outline-none focus:border-black sm:text-sm"
                       />
+
                     </div>
 
+
                     <div>
+
                       <label className="mb-2 block text-sm font-medium">
                         Button URL
                       </label>
@@ -1666,18 +1866,24 @@ export default function CreateNewsletterCampaignPage() {
                         placeholder="https://www.orentemist.online/shop"
                         className="h-11 w-full rounded-xl border border-black/10 px-4 text-base outline-none focus:border-black sm:text-sm"
                       />
+
                     </div>
 
                   </div>
+
                 </section>
+
 
                 {/* RECIPIENTS */}
 
-                <section className="rounded-2xl border border-black/10 bg-white">
-                  <div className="border-b border-black/10 p-5">
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
 
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
+                  <div className="border-b border-black/10 p-4 sm:p-5">
+
+                    <div className="flex items-start justify-between gap-3">
+
+                      <div className="min-w-0">
+
                         <h3 className="font-semibold">
                           Recipients
                         </h3>
@@ -1685,9 +1891,12 @@ export default function CreateNewsletterCampaignPage() {
                         <p className="mt-1 text-xs text-black/40">
                           Choose who should receive this campaign.
                         </p>
+
                       </div>
 
+
                       <div className="flex shrink-0 items-center gap-2">
+
                         {audienceLoading && (
                           <Loader2
                             size={15}
@@ -1696,18 +1905,17 @@ export default function CreateNewsletterCampaignPage() {
                         )}
 
                         <div className="rounded-full bg-black px-3 py-1.5 text-xs font-medium text-white">
-                          {recipientCount.toLocaleString()} recipient
-                          {recipientCount === 1
-                            ? ""
-                            : "s"}
+                          {recipientCount.toLocaleString()}
                         </div>
+
                       </div>
+
                     </div>
+
                   </div>
 
-                  <div className="space-y-4 p-5">
 
-                    {/* AUDIENCE OPTIONS */}
+                  <div className="space-y-3 p-3 sm:space-y-4 sm:p-5">
 
                     {audienceOptions.map(
                       (option) => {
@@ -1729,30 +1937,31 @@ export default function CreateNewsletterCampaignPage() {
                                 option.id
                               )
                             }
-                            className={`w-full rounded-2xl border p-4 text-left transition ${
+                            className={`w-full rounded-2xl border p-3 text-left transition sm:p-4 ${
                               active
                                 ? "border-black bg-black text-white"
                                 : "border-black/10 hover:border-black/30"
                             }`}
                           >
-                            <div className="flex items-start gap-4">
+
+                            <div className="flex items-start gap-3">
 
                               <div
-                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                                   active
                                     ? "bg-white text-black"
                                     : "bg-black/5"
                                 }`}
                               >
                                 <Icon
-                                  size={
-                                    19
-                                  }
+                                  size={18}
                                 />
                               </div>
 
+
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-3">
+
+                                <div className="flex items-start justify-between gap-2">
 
                                   <p className="text-sm font-semibold">
                                     {
@@ -1762,12 +1971,13 @@ export default function CreateNewsletterCampaignPage() {
 
                                   {active && (
                                     <Check
-                                      size={
-                                        18
-                                      }
+                                      size={17}
+                                      className="shrink-0"
                                     />
                                   )}
+
                                 </div>
+
 
                                 <p
                                   className={`mt-1 text-xs leading-5 ${
@@ -1781,6 +1991,7 @@ export default function CreateNewsletterCampaignPage() {
                                   }
                                 </p>
 
+
                                 <p
                                   className={`mt-2 text-xs font-medium ${
                                     active
@@ -1790,37 +2001,47 @@ export default function CreateNewsletterCampaignPage() {
                                 >
                                   {option.count.toLocaleString()} available
                                 </p>
+
                               </div>
+
                             </div>
+
                           </button>
                         );
                       }
                     )}
 
-                    {/* SELECTED SUBSCRIBERS */}
+
+                    {/* SELECTED */}
 
                     {recipientType ===
                       "selected" && (
-                      <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
 
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-3 sm:p-4">
+
+                        <div className="flex flex-col gap-3">
+
                           <div>
+
                             <p className="text-sm font-semibold">
                               Select subscribers
                             </p>
 
                             <p className="mt-1 text-xs text-black/40">
-                              Select the exact subscribers who should receive this campaign.
+                              Choose exactly who should receive this campaign.
                             </p>
+
                           </div>
 
-                          <div className="flex gap-2">
+
+                          <div className="grid grid-cols-2 gap-2">
+
                             <button
                               type="button"
                               onClick={
                                 selectAllVisible
                               }
-                              className="rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-medium hover:bg-black/5"
+                              className="rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-medium"
                             >
                               Select visible
                             </button>
@@ -1830,14 +2051,18 @@ export default function CreateNewsletterCampaignPage() {
                               onClick={
                                 clearSelected
                               }
-                              className="rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-medium hover:bg-black/5"
+                              className="rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-medium"
                             >
                               Clear
                             </button>
+
                           </div>
+
                         </div>
 
+
                         <div className="mt-4">
+
                           <input
                             value={
                               subscriberSearch
@@ -1846,34 +2071,35 @@ export default function CreateNewsletterCampaignPage() {
                               event
                             ) =>
                               setSubscriberSearch(
-                                event
-                                  .target
-                                  .value
+                                event.target.value
                               )
                             }
-                            placeholder="Search subscriber name or email..."
+                            placeholder="Search subscriber..."
                             className="h-11 w-full rounded-xl border border-black/10 bg-white px-4 text-base outline-none focus:border-black sm:text-sm"
                           />
+
                         </div>
 
-                        <div className="mt-4 max-h-[380px] overflow-y-auto rounded-xl border border-black/10 bg-white">
+
+                        <div className="mt-3 max-h-[350px] overflow-y-auto rounded-xl border border-black/10 bg-white">
 
                           {loadingSubscribers ? (
-                            <div className="flex min-h-[160px] items-center justify-center">
+
+                            <div className="flex min-h-[150px] items-center justify-center">
+
                               <Loader2
-                                size={
-                                  22
-                                }
+                                size={22}
                                 className="animate-spin text-black/40"
                               />
+
                             </div>
-                          ) : filteredSubscribers.length ===
-                            0 ? (
-                            <div className="p-8 text-center">
+
+                          ) : filteredSubscribers.length === 0 ? (
+
+                            <div className="p-7 text-center">
+
                               <Mail
-                                size={
-                                  25
-                                }
+                                size={24}
                                 className="mx-auto text-black/20"
                               />
 
@@ -1881,15 +2107,15 @@ export default function CreateNewsletterCampaignPage() {
                                 No subscribers found
                               </p>
 
-                              <p className="mt-1 text-xs text-black/40">
-                                Try another search.
-                              </p>
                             </div>
+
                           ) : (
+
                             filteredSubscribers.map(
                               (
                                 subscriber
                               ) => {
+
                                 const id =
                                   subscriber.id ||
                                   subscriber.email;
@@ -1922,12 +2148,13 @@ export default function CreateNewsletterCampaignPage() {
                                         id
                                       )
                                     }
-                                    className={`flex w-full items-center gap-3 border-b border-black/5 p-3 text-left last:border-b-0 hover:bg-black/[0.02] ${
+                                    className={`flex w-full items-center gap-3 border-b border-black/5 p-3 text-left last:border-b-0 ${
                                       selected
                                         ? "bg-black/[0.04]"
                                         : ""
                                     }`}
                                   >
+
                                     <div
                                       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
                                         selected
@@ -1937,20 +2164,18 @@ export default function CreateNewsletterCampaignPage() {
                                     >
                                       {selected ? (
                                         <Check
-                                          size={
-                                            16
-                                          }
+                                          size={16}
                                         />
                                       ) : (
                                         <Mail
-                                          size={
-                                            15
-                                          }
+                                          size={15}
                                         />
                                       )}
                                     </div>
 
+
                                     <div className="min-w-0 flex-1">
+
                                       <p className="truncate text-sm font-medium">
                                         {name ||
                                           "Subscriber"}
@@ -1961,49 +2186,53 @@ export default function CreateNewsletterCampaignPage() {
                                           subscriber.email
                                         }
                                       </p>
+
                                     </div>
+
                                   </button>
                                 );
                               }
                             )
+
                           )}
+
                         </div>
 
-                        <div className="mt-3 flex items-center justify-between text-xs">
-                          <span className="text-black/40">
-                            {filteredSubscribers.length.toLocaleString()} visible
-                          </span>
-
-                          <span className="font-medium">
-                            {selectedSubscribers.length.toLocaleString()} selected
-                          </span>
-                        </div>
                       </div>
                     )}
 
-                    {/* EXCLUSIONS */}
 
-                    <div className="rounded-2xl border border-black/10 bg-white p-4">
+                    {/* EXCLUDE */}
+
+                    <div className="rounded-2xl border border-black/10 bg-white p-3 sm:p-4">
 
                       <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/5">
+
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black/5">
+
                           <Ban
-                            size={18}
+                            size={17}
                           />
+
                         </div>
 
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0">
+
                           <p className="text-sm font-semibold">
-                            Exclude individual emails
+                            Exclude emails
                           </p>
 
                           <p className="mt-1 text-xs leading-5 text-black/40">
-                            These emails will be removed from the final audience even if they belong to another selected group.
+                            Remove specific emails from the final audience.
                           </p>
+
                         </div>
+
                       </div>
 
+
                       <div className="mt-4 flex gap-2">
+
                         <input
                           value={
                             excludeEmailInput
@@ -2012,9 +2241,7 @@ export default function CreateNewsletterCampaignPage() {
                             event
                           ) =>
                             setExcludeEmailInput(
-                              event
-                                .target
-                                .value
+                              event.target.value
                             )
                           }
                           onKeyDown={(
@@ -2030,7 +2257,7 @@ export default function CreateNewsletterCampaignPage() {
                           }}
                           type="email"
                           placeholder="email@example.com"
-                          className="h-11 min-w-0 flex-1 rounded-xl border border-black/10 px-4 text-base outline-none focus:border-black sm:text-sm"
+                          className="h-11 min-w-0 flex-1 rounded-xl border border-black/10 px-3 text-base outline-none focus:border-black sm:px-4 sm:text-sm"
                         />
 
                         <button
@@ -2038,15 +2265,19 @@ export default function CreateNewsletterCampaignPage() {
                           onClick={
                             addExcludeEmail
                           }
-                          className="h-11 shrink-0 rounded-xl bg-black px-4 text-sm font-medium text-white hover:bg-black/80"
+                          className="h-11 shrink-0 rounded-xl bg-black px-4 text-sm font-medium text-white"
                         >
                           Add
                         </button>
+
                       </div>
+
 
                       {excludeEmails.length >
                         0 && (
-                        <div className="mt-4 flex flex-wrap gap-2">
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+
                           {excludeEmails.map(
                             (email) => (
                               <div
@@ -2055,7 +2286,8 @@ export default function CreateNewsletterCampaignPage() {
                                 }
                                 className="flex max-w-full items-center gap-2 rounded-full border border-black/10 bg-black/[0.03] px-3 py-1.5"
                               >
-                                <span className="max-w-[230px] truncate text-xs">
+
+                                <span className="max-w-[calc(100vw-130px)] truncate text-xs sm:max-w-[230px]">
                                   {
                                     email
                                   }
@@ -2068,28 +2300,31 @@ export default function CreateNewsletterCampaignPage() {
                                       email
                                     )
                                   }
-                                  className="shrink-0 text-black/40 hover:text-black"
+                                  className="shrink-0 text-black/40"
                                 >
                                   <X
-                                    size={
-                                      14
-                                    }
+                                    size={14}
                                   />
                                 </button>
+
                               </div>
                             )
                           )}
+
                         </div>
                       )}
 
                     </div>
 
-                    {/* AUDIENCE SUMMARY */}
 
-                    <div className="rounded-2xl bg-black p-5 text-white">
+                    {/* SUMMARY */}
 
-                      <div className="flex items-center justify-between gap-4">
+                    <div className="rounded-2xl bg-black p-4 text-white sm:p-5">
+
+                      <div className="flex items-center justify-between gap-3">
+
                         <div>
+
                           <p className="text-xs text-white/50">
                             Final audience
                           </p>
@@ -2097,7 +2332,9 @@ export default function CreateNewsletterCampaignPage() {
                           <p className="mt-1 text-3xl font-semibold">
                             {recipientCount.toLocaleString()}
                           </p>
+
                         </div>
+
 
                         <button
                           type="button"
@@ -2107,111 +2344,107 @@ export default function CreateNewsletterCampaignPage() {
                           disabled={
                             audienceLoading
                           }
-                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-50"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-50"
                         >
                           {audienceLoading ? (
                             <Loader2
-                              size={
-                                17
-                              }
+                              size={17}
                               className="animate-spin"
                             />
                           ) : (
                             <RefreshCw
-                              size={
-                                17
-                              }
+                              size={17}
                             />
                           )}
                         </button>
-                      </div>
-
-                      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-
-                        <div className="rounded-xl bg-white/10 p-3">
-                          <p className="text-[11px] text-white/45">
-                            Subscribers
-                          </p>
-
-                          <p className="mt-1 text-sm font-semibold">
-                            {(
-                              audienceData
-                                .counts
-                                ?.subscribers ||
-                              0
-                            ).toLocaleString()}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl bg-white/10 p-3">
-                          <p className="text-[11px] text-white/45">
-                            Users
-                          </p>
-
-                          <p className="mt-1 text-sm font-semibold">
-                            {(
-                              audienceData
-                                .counts
-                                ?.users ||
-                              0
-                            ).toLocaleString()}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl bg-white/10 p-3">
-                          <p className="text-[11px] text-white/45">
-                            Customers
-                          </p>
-
-                          <p className="mt-1 text-sm font-semibold">
-                            {(
-                              audienceData
-                                .counts
-                                ?.customers ||
-                              0
-                            ).toLocaleString()}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl bg-white/10 p-3">
-                          <p className="text-[11px] text-white/45">
-                            Excluded
-                          </p>
-
-                          <p className="mt-1 text-sm font-semibold">
-                            {(
-                              audienceData
-                                .excluded_count ||
-                              0
-                            ).toLocaleString()}
-                          </p>
-                        </div>
 
                       </div>
 
-                      <p className="mt-4 text-xs leading-5 text-white/45">
-                        Duplicate email addresses are counted only once in the final audience.
-                      </p>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+
+                        {[
+                          [
+                            "Subscribers",
+                            audienceData.counts
+                              ?.subscribers ||
+                              0,
+                          ],
+
+                          [
+                            "Users",
+                            audienceData.counts
+                              ?.users ||
+                              0,
+                          ],
+
+                          [
+                            "Customers",
+                            audienceData.counts
+                              ?.customers ||
+                              0,
+                          ],
+
+                          [
+                            "Excluded",
+                            audienceData.excluded_count ||
+                              0,
+                          ],
+                        ].map(
+                          (item) => (
+                            <div
+                              key={
+                                item[0]
+                              }
+                              className="rounded-xl bg-white/10 p-3"
+                            >
+
+                              <p className="text-[11px] text-white/45">
+                                {
+                                  item[0]
+                                }
+                              </p>
+
+                              <p className="mt-1 text-sm font-semibold">
+                                {Number(
+                                  item[1]
+                                ).toLocaleString()}
+                              </p>
+
+                            </div>
+                          )
+                        )}
+
+                      </div>
+
                     </div>
 
                   </div>
+
                 </section>
 
-                {/* TEST EMAIL */}
 
-                <section className="rounded-2xl border border-black/10 bg-white">
-                  <div className="border-b border-black/10 p-5">
+                {/* TEST */}
+
+                <section className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+
+                  <div className="border-b border-black/10 p-4 sm:p-5">
+
                     <h3 className="font-semibold">
                       Test Newsletter
                     </h3>
 
                     <p className="mt-1 text-xs text-black/40">
-                      Send a test copy before sending the campaign to your audience.
+                      Send a test before sending the campaign.
                     </p>
+
                   </div>
 
-                  <div className="p-5">
+
+                  <div className="p-4 sm:p-5">
+
                     <div className="flex flex-col gap-3 sm:flex-row">
+
                       <input
                         type="email"
                         value={
@@ -2221,9 +2454,7 @@ export default function CreateNewsletterCampaignPage() {
                           event
                         ) =>
                           setTestEmail(
-                            event
-                              .target
-                              .value
+                            event.target.value
                           )
                         }
                         placeholder="your@email.com"
@@ -2240,51 +2471,55 @@ export default function CreateNewsletterCampaignPage() {
                           saving ||
                           sending
                         }
-                        className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-5 text-sm font-medium hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-5 text-sm font-medium hover:bg-black/5 disabled:opacity-50"
                       >
+
                         {testLoading ? (
                           <Loader2
-                            size={
-                              15
-                            }
+                            size={15}
                             className="animate-spin"
                           />
                         ) : (
                           <Mail
-                            size={
-                              15
-                            }
+                            size={15}
                           />
                         )}
 
                         Send Test
+
                       </button>
+
                     </div>
+
                   </div>
+
                 </section>
 
               </div>
 
-              {/* RIGHT */}
 
-              <div className="space-y-6">
+              {/* PREVIEW */}
 
-                {/* PREVIEW */}
+              <div className="min-w-0">
 
-                <section className="sticky top-[105px] rounded-2xl border border-black/10 bg-white">
+                <section className="rounded-2xl border border-black/10 bg-white xl:sticky xl:top-[100px]">
 
-                  <div className="border-b border-black/10 p-5">
+                  <div className="border-b border-black/10 p-4 sm:p-5">
+
                     <div className="flex items-center justify-between gap-3">
 
-                      <div>
+                      <div className="min-w-0">
+
                         <h3 className="font-semibold">
                           Newsletter Preview
                         </h3>
 
                         <p className="mt-1 text-xs text-black/40">
-                          See how the newsletter will look.
+                          Preview the email before sending.
                         </p>
+
                       </div>
+
 
                       <button
                         type="button"
@@ -2293,23 +2528,27 @@ export default function CreateNewsletterCampaignPage() {
                             true
                           )
                         }
-                        className="flex h-9 items-center gap-2 rounded-lg border border-black/10 px-3 text-xs font-medium hover:bg-black/5"
+                        className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-black/10 px-3 text-xs font-medium hover:bg-black/5"
                       >
+
                         <Eye
-                          size={
-                            14
-                          }
+                          size={14}
                         />
 
-                        Full Preview
+                        <span className="hidden sm:inline">
+                          Full Preview
+                        </span>
+
                       </button>
 
                     </div>
+
                   </div>
 
-                  <div className="p-4 sm:p-5">
 
-                    <div className="mb-4 flex items-center justify-between rounded-xl bg-black/[0.03] p-1">
+                  <div className="p-3 sm:p-5">
+
+                    <div className="mb-4 flex items-center rounded-xl bg-black/[0.03] p-1">
 
                       <button
                         type="button"
@@ -2325,14 +2564,15 @@ export default function CreateNewsletterCampaignPage() {
                             : "text-black/45"
                         }`}
                       >
+
                         <Monitor
-                          size={
-                            14
-                          }
+                          size={14}
                         />
 
                         Desktop
+
                       </button>
+
 
                       <button
                         type="button"
@@ -2348,68 +2588,81 @@ export default function CreateNewsletterCampaignPage() {
                             : "text-black/45"
                         }`}
                       >
+
                         <Smartphone
-                          size={
-                            14
-                          }
+                          size={14}
                         />
 
                         Mobile
+
                       </button>
 
                     </div>
 
-                    <div className="flex min-h-[620px] items-start justify-center overflow-hidden rounded-2xl border border-black/10 bg-[#eeeeee] p-3">
+
+                    <div className="flex min-h-[520px] items-start justify-center overflow-hidden rounded-2xl border border-black/10 bg-[#eeeeee] p-2 sm:min-h-[620px] sm:p-3">
 
                       <div
-                        className={`overflow-hidden bg-white shadow-sm transition-all ${
+                        className={`overflow-hidden bg-white shadow-sm ${
                           previewDevice ===
                           "mobile"
                             ? "w-[375px] max-w-full"
                             : "w-full"
                         }`}
                       >
+
                         <iframe
                           title="Newsletter preview"
                           srcDoc={
                             previewHtml
                           }
-                          className="block h-[650px] w-full border-0"
+                          className="block h-[600px] w-full border-0 sm:h-[650px]"
                         />
+
                       </div>
 
                     </div>
 
                   </div>
+
                 </section>
 
               </div>
+
             </div>
+
           </div>
+
         </div>
+
       </main>
 
-      {/* FULL PREVIEW MODAL */}
+
+      {/* FULL PREVIEW */}
 
       {showPreview && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-6">
+
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-2 backdrop-blur-sm sm:p-6">
 
           <div className="flex h-full max-h-[900px] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
-            <div className="flex min-h-[70px] items-center justify-between gap-4 border-b border-black/10 px-4 sm:px-6">
+            <div className="flex min-h-[64px] items-center justify-between gap-2 border-b border-black/10 px-3 sm:min-h-[70px] sm:px-6">
 
-              <div>
+              <div className="min-w-0">
+
                 <h3 className="text-sm font-semibold sm:text-base">
                   Newsletter Preview
                 </h3>
 
-                <p className="mt-1 hidden text-xs text-black/40 sm:block">
+                <p className="mt-1 hidden truncate text-xs text-black/40 sm:block">
                   {campaignForm.subject ||
                     "No subject yet"}
                 </p>
+
               </div>
 
-              <div className="flex items-center gap-2">
+
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
 
                 <button
                   type="button"
@@ -2418,23 +2671,24 @@ export default function CreateNewsletterCampaignPage() {
                       "desktop"
                     )
                   }
-                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium ${
+                  className={`flex h-9 items-center justify-center gap-2 rounded-lg px-2 text-xs font-medium sm:px-3 ${
                     previewDevice ===
                     "desktop"
                       ? "bg-black text-white"
                       : "border border-black/10"
                   }`}
                 >
+
                   <Monitor
-                    size={
-                      14
-                    }
+                    size={14}
                   />
 
                   <span className="hidden sm:inline">
                     Desktop
                   </span>
+
                 </button>
+
 
                 <button
                   type="button"
@@ -2443,23 +2697,24 @@ export default function CreateNewsletterCampaignPage() {
                       "mobile"
                     )
                   }
-                  className={`flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium ${
+                  className={`flex h-9 items-center justify-center gap-2 rounded-lg px-2 text-xs font-medium sm:px-3 ${
                     previewDevice ===
                     "mobile"
                       ? "bg-black text-white"
                       : "border border-black/10"
                   }`}
                 >
+
                   <Smartphone
-                    size={
-                      14
-                    }
+                    size={14}
                   />
 
                   <span className="hidden sm:inline">
                     Mobile
                   </span>
+
                 </button>
+
 
                 <button
                   type="button"
@@ -2468,15 +2723,17 @@ export default function CreateNewsletterCampaignPage() {
                       false
                     )
                   }
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 hover:bg-black/5"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10"
                 >
                   <X size={17} />
                 </button>
 
               </div>
+
             </div>
 
-            <div className="flex flex-1 items-start justify-center overflow-auto bg-[#eeeeee] p-4 sm:p-8">
+
+            <div className="flex flex-1 items-start justify-center overflow-auto bg-[#eeeeee] p-2 sm:p-8">
 
               <div
                 className={`overflow-hidden bg-white shadow-xl ${
@@ -2486,20 +2743,25 @@ export default function CreateNewsletterCampaignPage() {
                     : "w-full max-w-[760px]"
                 }`}
               >
+
                 <iframe
                   title="Full newsletter preview"
                   srcDoc={
                     previewHtml
                   }
-                  className="block min-h-[800px] w-full border-0"
+                  className="block min-h-[750px] w-full border-0"
                 />
+
               </div>
 
             </div>
 
           </div>
+
         </div>
+
       )}
+
     </div>
   );
 }
