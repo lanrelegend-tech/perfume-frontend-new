@@ -1125,168 +1125,130 @@ export default function CreateNewsletterCampaignPage() {
       }
     };
 
+const handleSendTest = async () => {
+  if (!testEmail.trim()) {
+    showNotice(
+      "error",
+      "Test email required",
+      "Enter an email address for the test."
+    );
 
-  const handleSendTest =
-    async () => {
-      if (
-        !testEmail.trim()
-      ) {
-        showNotice(
-          "error",
-          "Test email required",
-          "Enter an email address for the test."
-        );
+    return;
+  }
 
-        return;
+  if (!campaignForm.subject.trim()) {
+    showNotice(
+      "error",
+      "Subject required",
+      "Add an email subject before sending a test."
+    );
+
+    return;
+  }
+
+  if (!campaignForm.heading.trim()) {
+    showNotice(
+      "error",
+      "Heading required",
+      "Add a newsletter heading before sending a test."
+    );
+
+    return;
+  }
+
+  if (!campaignForm.body.trim()) {
+    showNotice(
+      "error",
+      "Newsletter content required",
+      "Add some newsletter content before sending a test."
+    );
+
+    return;
+  }
+
+  try {
+    setTestLoading(true);
+
+    const response = await fetch(
+      `${API_URL}/newsletter/campaigns/test/`,
+      {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          email: testEmail.trim(),
+
+          subject:
+            campaignForm.subject.trim(),
+
+          preview:
+            campaignForm.preview.trim(),
+
+          heading:
+            campaignForm.heading.trim(),
+
+          body:
+            campaignForm.body.trim(),
+
+          button_text:
+            campaignForm.buttonText.trim(),
+
+          button_url:
+            campaignForm.buttonUrl.trim(),
+
+          hero_image:
+            campaignForm.heroImage,
+
+          sender_name:
+            campaignForm.senderName.trim(),
+
+          sender_email:
+            campaignForm.senderEmail.trim(),
+        }),
       }
+    );
 
-      if (
-        !campaignForm.subject.trim()
-      ) {
-        showNotice(
-          "error",
-          "Subject required",
-          "Add an email subject before sending a test."
-        );
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      handleUnauthorized();
+      return;
+    }
 
-        return;
-      }
+    const data = await response
+      .json()
+      .catch(() => ({}));
 
-      try {
-        setTestLoading(true);
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+          data.error ||
+          data.message ||
+          "Unable to send test email."
+      );
+    }
 
-        const payload =
-          buildCampaignPayload();
+    showNotice(
+      "success",
+      "Test email sent",
+      `The test newsletter was sent to ${testEmail.trim()}.`
+    );
+  } catch (error) {
+    console.error(
+      "Test email error:",
+      error
+    );
 
-        /*
-         * Test emails do not need a real
-         * audience. We create the campaign
-         * from the current content only.
-         */
-        payload.name =
-          campaignForm.name.trim() ||
-          "ORENTEMIST Test Newsletter";
-
-        payload.recipient_type =
-          "subscribers";
-
-        payload.include = [
-          "subscribers",
-        ];
-
-        const response =
-          await fetch(
-            `${API_URL}/newsletter/campaigns/`,
-            {
-              method: "POST",
-              headers:
-                authHeaders(),
-              body: JSON.stringify(
-                payload
-              ),
-            }
-          );
-
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          handleUnauthorized();
-          return;
-        }
-
-        const data =
-          await response
-            .json()
-            .catch(
-              () => ({})
-            );
-
-        if (!response.ok) {
-          throw new Error(
-            data.detail ||
-              data.error ||
-              data.message ||
-              "Unable to prepare test newsletter."
-          );
-        }
-
-        const campaignId =
-          data.id ||
-          data.campaign_id ||
-          data.brevo_campaign_id ||
-          data.campaign?.id ||
-          data.campaign?.brevo_campaign_id;
-
-        if (!campaignId) {
-          throw new Error(
-            "Unable to identify the test campaign."
-          );
-        }
-
-        const testResponse =
-          await fetch(
-            `${API_URL}/newsletter/campaigns/test/`,
-            {
-              method: "POST",
-              headers:
-                authHeaders(),
-              body: JSON.stringify({
-                email:
-                  testEmail.trim(),
-                campaign_id:
-                  campaignId,
-              }),
-            }
-          );
-
-        if (
-          testResponse.status ===
-            401 ||
-          testResponse.status ===
-            403
-        ) {
-          handleUnauthorized();
-          return;
-        }
-
-        const testData =
-          await testResponse
-            .json()
-            .catch(
-              () => ({})
-            );
-
-        if (!testResponse.ok) {
-          throw new Error(
-            testData.detail ||
-              testData.error ||
-              testData.message ||
-              "Unable to send test email."
-          );
-        }
-
-        showNotice(
-          "success",
-          "Test email sent",
-          `The test newsletter was sent to ${testEmail.trim()}.`
-        );
-      } catch (error) {
-        console.error(
-          "Test email error:",
-          error
-        );
-
-        showNotice(
-          "error",
-          "Test failed",
-          error.message ||
-            "Unable to send test email."
-        );
-      } finally {
-        setTestLoading(false);
-      }
-    };
+    showNotice(
+      "error",
+      "Test failed",
+      error.message ||
+        "Unable to send test email."
+    );
+  } finally {
+    setTestLoading(false);
+  }
+};
 
 
   const previewHtml =
