@@ -403,13 +403,13 @@ export default function CreateNewsletterCampaignPage() {
     ];
 
     if (
-      recipientType === "both"
-    ) {
-      include = [
-        "users",
-        "customers",
-      ];
-    }
+  recipientType === "both"
+) {
+  include = [
+    "subscribers",
+    "customers",
+  ];
+}
 
     return {
       recipient_type:
@@ -642,60 +642,147 @@ export default function CreateNewsletterCampaignPage() {
     return true;
   };
 
+const handleImageUpload = async (
+  event
+) => {
+  const file =
+    event.target.files?.[0];
 
-  const handleImageUpload = (
-    event
-  ) => {
-    const file =
-      event.target.files?.[0];
+  if (!file) {
+    return;
+  }
 
-    if (!file) {
-      return;
-    }
+  if (
+    !file.type.startsWith(
+      "image/"
+    )
+  ) {
+    showNotice(
+      "error",
+      "Invalid image",
+      "Please select an image file."
+    );
 
-    if (
-      !file.type.startsWith(
-        "image/"
-      )
-    ) {
-      showNotice(
-        "error",
-        "Invalid image",
-        "Please select an image file."
+    event.target.value = "";
+    return;
+  }
+
+  if (
+    file.size >
+    10 * 1024 * 1024
+  ) {
+    showNotice(
+      "error",
+      "Image too large",
+      "Please choose an image smaller than 10MB."
+    );
+
+    event.target.value = "";
+    return;
+  }
+
+  try {
+    setUploadingImage(true);
+
+    const localPreview =
+      URL.createObjectURL(
+        file
       );
 
+    updateField(
+      "heroImage",
+      localPreview
+    );
+
+    const token = getToken();
+
+    if (!token) {
+      handleUnauthorized();
       return;
     }
 
-    if (
-      file.size >
-      10 * 1024 * 1024
-    ) {
-      showNotice(
-        "error",
-        "Image too large",
-        "Please choose an image smaller than 10MB."
+    const formData =
+      new FormData();
+
+    formData.append(
+      "image",
+      file
+    );
+
+    const response =
+      await fetch(
+        `${API_URL}/newsletter/upload-image/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
       );
 
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      handleUnauthorized();
       return;
     }
 
-    try {
-      setUploadingImage(true);
-
-      const localPreview =
-        URL.createObjectURL(
-          file
+    const data =
+      await response
+        .json()
+        .catch(
+          () => ({})
         );
 
-      updateField(
-        "heroImage",
-        localPreview
+    if (!response.ok) {
+      throw new Error(
+        data.detail ||
+          data.error ||
+          data.message ||
+          "Unable to upload newsletter image."
       );
-    } finally {
-      setUploadingImage(false);
     }
-  };
+
+    if (!data.url) {
+      throw new Error(
+        "Image uploaded but no image URL was returned."
+      );
+    }
+
+    updateField(
+      "heroImage",
+      data.url
+    );
+
+    showNotice(
+      "success",
+      "Image uploaded",
+      "Your newsletter image has been uploaded successfully."
+    );
+  } catch (error) {
+    console.error(
+      "Newsletter image upload error:",
+      error
+    );
+
+    showNotice(
+      "error",
+      "Image upload failed",
+      error.message ||
+        "Unable to upload newsletter image."
+    );
+
+    updateField(
+      "heroImage",
+      ""
+    );
+  } finally {
+    setUploadingImage(false);
+    event.target.value = "";
+  }
+};
 
 
   const escapeHtml = (
