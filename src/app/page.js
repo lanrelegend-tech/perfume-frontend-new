@@ -73,6 +73,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
  const [totalItems, setTotalItems] = useState(0);
+ const [newsletterEmail, setNewsletterEmail] = useState("");
+const [newsletterLoading, setNewsletterLoading] = useState(false);
+const [newsletterMessage, setNewsletterMessage] = useState("");
+const [newsletterError, setNewsletterError] = useState("");
 
 useEffect(() => {
   function updateCartCount() {
@@ -207,6 +211,69 @@ useEffect(() => {
         new Date(a.created_at || 0)
     )
     .slice(0, 4);
+
+
+
+    async function handleNewsletterSubmit(event) {
+  event.preventDefault();
+
+  const email = newsletterEmail.trim();
+
+  setNewsletterMessage("");
+  setNewsletterError("");
+
+  if (!email) {
+    setNewsletterError("Please enter your email address.");
+    return;
+  }
+
+  setNewsletterLoading(true);
+
+  try {
+    const response = await fetch(
+      `${API_URL}/newsletter/subscribe/`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data?.error ||
+        data?.message ||
+        "Unable to subscribe. Please try again."
+      );
+    }
+
+    setNewsletterEmail("");
+
+    setNewsletterMessage(
+      data?.message ||
+      "You have successfully subscribed to the ORENTEMIST newsletter."
+    );
+  } catch (error) {
+    console.error(
+      "Newsletter subscription error:",
+      error
+    );
+
+    setNewsletterError(
+      error.message ||
+      "Unable to subscribe. Please try again."
+    );
+  } finally {
+    setNewsletterLoading(false);
+  }
+}
+
 
   return (
     <main className="min-h-screen bg-white pb-20 text-black md:pb-0">
@@ -634,27 +701,49 @@ useEffect(() => {
           Receive new collection announcements, fragrance
           discoveries and exclusive offers.
         </p>
+<form
+  className="mx-auto mt-8 flex max-w-lg flex-col gap-3 sm:flex-row"
+  onSubmit={handleNewsletterSubmit}
+>
 
-        <form
-          className="mx-auto mt-8 flex max-w-lg flex-col gap-3 sm:flex-row"
-          onSubmit={(e) => e.preventDefault()}
-        >
+  <input
+    type="email"
+    value={newsletterEmail}
+    onChange={(event) => {
+      setNewsletterEmail(event.target.value);
+      setNewsletterMessage("");
+      setNewsletterError("");
+    }}
+    placeholder="Your email address"
+    className="h-13 flex-1 border border-black/15 bg-white px-5 text-base outline-none transition focus:border-black sm:text-sm"
+    disabled={newsletterLoading}
+    required
+  />
 
-          <input
-            type="email"
-            placeholder="Your email address"
-            className="h-13 flex-1 border border-black/15 bg-white px-5 text-sm outline-none transition focus:border-black"
-          />
+  <button
+    type="submit"
+    disabled={newsletterLoading}
+    className="h-13 bg-black px-7 text-sm text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-50"
+  >
+    {newsletterLoading
+      ? "Subscribing..."
+      : "Subscribe"}
+  </button>
 
-          <button
-            type="submit"
-            className="h-13 bg-black px-7 text-sm text-white transition hover:bg-black/80"
-          >
-            Subscribe
-          </button>
+</form>
 
-        </form>
 
+{newsletterMessage && (
+  <p className="mt-4 text-sm text-green-700">
+    {newsletterMessage}
+  </p>
+)}
+
+{newsletterError && (
+  <p className="mt-4 text-sm text-red-600">
+    {newsletterError}
+  </p>
+)}
       </section>
 
       {/* ================= FOOTER ================= */}
