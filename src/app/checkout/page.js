@@ -267,20 +267,26 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  function handleChange(event) {
-    const { name, value } =
-      event.target;
 
-    setForm((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
+function handleChange(event) {
+  const { name, value } =
+    event.target;
 
-    if (name === "state") {
-      setSelectedShipping(null);
-      setShippingError("");
-    }
+  setForm((previous) => ({
+    ...previous,
+    [name]: value,
+  }));
+
+  if (
+    name === "state" ||
+    name === "city"
+  ) {
+    setSelectedShipping(null);
+    setShippingError("");
   }
+}
+
+
 
   function getCartSubtotal() {
     if (
@@ -297,39 +303,77 @@ export default function CheckoutPage() {
       0
     );
   }
-
-  function findShippingRate() {
-    if (deliveryMethod === "pickup") {
-      return (
-        shippingRates.find(
-          (rate) =>
-            rate.delivery_type ===
-              "pickup" &&
-            rate.is_active !== false
-        ) || null
-      );
-    }
-
-    if (!form.state.trim()) {
-      return null;
-    }
-
-    const customerState =
-      form.state.trim().toLowerCase();
-
+function findShippingRate() {
+  if (deliveryMethod === "pickup") {
     return (
       shippingRates.find(
         (rate) =>
-          rate.delivery_type !==
+          rate.delivery_type ===
             "pickup" &&
+          rate.is_active !== false
+      ) || null
+    );
+  }
+
+  if (!form.state.trim()) {
+    return null;
+  }
+
+  const customerState =
+    form.state.trim().toLowerCase();
+
+  const customerCity =
+    form.city.trim().toLowerCase();
+
+  /*
+   * CITY RATE FIRST
+   *
+   * If a specific city rate exists,
+   * use it instead of the general state rate.
+   */
+  if (customerCity) {
+    const cityRate =
+      shippingRates.find(
+        (rate) =>
+          rate.delivery_type ===
+            "state" &&
           rate.is_active !== false &&
           String(rate.state || "")
             .trim()
             .toLowerCase() ===
-            customerState
-      ) || null
-    );
+            customerState &&
+          String(rate.city || "")
+            .trim()
+            .toLowerCase() ===
+            customerCity
+      );
+
+    if (cityRate) {
+      return cityRate;
+    }
   }
+
+  /*
+   * STATE FALLBACK
+   *
+   * If there is no city-specific rate,
+   * use the general state rate.
+   */
+  return (
+    shippingRates.find(
+      (rate) =>
+        rate.delivery_type ===
+          "state" &&
+        rate.is_active !== false &&
+        String(rate.state || "")
+          .trim()
+          .toLowerCase() ===
+          customerState &&
+        !String(rate.city || "").trim()
+    ) || null
+  );
+}
+
 
   function getShippingFee() {
     if (selectedShipping) {
@@ -358,7 +402,7 @@ export default function CheckoutPage() {
 
       if (deliveryMethod === "delivery") {
         setShippingError(
-          "We currently do not have a delivery rate for this state."
+          "We currently do not have a delivery rate for this city or state."
         );
       }
 
@@ -557,13 +601,13 @@ export default function CheckoutPage() {
       setShippingError(
         deliveryMethod === "pickup"
           ? "Pickup is currently unavailable."
-          : "We currently do not have a delivery rate for this state."
+          : "We currently do not have a delivery rate for this city or state."
       );
 
       alert(
         deliveryMethod === "pickup"
           ? "Pickup is currently unavailable."
-          : "Please enter a supported delivery state before continuing."
+          : "Please enter a supported delivery city or state before continuing."
       );
 
       return;
@@ -1510,14 +1554,14 @@ export default function CheckoutPage() {
                         </div>
                       ) : selectedShipping ? (
                         <div className="mt-1">
-                          <p className="text-xs text-gray-500">
-                            Delivery to{" "}
-                            <span className="font-medium text-black">
-                              {
-                                selectedShipping.state
-                              }
-                            </span>
-                          </p>
+                         <p className="text-xs text-gray-500">
+  Delivery to{" "}
+  <span className="font-medium text-black">
+    {selectedShipping.city
+      ? `${selectedShipping.city}, ${selectedShipping.state}`
+      : selectedShipping.state}
+  </span>
+</p>
 
                           <p className="mt-1 text-sm font-semibold">
                             {formatPrice(
@@ -1526,11 +1570,13 @@ export default function CheckoutPage() {
                           </p>
                         </div>
                       ) : form.state ? (
-                        <p className="mt-1 text-xs text-gray-500">
-                          {findShippingRate()
-                            ? `Delivery available to ${findShippingRate().state}.`
-                            : "No delivery rate found for this state."}
-                        </p>
+                       <p className="mt-1 text-xs text-gray-500">
+  {findShippingRate()
+    ? findShippingRate().city
+      ? `Delivery available to ${findShippingRate().city}, ${findShippingRate().state}.`
+      : `Delivery available to ${findShippingRate().state}.`
+    : "No delivery rate found for this city or state."}
+</p>
                       ) : (
                         <p className="mt-1 text-xs text-gray-500">
                           Enter your state to
@@ -1689,7 +1735,7 @@ export default function CheckoutPage() {
                     {deliveryMethod ===
                     "pickup"
                       ? "Your order will be prepared for pickup at the location shown above."
-                      : "Your delivery fee is automatically calculated based on your selected state."}
+                      : "Your delivery fee is automatically calculated based on your selected city or state."}
                   </p>
                 </div>
               </div>

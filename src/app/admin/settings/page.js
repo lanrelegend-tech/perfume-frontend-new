@@ -81,6 +81,7 @@ export default function SettingsPage() {
     useState("state");
 
   const [newState, setNewState] = useState("");
+  const [newCity, setNewCity] = useState("");
   const [newDeliveryFee, setNewDeliveryFee] = useState("");
   const [newPickupAddress, setNewPickupAddress] =
     useState("");
@@ -95,6 +96,7 @@ export default function SettingsPage() {
     useState("");
 
   const [editingState, setEditingState] = useState("");
+  const [editingCity, setEditingCity] = useState("");
 
   const [shippingSearch, setShippingSearch] =
     useState("");
@@ -444,6 +446,7 @@ export default function SettingsPage() {
   const resetShippingForm = () => {
     setNewDeliveryType("state");
     setNewState("");
+    setNewCity("");
     setNewDeliveryFee("");
     setNewPickupAddress("");
   };
@@ -501,15 +504,24 @@ export default function SettingsPage() {
 
       const payload = {
         delivery_type: newDeliveryType,
+
         state:
           newDeliveryType === "state"
             ? newState.trim()
             : null,
+
+        city:
+          newDeliveryType === "state"
+            ? newCity.trim() || null
+            : null,
+
         delivery_fee: newDeliveryFee,
+
         pickup_address:
           newDeliveryType === "pickup"
             ? newPickupAddress.trim()
             : "",
+
         is_active: true,
       };
 
@@ -532,6 +544,7 @@ export default function SettingsPage() {
         throw new Error(
           data?.detail ||
             data?.state?.[0] ||
+            data?.city?.[0] ||
             data?.delivery_fee?.[0] ||
             data?.pickup_address?.[0] ||
             data?.message ||
@@ -575,6 +588,10 @@ export default function SettingsPage() {
       shipping.state || ""
     );
 
+    setEditingCity(
+      shipping.city || ""
+    );
+
     setEditingDeliveryFee(
       shipping.delivery_fee?.toString() || "0"
     );
@@ -594,6 +611,7 @@ export default function SettingsPage() {
   const cancelEditing = () => {
     setEditingShippingId(null);
     setEditingState("");
+    setEditingCity("");
     setEditingDeliveryFee("");
     setEditingPickupAddress("");
   };
@@ -644,16 +662,25 @@ export default function SettingsPage() {
       const payload = {
         delivery_type:
           shipping.delivery_type,
+
         state:
           shipping.delivery_type === "state"
             ? editingState.trim()
             : null,
+
+        city:
+          shipping.delivery_type === "state"
+            ? editingCity.trim() || null
+            : null,
+
         delivery_fee:
           editingDeliveryFee,
+
         pickup_address:
           shipping.delivery_type === "pickup"
             ? editingPickupAddress.trim()
             : "",
+
         is_active:
           shipping.is_active,
       };
@@ -677,6 +704,7 @@ export default function SettingsPage() {
         throw new Error(
           data?.detail ||
             data?.state?.[0] ||
+            data?.city?.[0] ||
             data?.delivery_fee?.[0] ||
             data?.pickup_address?.[0] ||
             data?.message ||
@@ -789,6 +817,8 @@ export default function SettingsPage() {
     const label =
       shipping.delivery_type === "pickup"
         ? "this pickup option"
+        : shipping.city
+        ? `${shipping.city}, ${shipping.state}`
         : shipping.state;
 
     const confirmed = window.confirm(
@@ -873,6 +903,9 @@ export default function SettingsPage() {
       const state =
         shipping.state?.toLowerCase() || "";
 
+      const city =
+        shipping.city?.toLowerCase() || "";
+
       const type =
         shipping.delivery_type?.toLowerCase() ||
         "";
@@ -882,6 +915,7 @@ export default function SettingsPage() {
         "";
 
       return (
+        city.includes(search) ||
         state.includes(search) ||
         type.includes(search) ||
         address.includes(search)
@@ -946,9 +980,10 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-[#f7f7f7] text-black">
-       
+
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-         <button
+
+        <button
           onClick={() => window.history.back()}
           className="mb-5 flex w-fit items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-black/5"
         >
@@ -959,6 +994,7 @@ export default function SettingsPage() {
         {/* HEADER */}
         <div className="mb-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">
                 Settings
@@ -1018,6 +1054,7 @@ export default function SettingsPage() {
         {/* TABS */}
         <div className="mb-8 overflow-x-auto border-b border-gray-200">
           <div className="flex min-w-max gap-1">
+
             {tabs.map((tab) => {
               const Icon = tab.icon;
 
@@ -1042,15 +1079,14 @@ export default function SettingsPage() {
                 </button>
               );
             })}
+
           </div>
         </div>
 
-        {/* ==================================================
-            LOADING SETTINGS
-        ================================================== */}
-
+        {/* LOADING SETTINGS */}
         {settingsLoading ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm">
+
             <RefreshCw
               size={25}
               className="mx-auto animate-spin text-gray-400"
@@ -1059,18 +1095,19 @@ export default function SettingsPage() {
             <p className="mt-4 text-sm text-gray-500">
               Loading store settings...
             </p>
+
           </div>
         ) : (
           <>
-            {/* ==================================================
-                STORE
-            ================================================== */}
 
+            {/* STORE */}
             {activeTab === "store" && (
               <div className="max-w-3xl">
+
                 <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
 
                   <div className="mb-6">
+
                     <h2 className="text-lg font-semibold">
                       Store Information
                     </h2>
@@ -1079,11 +1116,11 @@ export default function SettingsPage() {
                       These details are saved directly to your
                       store settings API.
                     </p>
+
                   </div>
 
                   <div className="space-y-5">
 
-                    {/* STORE NAME */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Store Name
@@ -1101,7 +1138,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    {/* STORE EMAIL */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Store Email
@@ -1120,7 +1156,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    {/* STORE PHONE */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Store Phone
@@ -1138,7 +1173,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    {/* STORE ADDRESS */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Store Address
@@ -1157,7 +1191,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    {/* CURRENCY */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Currency
@@ -1190,13 +1223,13 @@ export default function SettingsPage() {
                       </select>
                     </div>
 
-                    {/* FREE SHIPPING */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Free Shipping Threshold
                       </label>
 
                       <div className="relative">
+
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                           ₦
                         </span>
@@ -1216,6 +1249,7 @@ export default function SettingsPage() {
                           placeholder="0"
                           className="w-full rounded-xl border border-gray-300 py-3 pl-9 pr-4 outline-none focus:border-black"
                         />
+
                       </div>
 
                       <p className="mt-2 text-xs text-gray-500">
@@ -1224,7 +1258,6 @@ export default function SettingsPage() {
                       </p>
                     </div>
 
-                    {/* SAVE */}
                     <button
                       type="button"
                       onClick={saveSettings}
@@ -1237,20 +1270,20 @@ export default function SettingsPage() {
                         ? "Saving..."
                         : "Save Changes"}
                     </button>
+
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ==================================================
-                CONTACT
-            ================================================== */}
-
+            {/* CONTACT */}
             {activeTab === "contact" && (
               <div className="max-w-3xl">
+
                 <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
 
                   <div className="mb-6">
+
                     <h2 className="text-lg font-semibold">
                       Contact & Social Information
                     </h2>
@@ -1259,11 +1292,11 @@ export default function SettingsPage() {
                       Manage the contact and social links used
                       by your storefront.
                     </p>
+
                   </div>
 
                   <div className="space-y-5">
 
-                    {/* EMAIL */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Contact Email
@@ -1286,7 +1319,6 @@ export default function SettingsPage() {
                       </p>
                     </div>
 
-                    {/* PHONE */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Contact Phone
@@ -1308,7 +1340,6 @@ export default function SettingsPage() {
                       </p>
                     </div>
 
-                    {/* INSTAGRAM */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Instagram URL
@@ -1327,7 +1358,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    {/* FACEBOOK */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         Facebook URL
@@ -1342,11 +1372,10 @@ export default function SettingsPage() {
                           )
                         }
                         placeholder="https://facebook.com/yourstore"
-                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm  focus:border-black"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                       />
                     </div>
 
-                    {/* TIKTOK */}
                     <div>
                       <label className="mb-2 block text-sm font-medium">
                         TikTok URL
@@ -1365,7 +1394,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    {/* SAVE */}
                     <button
                       type="button"
                       onClick={saveSettings}
@@ -1378,15 +1406,13 @@ export default function SettingsPage() {
                         ? "Saving..."
                         : "Save Changes"}
                     </button>
+
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ==================================================
-                SHIPPING
-            ================================================== */}
-
+            {/* SHIPPING */}
             {activeTab === "shipping" && (
               <div className="space-y-6">
 
@@ -1396,14 +1422,16 @@ export default function SettingsPage() {
                   </h2>
 
                   <p className="mt-1 text-sm text-gray-500">
-                    Set a separate delivery price for every
-                    state and create pickup options.
+                    Set delivery prices by state, add cheaper
+                    city-specific rates, and create pickup
+                    options.
                   </p>
                 </div>
 
                 {/* SHIPPING ERROR */}
                 {shippingError && (
                   <div className="flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+
                     <span>{shippingError}</span>
 
                     <button
@@ -1415,6 +1443,7 @@ export default function SettingsPage() {
                     >
                       <X size={17} />
                     </button>
+
                   </div>
                 )}
 
@@ -1428,6 +1457,7 @@ export default function SettingsPage() {
 
                 {/* STATS */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
                   <ShippingStat
                     label="Total Options"
                     value={
@@ -1453,20 +1483,23 @@ export default function SettingsPage() {
                     label="Pickup"
                     value={pickupCount}
                   />
+
                 </div>
 
                 {/* ADD SHIPPING */}
                 <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
 
                   <div className="mb-6">
+
                     <h3 className="text-lg font-semibold">
                       Add Delivery Option
                     </h3>
 
                     <p className="mt-1 text-sm text-gray-500">
-                      Add a state delivery rate or pickup
-                      location.
+                      Add a state-wide rate, a city-specific
+                      rate, or a pickup location.
                     </p>
+
                   </div>
 
                   <form
@@ -1478,6 +1511,7 @@ export default function SettingsPage() {
 
                     {/* TYPE */}
                     <div>
+
                       <label className="mb-3 block text-sm font-medium">
                         Delivery Option
                       </label>
@@ -1499,9 +1533,11 @@ export default function SettingsPage() {
                           }`}
                         >
                           <div className="flex items-center gap-3">
+
                             <Truck size={19} />
 
                             <div>
+
                               <p className="font-medium">
                                 State Delivery
                               </p>
@@ -1514,10 +1550,12 @@ export default function SettingsPage() {
                                     : "text-gray-500"
                                 }`}
                               >
-                                Charge a specific price for
-                                a state.
+                                Charge a price for a whole
+                                state or a specific city.
                               </p>
+
                             </div>
+
                           </div>
                         </button>
 
@@ -1536,9 +1574,11 @@ export default function SettingsPage() {
                           }`}
                         >
                           <div className="flex items-center gap-3">
+
                             <MapPin size={19} />
 
                             <div>
+
                               <p className="font-medium">
                                 Pickup
                               </p>
@@ -1554,7 +1594,9 @@ export default function SettingsPage() {
                                 Customer picks up from your
                                 address.
                               </p>
+
                             </div>
+
                           </div>
                         </button>
 
@@ -1565,6 +1607,7 @@ export default function SettingsPage() {
                     {newDeliveryType ===
                       "state" && (
                       <div>
+
                         <label className="mb-2 block text-sm font-medium">
                           State
                         </label>
@@ -1579,6 +1622,35 @@ export default function SettingsPage() {
                           placeholder="e.g. Lagos"
                           className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                         />
+
+                      </div>
+                    )}
+
+                    {/* CITY */}
+                    {newDeliveryType ===
+                      "state" && (
+                      <div>
+
+                        <label className="mb-2 block text-sm font-medium">
+                          City (Optional)
+                        </label>
+
+                        <input
+                          value={newCity}
+                          onChange={(e) =>
+                            setNewCity(
+                              e.target.value
+                            )
+                          }
+                          placeholder="e.g. Ikeja"
+                          className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
+                        />
+
+                        <p className="mt-2 text-xs text-gray-500">
+                          Leave this empty to use the rate for
+                          the whole state.
+                        </p>
+
                       </div>
                     )}
 
@@ -1586,6 +1658,7 @@ export default function SettingsPage() {
                     {newDeliveryType ===
                       "pickup" && (
                       <div>
+
                         <label className="mb-2 block text-sm font-medium">
                           Pickup Address
                         </label>
@@ -1603,16 +1676,19 @@ export default function SettingsPage() {
                           placeholder="e.g. 12 Allen Avenue, Ikeja, Lagos"
                           className="w-full resize-none rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-black"
                         />
+
                       </div>
                     )}
 
                     {/* FEE */}
                     <div>
+
                       <label className="mb-2 block text-sm font-medium">
                         Delivery Fee
                       </label>
 
                       <div className="relative">
+
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                           ₦
                         </span>
@@ -1632,6 +1708,7 @@ export default function SettingsPage() {
                           placeholder="5000"
                           className="w-full rounded-xl border border-gray-300 py-3 pl-9 pr-4 outline-none focus:border-black"
                         />
+
                       </div>
                     </div>
 
@@ -1648,6 +1725,7 @@ export default function SettingsPage() {
                         ? "Adding..."
                         : "Add Delivery Option"}
                     </button>
+
                   </form>
                 </div>
 
@@ -1655,9 +1733,11 @@ export default function SettingsPage() {
                 <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
 
                   <div className="border-b border-gray-200 p-6">
+
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
                       <div>
+
                         <h3 className="text-lg font-semibold">
                           Delivery Options
                         </h3>
@@ -1665,9 +1745,11 @@ export default function SettingsPage() {
                         <p className="mt-1 text-sm text-gray-500">
                           Manage prices and pickup locations.
                         </p>
+
                       </div>
 
                       <div className="relative w-full lg:w-80">
+
                         <Search
                           size={17}
                           className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1682,9 +1764,10 @@ export default function SettingsPage() {
                               e.target.value
                             )
                           }
-                          placeholder="Search state or address..."
+                          placeholder="Search city, state or address..."
                           className="w-full rounded-xl border border-gray-300 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-black"
                         />
+
                       </div>
                     </div>
                   </div>
@@ -1696,6 +1779,7 @@ export default function SettingsPage() {
                   ) : filteredShippingRates.length ===
                     0 ? (
                     <div className="p-10 text-center">
+
                       <Package
                         size={35}
                         className="mx-auto text-gray-300"
@@ -1706,15 +1790,17 @@ export default function SettingsPage() {
                       </p>
 
                       <p className="mt-1 text-sm text-gray-500">
-                        Add your first state or pickup option
-                        above.
+                        Add your first state, city-specific
+                        rate, or pickup option above.
                       </p>
+
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-100">
 
                       {filteredShippingRates.map(
                         (shipping) => {
+
                           const isEditing =
                             editingShippingId ===
                             shipping.id;
@@ -1733,6 +1819,7 @@ export default function SettingsPage() {
                                   <div className="flex min-w-0 items-start gap-4">
 
                                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+
                                       {shipping.delivery_type ===
                                       "pickup" ? (
                                         <MapPin
@@ -1743,6 +1830,7 @@ export default function SettingsPage() {
                                           size={19}
                                         />
                                       )}
+
                                     </div>
 
                                     <div className="min-w-0">
@@ -1750,10 +1838,14 @@ export default function SettingsPage() {
                                       <div className="flex flex-wrap items-center gap-2">
 
                                         <h4 className="font-semibold">
+
                                           {shipping.delivery_type ===
                                           "pickup"
                                             ? "Pickup"
+                                            : shipping.city
+                                            ? `${shipping.city}, ${shipping.state}`
                                             : shipping.state}
+
                                         </h4>
 
                                         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-gray-600">
@@ -1773,12 +1865,14 @@ export default function SettingsPage() {
                                             ? "Active"
                                             : "Inactive"}
                                         </span>
+
                                       </div>
 
                                       {shipping.delivery_type ===
                                         "pickup" &&
                                         shipping.pickup_address && (
                                           <div className="mt-2 flex items-start gap-2 text-sm text-gray-500">
+
                                             <MapPin
                                               size={15}
                                               className="mt-0.5 shrink-0"
@@ -1789,7 +1883,26 @@ export default function SettingsPage() {
                                                 shipping.pickup_address
                                               }
                                             </span>
+
                                           </div>
+                                        )}
+
+                                      {shipping.delivery_type ===
+                                        "state" &&
+                                        shipping.city && (
+                                          <p className="mt-2 text-xs text-gray-500">
+                                            City-specific delivery
+                                            rate
+                                          </p>
+                                        )}
+
+                                      {shipping.delivery_type ===
+                                        "state" &&
+                                        !shipping.city && (
+                                          <p className="mt-2 text-xs text-gray-500">
+                                            Whole-state delivery
+                                            rate
+                                          </p>
                                         )}
 
                                       <p className="mt-2 text-lg font-semibold">
@@ -1804,6 +1917,7 @@ export default function SettingsPage() {
                                           }
                                         )}
                                       </p>
+
                                     </div>
                                   </div>
 
@@ -1821,6 +1935,7 @@ export default function SettingsPage() {
                                       }
                                       className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium hover:border-black disabled:opacity-50"
                                     >
+
                                       {shipping.is_active ? (
                                         <ToggleRight
                                           size={18}
@@ -1834,6 +1949,7 @@ export default function SettingsPage() {
                                       {shipping.is_active
                                         ? "Disable"
                                         : "Enable"}
+
                                     </button>
 
                                     <button
@@ -1879,18 +1995,25 @@ export default function SettingsPage() {
                                   <div className="flex items-center justify-between">
 
                                     <div>
+
                                       <h4 className="font-semibold">
+
                                         Edit{" "}
+
                                         {shipping.delivery_type ===
                                         "pickup"
                                           ? "Pickup"
+                                          : shipping.city
+                                          ? `${shipping.city}, ${shipping.state}`
                                           : shipping.state}
+
                                       </h4>
 
                                       <p className="mt-1 text-xs text-gray-500">
                                         Update this delivery
                                         option.
                                       </p>
+
                                     </div>
 
                                     <button
@@ -1902,11 +2025,13 @@ export default function SettingsPage() {
                                     >
                                       <X size={18} />
                                     </button>
+
                                   </div>
 
                                   {shipping.delivery_type ===
                                     "state" && (
                                     <div>
+
                                       <label className="mb-2 block text-sm font-medium">
                                         State
                                       </label>
@@ -1922,12 +2047,44 @@ export default function SettingsPage() {
                                         }
                                         className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
                                       />
+
+                                    </div>
+                                  )}
+
+                                  {shipping.delivery_type ===
+                                    "state" && (
+                                    <div>
+
+                                      <label className="mb-2 block text-sm font-medium">
+                                        City (Optional)
+                                      </label>
+
+                                      <input
+                                        value={
+                                          editingCity
+                                        }
+                                        onChange={(e) =>
+                                          setEditingCity(
+                                            e.target.value
+                                          )
+                                        }
+                                        placeholder="e.g. Ikeja"
+                                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none text-base sm:text-sm focus:border-black"
+                                      />
+
+                                      <p className="mt-2 text-xs text-gray-500">
+                                        Leave this empty to use
+                                        the rate for the whole
+                                        state.
+                                      </p>
+
                                     </div>
                                   )}
 
                                   {shipping.delivery_type ===
                                     "pickup" && (
                                     <div>
+
                                       <label className="mb-2 block text-sm font-medium">
                                         Pickup Address
                                       </label>
@@ -1944,15 +2101,18 @@ export default function SettingsPage() {
                                         rows={4}
                                         className="w-full resize-none rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-black"
                                       />
+
                                     </div>
                                   )}
 
                                   <div>
+
                                     <label className="mb-2 block text-sm font-medium">
                                       Delivery Fee
                                     </label>
 
                                     <div className="relative">
+
                                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                                         ₦
                                       </span>
@@ -1971,6 +2131,7 @@ export default function SettingsPage() {
                                         }
                                         className="w-full rounded-xl border border-gray-300 bg-white py-3 pl-9 pr-4 outline-none focus:border-black"
                                       />
+
                                     </div>
                                   </div>
 
@@ -1988,6 +2149,7 @@ export default function SettingsPage() {
                                       }
                                       className="flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white disabled:opacity-50"
                                     >
+
                                       <Check
                                         size={17}
                                       />
@@ -1995,6 +2157,7 @@ export default function SettingsPage() {
                                       {shippingSaving
                                         ? "Saving..."
                                         : "Save Changes"}
+
                                     </button>
 
                                     <button
@@ -2006,28 +2169,31 @@ export default function SettingsPage() {
                                     >
                                       Cancel
                                     </button>
+
                                   </div>
+
                                 </div>
                               )}
+
                             </div>
                           );
                         }
                       )}
+
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* ==================================================
-                NOTIFICATIONS
-            ================================================== */}
-
+            {/* NOTIFICATIONS */}
             {activeTab === "notifications" && (
               <div className="max-w-3xl">
+
                 <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
 
                   <div className="mb-6">
+
                     <h2 className="text-lg font-semibold">
                       Notifications & Store Status
                     </h2>
@@ -2036,6 +2202,7 @@ export default function SettingsPage() {
                       Manage the maintenance state of your
                       storefront.
                     </p>
+
                   </div>
 
                   <div className="space-y-4">
@@ -2049,7 +2216,9 @@ export default function SettingsPage() {
                       }
                       className="flex w-full items-center justify-between rounded-xl border border-gray-200 p-4 text-left transition hover:border-black"
                     >
+
                       <div>
+
                         <p className="font-medium">
                           Maintenance Mode
                         </p>
@@ -2058,6 +2227,7 @@ export default function SettingsPage() {
                           Temporarily place the storefront
                           into maintenance mode.
                         </p>
+
                       </div>
 
                       {maintenanceMode ? (
@@ -2069,6 +2239,7 @@ export default function SettingsPage() {
                           size={30}
                         />
                       )}
+
                     </button>
 
                     <div
@@ -2095,20 +2266,20 @@ export default function SettingsPage() {
                         ? "Saving..."
                         : "Save Changes"}
                     </button>
+
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ==================================================
-                SECURITY
-            ================================================== */}
-
+            {/* SECURITY */}
             {activeTab === "security" && (
               <div className="max-w-3xl">
+
                 <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
 
                   <div className="mb-6">
+
                     <h2 className="text-lg font-semibold">
                       Security
                     </h2>
@@ -2117,17 +2288,20 @@ export default function SettingsPage() {
                       Manage administrator access to store
                       settings.
                     </p>
+
                   </div>
 
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
 
                     <div className="flex items-start gap-3">
+
                       <Shield
                         size={20}
                         className="mt-0.5"
                       />
 
                       <div>
+
                         <p className="font-medium">
                           Administrator Access
                         </p>
@@ -2137,13 +2311,16 @@ export default function SettingsPage() {
                           are protected by your backend
                           administrator authentication.
                         </p>
+
                       </div>
+
                     </div>
 
                   </div>
                 </div>
               </div>
             )}
+
           </>
         )}
       </div>
@@ -2161,6 +2338,7 @@ function ShippingStat({
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+
       <p className="text-sm text-gray-500">
         {label}
       </p>
@@ -2168,6 +2346,7 @@ function ShippingStat({
       <p className="mt-2 text-2xl font-semibold">
         {value}
       </p>
+
     </div>
   );
 }
