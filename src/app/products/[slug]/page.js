@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ||
@@ -128,6 +128,7 @@ function renderStars(rating, size = "text-sm") {
 
 export default function ProductDetailsPage() {
   const params = useParams();
+  const router = useRouter();
 
   const [product, setProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -744,8 +745,7 @@ export default function ProductDetailsPage() {
     handleAddToCart();
 
     setTimeout(() => {
-      window.location.href =
-        "/checkout";
+      router.push("/checkout");
     }, 300);
   }
 
@@ -791,19 +791,18 @@ export default function ProductDetailsPage() {
       );
     }
   }
-
-  function redirectToLogin() {
-    if (!product?.id) {
-      window.location.href = "/login";
-      return;
-    }
-
-    const nextUrl =
-      `/products/${product.slug}%23reviews`;
-
-    window.location.href =
-      `/login?next=${nextUrl}`;
+function redirectToLogin() {
+  if (!product?.id) {
+    router.push("/login");
+    return;
   }
+
+  const nextUrl =
+    `/products/${product.slug}%23reviews`;
+
+  router.push(`/login?next=${nextUrl}`);
+}
+
 
   async function handleSubmitReview(event) {
     event.preventDefault();

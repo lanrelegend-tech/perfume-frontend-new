@@ -507,7 +507,7 @@ export default function CollectionPage() {
             ) : mainFeaturedProduct ? (
 
               <Link
-                href={`/products/${mainFeaturedProduct.id}`}
+                href={`/products/${mainFeaturedProduct.slug}`}
                 className="group block h-full"
               >
 
