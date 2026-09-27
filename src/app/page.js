@@ -813,17 +813,17 @@ useEffect(() => {
               <div className="space-y-3 text-sm text-white/60">
 
                 <Link
-                  href="/account"
+                  href="/terms-and-conditions"
                   className="block transition hover:text-white"
                 >
-                  My Account
+                  Terms and Conditions
                 </Link>
 
                 <Link
-                  href="/cart"
+                  href="/refund-policy"
                   className="block transition hover:text-white"
                 >
-                  Cart
+                  Refund Policy
                 </Link>
 
                 <Link

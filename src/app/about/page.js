@@ -732,28 +732,28 @@ export default function AboutPage() {
                 >
                   Home
                 </Link>
-
-                <Link
-                  href="/products"
+                 <Link
+                  href="/terms-and-conditions"
                   className="block transition hover:text-white"
                 >
-                  Shop
+                  Terms and Conditions
                 </Link>
 
                 <Link
-                  href="/about"
+                  href="/refund-policy"
                   className="block transition hover:text-white"
                 >
-                  About
+                  Refund Policy
                 </Link>
 
                 <Link
-                  href="/cart"
+                  href="/contact"
                   className="block transition hover:text-white"
                 >
-                  Cart
+                  Contact
                 </Link>
 
+               
               </div>
 
             </div>

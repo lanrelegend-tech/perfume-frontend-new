@@ -1190,19 +1190,28 @@ export default function CollectionPage() {
               </p>
 
               <div className="flex flex-col gap-3 text-sm text-black/55">
-
-                <Link href="/account">
-                  Account
+               <Link
+                  href="/terms-and-conditions"
+                  className="block transition hover:text-white"
+                >
+                  Terms and Conditions
                 </Link>
 
-                <Link href="/cart">
-                  Cart
+                <Link
+                  href="/refund-policy"
+                  className="block transition hover:text-white"
+                >
+                  Refund Policy
                 </Link>
 
-                <Link href="/contact">
+                <Link
+                  href="/contact"
+                  className="block transition hover:text-white"
+                >
                   Contact
                 </Link>
 
+               
               </div>
 
             </div>

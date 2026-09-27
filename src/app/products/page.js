@@ -1173,27 +1173,28 @@ useEffect(() => {
               </h3>
 
               <div className="space-y-3 text-sm text-white/60">
-
-                <Link
-                  href="/account"
-                  className="block hover:text-white"
+               <Link
+                  href="/terms-and-conditions"
+                  className="block transition hover:text-white"
                 >
-                  My Account
+                  Terms and Conditions
                 </Link>
 
                 <Link
-                  href="/cart"
-                  className="block hover:text-white"
+                  href="/refund-policy"
+                  className="block transition hover:text-white"
                 >
-                  Cart
+                  Refund Policy
                 </Link>
 
                 <Link
                   href="/contact"
-                  className="block hover:text-white"
+                  className="block transition hover:text-white"
                 >
                   Contact
                 </Link>
+
+                
 
               </div>
 
