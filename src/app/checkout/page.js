@@ -919,12 +919,10 @@ function findShippingRate() {
       /*
        * Save payment reference.
        */
-      if (paymentData.checkout_token) {
-        localStorage.setItem(
-          "orentemist_pending_checkout_token",
-          paymentData.checkout_token
-        );
-      }
+      localStorage.setItem(
+  "orentemist_pending_checkout_token",
+  order.checkout_token
+);
 
       localStorage.setItem(
         "orentemist_pending_payment_reference",
@@ -1634,13 +1632,13 @@ function findShippingRate() {
                 </div>
 
                 <div className="space-y-3">
-                  {preorderItems.map(
-                    (item) => (
+                 {preorderItems.map(
+  (item, index) => (
                       <div
-                        key={
-                          item.key ||
-                          `${item.id}-${item.variantId || "preorder"}`
-                        }
+                       key={
+  item.key ||
+  `${item.id || item.product_id || item.product || "preorder"}-${item.variantId || item.variant_id || "preorder"}-${index}`
+}
                         className="rounded-2xl bg-[#fafafa] p-4"
                       >
                         <div className="flex items-start justify-between gap-4">
@@ -1762,14 +1760,14 @@ function findShippingRate() {
 
               <div className="max-h-[430px] overflow-y-auto px-5 sm:px-6">
                 <div className="divide-y divide-black/10">
-                  {items.map((item) => (
-                    <div
-                      key={
-                        item.key ||
-                        `${item.id}-${item.variantId || "default"}`
-                      }
-                      className="flex gap-4 py-5"
-                    >
+                 {items.map((item, index) => (
+  <div
+    key={
+      item.key ||
+      `${item.id || item.product_id || item.product || "item"}-${item.variantId || item.variant_id || "default"}-${index}`
+    }
+    className="flex gap-4 py-5"
+  >
                       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-gray-100">
                         <img
                           src={getImageUrl(
