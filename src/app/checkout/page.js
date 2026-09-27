@@ -906,42 +906,48 @@ function findShippingRate() {
         paymentData
       );
 
-      const reference =
-        paymentData.reference ||
-        paymentData.data?.reference;
+     const reference =
+  paymentData.reference ||
+  paymentData.data?.reference;
 
-      if (!reference) {
-        throw new Error(
-          "Paystack did not return a payment reference."
-        );
-      }
+if (!reference) {
+  throw new Error(
+    "Paystack did not return a payment reference."
+  );
+}
 
-      /*
-       * Save payment reference.
-       */
-      localStorage.setItem(
-  "orentemist_pending_checkout_token",
-  order.checkout_token
+/*
+ * Save payment and checkout data.
+ * Keep the token that belongs to this exact order.
+ */
+localStorage.setItem(
+  "orentemist_pending_order_id",
+  String(order.id)
 );
 
-      localStorage.setItem(
-        "orentemist_pending_payment_reference",
-        reference
-      );
+localStorage.setItem(
+  "orentemist_pending_checkout_token",
+  String(order.checkout_token)
+);
 
-      /*
-       * PAYSTACK AUTHORIZATION URL
-       */
-      const authorizationUrl =
-        paymentData.authorization_url ||
-        paymentData.data
-          ?.authorization_url;
+localStorage.setItem(
+  "orentemist_pending_payment_reference",
+  String(reference)
+);
 
-      if (!authorizationUrl) {
-        throw new Error(
-          "Paystack did not return an authorization URL."
-        );
-      }
+/*
+ * PAYSTACK AUTHORIZATION URL
+ */
+const authorizationUrl =
+  paymentData.authorization_url ||
+  paymentData.data?.authorization_url;
+
+if (!authorizationUrl) {
+  throw new Error(
+    "Paystack did not return an authorization URL."
+  );
+}
+
 
       /*
        * DO NOT CLEAR CART HERE.
