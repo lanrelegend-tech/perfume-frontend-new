@@ -32,11 +32,10 @@ function urlBase64ToUint8Array(base64String) {
 
 
 export async function enableAdminPush() {
-  if (
-    typeof window === "undefined" ||
-    !("serviceWorker" in navigator) ||
-    !("PushManager" in window)
-  ) {
+ if (
+  typeof window === "undefined" ||
+  !("serviceWorker" in navigator)
+) {
     throw new Error(
       "Push notifications are not supported on this device."
     );
@@ -80,6 +79,12 @@ export async function enableAdminPush() {
     );
 
   await navigator.serviceWorker.ready;
+
+  if (!("pushManager" in registration)) {
+  throw new Error(
+    "Web Push is not available here. On iPhone, open the installed Admin app from your Home Screen."
+  );
+}
 
   let subscription =
     await registration.pushManager.getSubscription();
