@@ -1,6 +1,9 @@
 "use client";
 
 import AdminSidebar from "@/components/AdminSidebar";
+import {
+  enableAdminPush,
+} from "@/lib/adminPush";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -37,6 +40,11 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [pushLoading, setPushLoading] =
+  useState(false);
+
+const [pushMessage, setPushMessage] =
+  useState("");
 
   // ==================================================
   // AUTH
@@ -522,6 +530,34 @@ export default function AdminDashboard() {
       .slice(0, 5);
   }, [orders]);
 
+
+
+  const handleEnableNotifications =
+  async () => {
+    try {
+      setPushLoading(true);
+      setPushMessage("");
+
+      await enableAdminPush();
+
+      setPushMessage(
+        "Notifications enabled successfully."
+      );
+    } catch (error) {
+      console.error(
+        "Push notification error:",
+        error
+      );
+
+      setPushMessage(
+        error.message ||
+          "Unable to enable notifications."
+      );
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
   // ==================================================
   // CURRENT DATE
   // ==================================================
@@ -625,12 +661,23 @@ export default function AdminDashboard() {
             {/* NOTIFICATIONS */}
 
             <button
-              className="relative w-11 h-11 bg-white border border-gray-200 rounded-xl flex items-center justify-center hover:bg-gray-50"
-            >
-              <Bell size={18} />
+  type="button"
+  onClick={handleEnableNotifications}
+  disabled={pushLoading}
+  className="flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-50"
+>
+  <Bell size={16} />
 
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
+  {pushLoading
+    ? "Enabling..."
+    : "Enable Notifications"}
+</button>
+
+{pushMessage && (
+  <p className="mt-3 text-sm text-black/50">
+    {pushMessage}
+  </p>
+)}
 
             {/* MESSAGES */}
 
