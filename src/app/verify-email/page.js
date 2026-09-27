@@ -14,6 +14,7 @@ function getGuestSessionId() {
 
   if (!sessionId) {
     sessionId = crypto.randomUUID();
+
     localStorage.setItem(
       "orentemist_guest_session_id",
       sessionId
@@ -39,20 +40,9 @@ function PaymentCallbackContent() {
         "orentemist_pending_order_id"
       );
 
-      const checkoutToken = localStorage.getItem(
-        "orentemist_pending_checkout_token"
-      );
-
       if (!reference) {
         setMessage(
           "Payment reference was not found."
-        );
-        return;
-      }
-
-      if (!checkoutToken) {
-        setMessage(
-          "Checkout token was not found. Please restart checkout."
         );
         return;
       }
@@ -67,29 +57,36 @@ function PaymentCallbackContent() {
         console.log(
           "=============================="
         );
+
         console.log(
           "PAYMENT CALLBACK"
         );
+
         console.log(
           "API URL:",
           API_URL
         );
+
         console.log(
           "VERIFY API URL:",
           verifyUrl
         );
+
         console.log(
           "PAYMENT REFERENCE:",
           reference
         );
+
         console.log(
           "PENDING ORDER ID:",
           pendingOrderId
         );
+
         console.log(
           "GUEST SESSION ID:",
           guestSessionId
         );
+
         console.log(
           "=============================="
         );
@@ -99,16 +96,17 @@ function PaymentCallbackContent() {
             verifyUrl,
             {
               method: "POST",
+
               headers: {
                 "Content-Type":
                   "application/json",
+
                 "X-Guest-Session-ID":
                   guestSessionId,
               },
+
               body: JSON.stringify({
                 reference: reference,
-                checkout_token:
-                  checkoutToken,
               }),
             }
           );
@@ -176,18 +174,22 @@ function PaymentCallbackContent() {
             reference
           )}`
         );
+
       } catch (error) {
         console.error(
           "=============================="
         );
+
         console.error(
           "PAYMENT VERIFICATION ERROR:",
           error
         );
+
         console.error(
           "ERROR MESSAGE:",
           error?.message
         );
+
         console.error(
           "=============================="
         );
@@ -205,6 +207,7 @@ function PaymentCallbackContent() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#fafafa] px-5 text-black">
       <div className="w-full max-w-md text-center">
+
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black text-white">
           <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
         </div>
@@ -220,6 +223,7 @@ function PaymentCallbackContent() {
         <p className="mt-3 text-sm leading-6 text-gray-500">
           {message}
         </p>
+
       </div>
     </main>
   );
