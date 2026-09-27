@@ -40,13 +40,42 @@ self.addEventListener("push", (event) => {
     title,
     options
   );
+event.waitUntil(
+  (async () => {
+    try {
+      await self.registration.showNotification(
+        title,
+        options
+      );
+    } catch (error) {
+      console.error(
+        "[ORENTEMIST PUSH] showNotification failed:",
+        error
+      );
 
-  event.waitUntil(
-    self.registration.showNotification(
-      title,
-      options
-    )
-  );
+      const fallbackOptions = {
+        ...options,
+      };
+
+      delete fallbackOptions.icon;
+      delete fallbackOptions.badge;
+
+      try {
+        await self.registration.showNotification(
+          title,
+          fallbackOptions
+        );
+      } catch (fallbackError) {
+        console.error(
+          "[ORENTEMIST PUSH] fallback notification failed:",
+          fallbackError
+        );
+      }
+    }
+  })()
+);
+
+
 });
 
 
