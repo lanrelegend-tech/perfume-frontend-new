@@ -1,9 +1,18 @@
 self.addEventListener("push", (event) => {
+  console.log("[ORENTEMIST PUSH] Push event received");
+
   let data = {};
 
   try {
     data = event.data ? event.data.json() : {};
-  } catch {
+
+    console.log("[ORENTEMIST PUSH] Payload:", data);
+  } catch (error) {
+    console.error(
+      "[ORENTEMIST PUSH] JSON parsing failed:",
+      error
+    );
+
     data = {
       title: "ORENTEMIST",
       body: event.data
@@ -25,6 +34,12 @@ self.addEventListener("push", (event) => {
     renotify: true,
   };
 
+  console.log(
+    "[ORENTEMIST PUSH] Showing notification:",
+    title,
+    options
+  );
+
   event.waitUntil(
     self.registration.showNotification(
       title,
@@ -37,6 +52,10 @@ self.addEventListener("push", (event) => {
 self.addEventListener(
   "notificationclick",
   (event) => {
+    console.log(
+      "[ORENTEMIST PUSH] Notification clicked"
+    );
+
     event.notification.close();
 
     const url =
