@@ -352,68 +352,70 @@ export default function ProductDetailsPage() {
   }
 
   useEffect(() => {
-    async function loadProduct() {
-      try {
-        setLoading(true);
-        setError("");
+  async function loadProduct() {
+    try {
+      setLoading(true);
+      setError("");
 
-        const response = await fetch(
-          `${API_URL}/products/${params.id}/`
-        );
+      const response = await fetch(
+        `${API_URL}/products/${params.slug}/`
+      );
 
-        if (!response.ok) {
-          throw new Error("Product not found");
-        }
-
-        const data = await response.json();
-
-        setProduct(data);
-
-        if (
-          Array.isArray(data.variants) &&
-          data.variants.length > 0
-        ) {
-          const firstAvailableVariant =
-            data.variants.find(
-              (variant) =>
-                variant.in_stock &&
-                Number(
-                  variant.stock_quantity
-                ) > 0
-            );
-
-          setSelectedVariant(
-            firstAvailableVariant ||
-              data.variants[0]
-          );
-        }
-
-        loadRelatedProducts(data);
-      } catch (error) {
-        console.error(
-          "Product error:",
-          error
-        );
-
-        setError(
-          "Unable to load this product."
-        );
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error("Product not found");
       }
-    }
 
-    loadProduct();
-    loadReviews(params.id);
-    loadCartCount();
-    checkAuthentication();
+      const data = await response.json();
 
-    if (getAccessToken()) {
-      checkPurchaseStatus(params.id);
-    } else {
-      setHasPurchased(false);
+      setProduct(data);
+
+      if (
+        Array.isArray(data.variants) &&
+        data.variants.length > 0
+      ) {
+        const firstAvailableVariant =
+          data.variants.find(
+            (variant) =>
+              variant.in_stock &&
+              Number(variant.stock_quantity) > 0
+          );
+
+        setSelectedVariant(
+          firstAvailableVariant ||
+            data.variants[0]
+        );
+      }
+
+      loadRelatedProducts(data);
+
+      // Reviews and purchase verification still use
+      // the internal product ID.
+      loadReviews(data.id);
+
+      if (getAccessToken()) {
+        checkPurchaseStatus(data.id);
+      } else {
+        setHasPurchased(false);
+      }
+    } catch (error) {
+      console.error(
+        "Product error:",
+        error
+      );
+
+      setError(
+        "Unable to load this product."
+      );
+    } finally {
+      setLoading(false);
     }
-  }, [params?.id]);
+  }
+
+  loadProduct();
+  loadCartCount();
+  checkAuthentication();
+}, [params?.slug]);
+
 
   useEffect(() => {
     function handleCartUpdated() {
@@ -797,7 +799,7 @@ export default function ProductDetailsPage() {
     }
 
     const nextUrl =
-      `/products/${product.id}%23reviews`;
+      `/products/${product.slug}%23reviews`;
 
     window.location.href =
       `/login?next=${nextUrl}`;
@@ -2102,7 +2104,7 @@ export default function ProductDetailsPage() {
 
                   {!isLoggedIn && (
                     <Link
-                      href={`/login?next=/products/${product.id}%23reviews`}
+                      href={`/login?next=/products/${product.slug}%23reviews`}
                       className="text-xs font-medium underline underline-offset-4 transition hover:opacity-50"
                     >
                       Log in or sign up
@@ -2243,7 +2245,7 @@ export default function ProductDetailsPage() {
                     </p>
 
                     <Link
-                      href={`/login?next=/products/${product.id}%23reviews`}
+                      href={`/login?next=/products/${product.slug}%23reviews`}
                       className="mt-5 inline-flex rounded-full bg-black px-6 py-3 text-sm font-medium text-white"
                     >
                       Log In / Sign Up
@@ -2460,7 +2462,7 @@ export default function ProductDetailsPage() {
                   return (
                     <Link
                       key={relatedProduct.id}
-                      href={`/products/${relatedProduct.id}`}
+                      href={`/products/${relatedProduct.slug}`}
                       className="group overflow-hidden rounded-3xl border border-black/10 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)]"
                     >
 

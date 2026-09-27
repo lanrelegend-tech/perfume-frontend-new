@@ -613,7 +613,7 @@ export default function CollectionPage() {
                     (product) => (
 
                       <Link
-                        href={`/products/${product.id}`}
+                        href={`/products/${product.slug}`}
                         key={product.id}
                         className="group"
                       >
@@ -851,7 +851,7 @@ export default function CollectionPage() {
                 return (
 
                   <Link
-                    href={`/products/${product.id}`}
+                    href={`/products/${product.slug}`}
                     key={product.id}
                     className="group"
                   >

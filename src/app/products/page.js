@@ -1383,7 +1383,7 @@ function ProductGrid({
         return (
           <Link
             key={product.id}
-            href={`/products/${product.id}`}
+            href={`/products/${product.slug}`}
             className="group min-w-0"
           >
 
