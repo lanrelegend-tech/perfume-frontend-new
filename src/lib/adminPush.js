@@ -72,11 +72,13 @@ export async function enableAdminPush() {
       "Notification permission was not granted."
     );
   }
-
   const registration =
-    await navigator.serviceWorker.register(
-      "/push-sw.js"
-    );
+     await navigator.serviceWorker.register(
+    "/sw.js",
+    {
+      scope: "/",
+    }
+  );
 
   await navigator.serviceWorker.ready;
 
