@@ -142,7 +142,8 @@ function PaymentCallbackContent() {
           );
         }
 
-        removePurchasedCartItems(data.order?.items);
+        localStorage.removeItem("orentemist_cart");
+
 
         localStorage.removeItem(
           "orentemist_pending_order_id"
