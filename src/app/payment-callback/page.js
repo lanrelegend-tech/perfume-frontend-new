@@ -1,27 +1,71 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://perfume-backend-sbvd.onrender.com/api";
 
-function getGuestSessionId() {
-  let sessionId = localStorage.getItem(
-    "orentemist_guest_session_id"
+function getAccessToken() {
+  return (
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("access") ||
+    null
   );
+}
 
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
+function cartItemKey(item) {
+  const productId = item.product_id ?? item.id ?? item.product;
+  const variantId = item.variant_id ?? item.variantId ?? item.variant ?? "";
+  return `${productId}:${variantId}`;
+}
 
-    localStorage.setItem(
-      "orentemist_guest_session_id",
-      sessionId
-    );
+function removePurchasedCartItems(orderItems) {
+  if (!Array.isArray(orderItems)) {
+    return;
   }
 
-  return sessionId;
+  try {
+    const storedCart = JSON.parse(
+      localStorage.getItem("orentemist_cart") || "[]"
+    );
+
+    if (!Array.isArray(storedCart)) {
+      return;
+    }
+
+    const purchasedQuantities = new Map();
+
+    for (const item of orderItems) {
+      const key = cartItemKey(item);
+      const quantity = Number(item.quantity || 0);
+
+      purchasedQuantities.set(
+        key,
+        (purchasedQuantities.get(key) || 0) + quantity
+      );
+    }
+
+    const remainingCart = storedCart.flatMap((item) => {
+      const key = cartItemKey(item);
+      const purchasedQuantity = purchasedQuantities.get(key) || 0;
+      const remainingQuantity = Number(item.quantity || 0) - purchasedQuantity;
+
+      purchasedQuantities.delete(key);
+
+      return remainingQuantity > 0
+        ? [{ ...item, quantity: remainingQuantity }]
+        : [];
+    });
+
+    localStorage.setItem(
+      "orentemist_cart",
+      JSON.stringify(remainingCart)
+    );
+  } catch (error) {
+    console.error("Could not update the cart after payment:", error);
+  }
 }
 
 function PaymentCallbackContent() {
@@ -31,9 +75,16 @@ function PaymentCallbackContent() {
   const [message, setMessage] = useState(
     "Verifying your payment..."
   );
+  const hasStartedVerification = useRef(false);
 
   useEffect(() => {
     async function verifyPayment() {
+      if (hasStartedVerification.current) {
+        return;
+      }
+
+      hasStartedVerification.current = true;
+
       const reference = searchParams.get("reference");
 
       const pendingOrderId = localStorage.getItem(
@@ -48,48 +99,8 @@ function PaymentCallbackContent() {
       }
 
       try {
-        const guestSessionId =
-          getGuestSessionId();
-
         const verifyUrl =
           `${API_URL}/orders/verify-payment/`;
-
-        console.log(
-          "=============================="
-        );
-
-        console.log(
-          "PAYMENT CALLBACK"
-        );
-
-        console.log(
-          "API URL:",
-          API_URL
-        );
-
-        console.log(
-          "VERIFY API URL:",
-          verifyUrl
-        );
-
-        console.log(
-          "PAYMENT REFERENCE:",
-          reference
-        );
-
-        console.log(
-          "PENDING ORDER ID:",
-          pendingOrderId
-        );
-
-        console.log(
-          "GUEST SESSION ID:",
-          guestSessionId
-        );
-
-        console.log(
-          "=============================="
-        );
 
         const response =
           await fetch(
@@ -100,9 +111,9 @@ function PaymentCallbackContent() {
               headers: {
                 "Content-Type":
                   "application/json",
-
-                "X-Guest-Session-ID":
-                  guestSessionId,
+                ...(getAccessToken()
+                  ? { Authorization: `Bearer ${getAccessToken()}` }
+                  : {}),
               },
 
               body: JSON.stringify({
@@ -111,18 +122,7 @@ function PaymentCallbackContent() {
             }
           );
 
-        console.log(
-          "VERIFY RESPONSE STATUS:",
-          response.status
-        );
-
-        const data =
-          await response.json();
-
-        console.log(
-          "VERIFY RESPONSE DATA:",
-          data
-        );
+        const data = await response.json();
 
         if (!response.ok) {
           throw new Error(
@@ -131,11 +131,6 @@ function PaymentCallbackContent() {
               "Payment verification failed."
           );
         }
-
-        console.log(
-          "Payment verified successfully:",
-          data
-        );
 
         const orderId =
           data.order?.id ||
@@ -147,9 +142,7 @@ function PaymentCallbackContent() {
           );
         }
 
-        localStorage.removeItem(
-          "orentemist_cart"
-        );
+        removePurchasedCartItems(data.order?.items);
 
         localStorage.removeItem(
           "orentemist_pending_order_id"
@@ -169,30 +162,21 @@ function PaymentCallbackContent() {
           )
         );
 
+        const reviewRequired =
+          response.status === 202 ||
+          (
+            data.order?.payment_status === "paid" &&
+            data.order?.status === "pending"
+          );
+
         router.replace(
           `/order-success?order=${orderId}&reference=${encodeURIComponent(
             reference
-          )}`
+          )}${reviewRequired ? "&review=1" : ""}`
         );
 
       } catch (error) {
-        console.error(
-          "=============================="
-        );
-
-        console.error(
-          "PAYMENT VERIFICATION ERROR:",
-          error
-        );
-
-        console.error(
-          "ERROR MESSAGE:",
-          error?.message
-        );
-
-        console.error(
-          "=============================="
-        );
+        console.error("Payment verification error:", error);
 
         setMessage(
           error?.message ||

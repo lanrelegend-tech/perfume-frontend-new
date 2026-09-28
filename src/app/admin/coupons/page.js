@@ -41,6 +41,9 @@ export default function CouponsPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [currentTime, setCurrentTime] = useState(() =>
+  Date.now()
+        );
 
   const [showModal, setShowModal] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState(null);
@@ -162,8 +165,24 @@ export default function CouponsPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCoupons();
+    
   }, []);
+
+
+
+  useEffect(() => {
+  const updateTime = () => {
+    setCurrentTime(Date.now());
+  };
+
+  updateTime();
+
+  const interval = setInterval(updateTime, 60000);
+
+  return () => clearInterval(interval);
+}, []);
 
   /*
   |--------------------------------------------------------------------------
@@ -218,13 +237,13 @@ export default function CouponsPage() {
   };
 
   const isExpired = (coupon) => {
-    if (!coupon.expires_at) return false;
+  if (!coupon.expires_at) return false;
 
-    return (
-      new Date(coupon.expires_at).getTime() <
-      Date.now()
-    );
-  };
+  return (
+    new Date(coupon.expires_at).getTime() <
+    currentTime
+  );
+};
 
   const getCouponStatus = (coupon) => {
     if (isExpired(coupon)) {
@@ -290,33 +309,47 @@ export default function CouponsPage() {
   |--------------------------------------------------------------------------
   */
 
-  const filteredCoupons = useMemo(() => {
-    return coupons.filter((coupon) => {
-      const code = String(
-        coupon.code || ""
-      ).toLowerCase();
+const filteredCoupons = useMemo(() => {
+  return coupons.filter((coupon) => {
+    const code = String(
+      coupon.code || ""
+    ).toLowerCase();
 
-      const matchesSearch = code.includes(
-        search.toLowerCase()
-      );
+    const matchesSearch = code.includes(
+      search.toLowerCase()
+    );
 
-      const status = getCouponStatus(coupon);
+    let status = "Inactive";
 
-      const matchesStatus =
-        statusFilter === "All" ||
-        status === statusFilter;
+    if (coupon.expires_at) {
+      const expired =
+        new Date(coupon.expires_at).getTime() <
+        currentTime;
 
-      return (
-        matchesSearch &&
-        matchesStatus
-      );
-    });
-  }, [
-    coupons,
-    search,
-    statusFilter,
-  ]);
+      if (expired) {
+        status = "Expired";
+      } else if (coupon.is_active) {
+        status = "Active";
+      }
+    } else if (coupon.is_active) {
+      status = "Active";
+    }
 
+    const matchesStatus =
+      statusFilter === "All" ||
+      status === statusFilter;
+
+    return (
+      matchesSearch &&
+      matchesStatus
+    );
+  });
+}, [
+  coupons,
+  search,
+  statusFilter,
+  currentTime,
+]);
   /*
   |--------------------------------------------------------------------------
   | STATS

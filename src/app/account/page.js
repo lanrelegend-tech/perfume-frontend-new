@@ -179,7 +179,7 @@ export default function AccountPage() {
       );
 
       setError(
-        "We couldn't load your account right now."
+        "We couldnapos;t load your account right now."
       );
 
     } finally {

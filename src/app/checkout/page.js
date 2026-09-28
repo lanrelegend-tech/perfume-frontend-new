@@ -230,8 +230,10 @@ export default function CheckoutPage() {
   }
 
   useEffect(() => {
-    loadCart();
-    loadShippingRates();
+    const initialLoad = window.setTimeout(() => {
+      loadCart();
+      loadShippingRates();
+    }, 0);
 
     function handleCartUpdate() {
       loadCart();
@@ -256,6 +258,8 @@ export default function CheckoutPage() {
     );
 
     return () => {
+      window.clearTimeout(initialLoad);
+
       window.removeEventListener(
         "orentemist-cart-updated",
         handleCartUpdate
@@ -728,15 +732,6 @@ function findShippingRate() {
           hasPreorderItems,
       };
 
-      console.log(
-        "STARTING ORDER CREATION"
-      );
-
-      console.log(
-        "ORDER DATA:",
-        orderData
-      );
-
       const response =
         await fetch(
           `${API_URL}/orders/create/`,
@@ -763,16 +758,6 @@ function findShippingRate() {
       const responseText =
         await response.text();
 
-      console.log(
-        "CREATE ORDER STATUS:",
-        response.status
-      );
-
-      console.log(
-        "CREATE ORDER RESPONSE:",
-        responseText
-      );
-
       let data;
 
       try {
@@ -791,23 +776,8 @@ function findShippingRate() {
         );
       }
 
-      console.log(
-        "Order created:",
-        data
-      );
-
       const order =
         data.order || data;
-
-      console.log(
-        "ORDER OBJECT:",
-        order
-      );
-
-      console.log(
-        "CHECKOUT TOKEN FROM ORDER:",
-        order.checkout_token
-      );
 
       if (!order.checkout_token) {
         throw new Error(
@@ -870,16 +840,6 @@ function findShippingRate() {
       const paymentResponseText =
         await paymentResponse.text();
 
-      console.log(
-        "PAYMENT STATUS:",
-        paymentResponse.status
-      );
-
-      console.log(
-        "PAYMENT RESPONSE:",
-        paymentResponseText
-      );
-
       let paymentData;
 
       try {
@@ -901,11 +861,6 @@ function findShippingRate() {
             "Unable to initialize payment."
         );
       }
-
-      console.log(
-        "Paystack initialization:",
-        paymentData
-      );
 
      const reference =
   paymentData.reference ||
@@ -1332,7 +1287,7 @@ if (!authorizationUrl) {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  We'll use these details to
+                  We&apos;ll use these details to
                   contact you about your order.
                 </p>
               </div>
@@ -1470,7 +1425,7 @@ if (!authorizationUrl) {
                           : "text-gray-500"
                       }`}
                     >
-                      We'll deliver your order
+                      We&apos;ll deliver your order
                       to your address.
                     </p>
                   </button>

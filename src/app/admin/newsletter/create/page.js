@@ -1549,7 +1549,7 @@ export default function CreateNewsletterCampaignPage() {
       id: "holiday",
       title: "Holiday / Festive",
       description:
-        "Perfect for Christmas, Valentine's Day, Eid, New Year and other celebrations.",
+        "Perfect for Christmas, Valentineapos;s Day, Eid, New Year and other celebrations.",
       icon: "🎉",
       data: {
         name: "Holiday Collection",
@@ -1627,7 +1627,7 @@ export default function CreateNewsletterCampaignPage() {
         heading:
           "Something Special, Just For You",
         body:
-          "For a limited time, enjoy a special offer from ORENTEMIST.\n\nDon't miss the opportunity to discover your next signature fragrance.",
+          "For a limited time, enjoy a special offer from ORENTEMIST.\n\nDonapos;t miss the opportunity to discover your next signature fragrance.",
         buttonText: "Shop Now",
         buttonUrl:
           "https://www.orentemist.online",
@@ -1668,11 +1668,11 @@ export default function CreateNewsletterCampaignPage() {
         subject:
           "Discover our featured fragrances",
         preview:
-          "Explore the fragrances we're loving right now.",
+          "Explore the fragrances weapos;re loving right now.",
         heading:
           "Our Featured Fragrances",
         body:
-          "We've selected a few fragrances we think deserve your attention.\n\nExplore the collection and discover a scent that feels uniquely yours.",
+          "Weapos;ve selected a few fragrances we think deserve your attention.\n\nExplore the collection and discover a scent that feels uniquely yours.",
         buttonText:
           "View Collection",
         buttonUrl:
@@ -1689,13 +1689,13 @@ export default function CreateNewsletterCampaignPage() {
       data: {
         name: "Back In Stock",
         subject:
-          "It's back — your favourite fragrance has returned",
+          "Itapos;s back — your favourite fragrance has returned",
         preview:
-          "The fragrance you've been waiting for is available again.",
+          "The fragrance youapos;ve been waiting for is available again.",
         heading:
           "Back In Stock",
         body:
-          "You asked. It's back.\n\nOne of our most requested fragrances is available again. If you've been waiting to get yours, now is the time.",
+          "You asked. Itapos;s back.\n\nOne of our most requested fragrances is available again. If youapos;ve been waiting to get yours, now is the time.",
         buttonText:
           "Shop Now",
         buttonUrl:
@@ -1715,11 +1715,11 @@ export default function CreateNewsletterCampaignPage() {
         subject:
           "Welcome to ORENTEMIST",
         preview:
-          "We're glad to have you with us.",
+          "Weapos;re glad to have you with us.",
         heading:
           "Welcome to ORENTEMIST",
         body:
-          "Welcome to ORENTEMIST.\n\nWe're here to help you discover fragrances that match your personality, mood and style.",
+          "Welcome to ORENTEMIST.\n\nWeapos;re here to help you discover fragrances that match your personality, mood and style.",
         buttonText:
           "Explore ORENTEMIST",
         buttonUrl:
@@ -1766,7 +1766,7 @@ export default function CreateNewsletterCampaignPage() {
         heading:
           "The Perfect Gift Is A Fragrance",
         body:
-          "Looking for something special for someone you love?\n\nExplore our fragrances and find a gift they'll remember long after the moment has passed.",
+          "Looking for something special for someone you love?\n\nExplore our fragrances and find a gift theyapos;ll remember long after the moment has passed.",
         buttonText:
           "Shop Gift Ideas",
         buttonUrl:

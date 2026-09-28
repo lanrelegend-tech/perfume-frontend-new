@@ -115,7 +115,7 @@ function LoginPageContent() {
             );
 
             setError(
-              "Your email is not verified, but we couldn't send a new verification email right now. Please try again later."
+              "Your email is not verified, but we couldnapos;t send a new verification email right now. Please try again later."
             );
           }
 
@@ -517,7 +517,7 @@ function LoginPageContent() {
 
               <p className="text-sm text-neutral-500">
 
-                Don't have an account?{" "}
+                Donapos;t have an account?{" "}
 
                 <Link
                   href="/signup"

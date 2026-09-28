@@ -44,7 +44,7 @@ function AccountVerificationContent() {
 
   useEffect(() => {
     if (!token) {
-      setLinkVerifying(false);
+      
       return;
     }
 
@@ -496,7 +496,7 @@ function AccountVerificationContent() {
                 <div className="mt-8 border-t border-black/10 pt-7 text-center">
 
                   <p className="text-sm font-medium text-black">
-                    Didn't receive the code?
+                    Didn&apos;t receive the code?
                   </p>
 
                   <p className="mt-1 text-xs leading-5 text-black/40">

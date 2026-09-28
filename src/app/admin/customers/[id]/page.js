@@ -1018,7 +1018,7 @@ const callCustomer = () => {
                   </h2>
 
                   <p className="mt-2 text-xs leading-5 text-white/45">
-                    Quickly contact or manage this customer's account.
+                    Quickly contact or manage this customerapos;s account.
                   </p>
 
                   <div className="mt-5 space-y-2">
@@ -1316,8 +1316,8 @@ const callCustomer = () => {
 
                   <p className="mt-1 text-xs text-black/40">
                     {customer.is_active
-                      ? "Disable this customer's account"
-                      : "Restore this customer's account"}
+                      ? "Disable this customerapos;s account"
+                      : "Restore this customerapos;s account"}
                   </p>
                 </div>
               </button>

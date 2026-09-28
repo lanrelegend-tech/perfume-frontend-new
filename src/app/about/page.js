@@ -304,7 +304,7 @@ export default function AboutPage() {
 
                 Every fragrance tells a story. Some are
                 bold. Some are quiet. Some arrive before
-                you do, while others stay long after you've
+                you do, while others stay long after you&apos;ve
                 left.
 
               </p>

@@ -233,7 +233,7 @@ export default function OrderDetailsPage() {
 
         /*
           If direct order endpoint returns 404,
-          use the user's orders endpoint.
+          use the userapos;s orders endpoint.
         */
         if (!response.ok && response.status === 404) {
           const listResponse = await fetch(
@@ -334,7 +334,7 @@ export default function OrderDetailsPage() {
           </h1>
 
           <p className="mt-3 text-sm leading-6 text-neutral-600">
-            {error || "We couldn't find this order."}
+            {error || "We couldnapos;t find this order."}
           </p>
 
           <Link

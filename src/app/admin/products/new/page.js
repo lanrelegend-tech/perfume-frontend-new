@@ -1070,7 +1070,7 @@ export default function AddProductPage() {
                         />
 
                         <p className="mt-2 text-xs text-black/40">
-                          Optional. Leave blank if you don't know the exact date.
+                          Optional. Leave blank if you don&apos;t know the exact date.
                         </p>
                       </div>
 

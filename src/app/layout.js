@@ -35,8 +35,8 @@ export const metadata = {
     "premium perfume Nigeria",
     "luxury perfume Nigeria",
     "fragrances Nigeria",
-    "men's perfume",
-    "women's perfume",
+    "menapos;s perfume",
+    "womenapos;s perfume",
     "unisex perfume",
   ],
 

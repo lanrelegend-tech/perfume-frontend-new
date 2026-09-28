@@ -9,6 +9,7 @@ function OrderSuccessContent() {
 
   const orderId = searchParams.get("order");
   const reference = searchParams.get("reference");
+  const reviewRequired = searchParams.get("review") === "1";
 
   return (
     <main className="min-h-screen bg-white flex items-center justify-center px-6">
@@ -19,12 +20,13 @@ function OrderSuccessContent() {
         </div>
 
         <h1 className="text-3xl font-semibold text-black">
-          Order Confirmed
+          {reviewRequired ? "Payment Received" : "Order Confirmed"}
         </h1>
 
         <p className="mt-4 text-gray-600">
-          Thank you for your purchase. Your payment was successful and your
-          order has been received.
+          {reviewRequired
+            ? "Your payment was successful. We are reviewing item availability and will contact you with the next step."
+            : "Thank you for your purchase. Your payment was successful and your order has been received."}
         </p>
 
         {orderId && (

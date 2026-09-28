@@ -633,7 +633,7 @@ const [pushMessage, setPushMessage] =
             </h1>
 
             <p className="text-sm text-gray-500 mt-1">
-              Here's what's happening with your store.
+              Hereapos;s whatapos;s happening with your store.
             </p>
           </div>
 

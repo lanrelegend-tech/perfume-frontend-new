@@ -301,7 +301,7 @@ export default function TermsAndConditionsPage() {
 
               <p>
                 Refund processing times may depend on the payment provider and
-                the customer's bank or financial institution.
+                the customerapos;s bank or financial institution.
               </p>
 
               <p>

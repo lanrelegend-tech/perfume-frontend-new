@@ -413,9 +413,12 @@ export default function ProductDetailsPage() {
   }
 
   loadProduct();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   loadCartCount();
   checkAuthentication();
+  
 }, [params?.slug]);
+
 
 
   useEffect(() => {
@@ -1244,7 +1247,7 @@ function redirectToLogin() {
               </h2>
 
               <p className="mx-auto mt-7 max-w-md text-sm leading-7 text-black/50">
-                The fragrance you're looking for may have moved, expired, or never existed.
+                The fragrance youapos;re looking for may have moved, expired, or never existed.
               </p>
             </div>
 

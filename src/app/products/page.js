@@ -1591,7 +1591,7 @@ function EmptyState({
 
       {search && (
         <p className="mt-3 max-w-md text-sm leading-6 text-black/45">
-          We couldn't find a product matching{" "}
+          We couldnapos;t find a product matching{" "}
           <span className="font-medium text-black">
             "{search}"
           </span>
