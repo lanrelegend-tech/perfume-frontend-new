@@ -17,8 +17,7 @@ function getStoredCart() {
   }
 
   try {
-    const stored =
-      localStorage.getItem(CART_STORAGE_KEY);
+    const stored = localStorage.getItem(CART_STORAGE_KEY);
 
     if (!stored) {
       return [];
@@ -33,16 +32,27 @@ function getStoredCart() {
   }
 }
 
-function getAccessToken() {
-  if (typeof window === "undefined") {
-    return null;
+async function getCsrfToken() {
+  const response = await fetch(
+    `${API_URL}/users/auth/csrf/`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.csrfToken) {
+    throw new Error(
+      data?.detail ||
+        data?.error ||
+        "Unable to secure this request."
+    );
   }
 
-  return (
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("access") ||
-    null
-  );
+  return data.csrfToken;
 }
 
 function getImageUrl(image) {
@@ -75,8 +85,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [privacyOpen, setPrivacyOpen] = useState(false);
 
-  const [shippingRates, setShippingRates] =
-    useState([]);
+  const [shippingRates, setShippingRates] = useState([]);
 
   const [shippingLoading, setShippingLoading] =
     useState(false);
@@ -107,8 +116,7 @@ export default function CheckoutPage() {
     country: "Nigeria",
   });
 
-  const [couponCode, setCouponCode] =
-    useState("");
+  const [couponCode, setCouponCode] = useState("");
 
   const [appliedCoupon, setAppliedCoupon] =
     useState(null);
@@ -141,9 +149,6 @@ export default function CheckoutPage() {
         product_image:
           item.image || "",
 
-        /*
-         * Preserve preorder information.
-         */
         is_preorder:
           item.is_preorder === true,
 
@@ -272,26 +277,23 @@ export default function CheckoutPage() {
     };
   }, []);
 
+  function handleChange(event) {
+    const { name, value } =
+      event.target;
 
-function handleChange(event) {
-  const { name, value } =
-    event.target;
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
 
-  setForm((previous) => ({
-    ...previous,
-    [name]: value,
-  }));
-
-  if (
-    name === "state" ||
-    name === "city"
-  ) {
-    setSelectedShipping(null);
-    setShippingError("");
+    if (
+      name === "state" ||
+      name === "city"
+    ) {
+      setSelectedShipping(null);
+      setShippingError("");
+    }
   }
-}
-
-
 
   function getCartSubtotal() {
     if (
@@ -308,36 +310,58 @@ function handleChange(event) {
       0
     );
   }
-function findShippingRate() {
-  if (deliveryMethod === "pickup") {
+
+  function findShippingRate() {
+    if (deliveryMethod === "pickup") {
+      return (
+        shippingRates.find(
+          (rate) =>
+            rate.delivery_type ===
+              "pickup" &&
+            rate.is_active !== false
+        ) || null
+      );
+    }
+
+    if (!form.state.trim()) {
+      return null;
+    }
+
+    const customerState =
+      form.state.trim().toLowerCase();
+
+    const customerCity =
+      form.city.trim().toLowerCase();
+
+    /*
+     * CITY RATE FIRST
+     */
+    if (customerCity) {
+      const cityRate =
+        shippingRates.find(
+          (rate) =>
+            rate.delivery_type ===
+              "state" &&
+            rate.is_active !== false &&
+            String(rate.state || "")
+              .trim()
+              .toLowerCase() ===
+              customerState &&
+            String(rate.city || "")
+              .trim()
+              .toLowerCase() ===
+              customerCity
+        );
+
+      if (cityRate) {
+        return cityRate;
+      }
+    }
+
+    /*
+     * STATE FALLBACK
+     */
     return (
-      shippingRates.find(
-        (rate) =>
-          rate.delivery_type ===
-            "pickup" &&
-          rate.is_active !== false
-      ) || null
-    );
-  }
-
-  if (!form.state.trim()) {
-    return null;
-  }
-
-  const customerState =
-    form.state.trim().toLowerCase();
-
-  const customerCity =
-    form.city.trim().toLowerCase();
-
-  /*
-   * CITY RATE FIRST
-   *
-   * If a specific city rate exists,
-   * use it instead of the general state rate.
-   */
-  if (customerCity) {
-    const cityRate =
       shippingRates.find(
         (rate) =>
           rate.delivery_type ===
@@ -347,38 +371,10 @@ function findShippingRate() {
             .trim()
             .toLowerCase() ===
             customerState &&
-          String(rate.city || "")
-            .trim()
-            .toLowerCase() ===
-            customerCity
-      );
-
-    if (cityRate) {
-      return cityRate;
-    }
+          !String(rate.city || "").trim()
+      ) || null
+    );
   }
-
-  /*
-   * STATE FALLBACK
-   *
-   * If there is no city-specific rate,
-   * use the general state rate.
-   */
-  return (
-    shippingRates.find(
-      (rate) =>
-        rate.delivery_type ===
-          "state" &&
-        rate.is_active !== false &&
-        String(rate.state || "")
-          .trim()
-          .toLowerCase() ===
-          customerState &&
-        !String(rate.city || "").trim()
-    ) || null
-  );
-}
-
 
   function getShippingFee() {
     if (selectedShipping) {
@@ -622,7 +618,7 @@ function findShippingRate() {
       setPlacingOrder(true);
 
       /*
-       * Get the latest browser cart.
+       * Get latest browser cart.
        */
       const browserCart =
         getStoredCart();
@@ -640,9 +636,6 @@ function findShippingRate() {
 
       /*
        * Prepare cart items.
-       *
-       * IMPORTANT:
-       * is_preorder is now sent to the backend.
        */
       const cartItems =
         browserCart.map((item) => ({
@@ -662,9 +655,6 @@ function findShippingRate() {
           size:
             item.size || "",
 
-          /*
-           * PRE-ORDER DATA
-           */
           is_preorder:
             item.is_preorder === true,
 
@@ -678,8 +668,7 @@ function findShippingRate() {
         }));
 
       /*
-       * Check whether this order contains
-       * any preorder products.
+       * Check preorder items.
        */
       const hasPreorderItems =
         cartItems.some(
@@ -724,29 +713,41 @@ function findShippingRate() {
         cart_items:
           cartItems,
 
-        /*
-         * Tell backend that this order
-         * contains preorder items.
-         */
         has_preorder_items:
           hasPreorderItems,
       };
 
+      /*
+       * GET CSRF TOKEN
+       *
+       * Required because creating an order
+       * is an authenticated unsafe request.
+       */
+      const csrfToken =
+        await getCsrfToken();
+
+      /*
+       * CREATE ORDER
+       *
+       * Authentication now comes from the
+       * HttpOnly access_token cookie.
+       *
+       * No Authorization Bearer header.
+       */
       const response =
         await fetch(
           `${API_URL}/orders/create/`,
           {
             method: "POST",
 
+            credentials: "include",
+
             headers: {
               "Content-Type":
                 "application/json",
 
-              ...(getAccessToken()
-                ? {
-                    Authorization: `Bearer ${getAccessToken()}`,
-                  }
-                : {}),
+              "X-CSRFToken":
+                csrfToken,
             },
 
             body: JSON.stringify(
@@ -765,6 +766,15 @@ function findShippingRate() {
       } catch (error) {
         throw new Error(
           `Server returned a non-JSON response (${response.status}).`
+        );
+      }
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        throw new Error(
+          "Your session has expired. Please sign in again before placing your order."
         );
       }
 
@@ -793,23 +803,31 @@ function findShippingRate() {
 
       /*
        * Save pending order.
+       *
+       * These are NOT authentication tokens.
+       * They belong only to the payment flow.
        */
       localStorage.setItem(
         "orentemist_pending_order_id",
         String(order.id)
       );
 
-      if (order.checkout_token) {
-        localStorage.setItem(
-          "orentemist_pending_checkout_token",
-          order.checkout_token
-        );
-      }
+      localStorage.setItem(
+        "orentemist_pending_checkout_token",
+        String(order.checkout_token)
+      );
 
       /*
        * INITIALIZE PAYSTACK
        */
       setPaymentLoading(true);
+
+      /*
+       * Get a fresh CSRF token before
+       * the second authenticated POST.
+       */
+      const paymentCsrfToken =
+        await getCsrfToken();
 
       const paymentResponse =
         await fetch(
@@ -817,15 +835,14 @@ function findShippingRate() {
           {
             method: "POST",
 
+            credentials: "include",
+
             headers: {
               "Content-Type":
                 "application/json",
 
-              ...(getAccessToken()
-                ? {
-                    Authorization: `Bearer ${getAccessToken()}`,
-                  }
-                : {}),
+              "X-CSRFToken":
+                paymentCsrfToken,
             },
 
             body: JSON.stringify({
@@ -853,6 +870,15 @@ function findShippingRate() {
         );
       }
 
+      if (
+        paymentResponse.status === 401 ||
+        paymentResponse.status === 403
+      ) {
+        throw new Error(
+          "Your session has expired. Please sign in again before continuing to payment."
+        );
+      }
+
       if (!paymentResponse.ok) {
         throw new Error(
           paymentData.error ||
@@ -862,48 +888,49 @@ function findShippingRate() {
         );
       }
 
-     const reference =
-  paymentData.reference ||
-  paymentData.data?.reference;
+      const reference =
+        paymentData.reference ||
+        paymentData.data?.reference;
 
-if (!reference) {
-  throw new Error(
-    "Paystack did not return a payment reference."
-  );
-}
+      if (!reference) {
+        throw new Error(
+          "Paystack did not return a payment reference."
+        );
+      }
 
-/*
- * Save payment and checkout data.
- * Keep the token that belongs to this exact order.
- */
-localStorage.setItem(
-  "orentemist_pending_order_id",
-  String(order.id)
-);
+      /*
+       * Save payment and checkout data.
+       *
+       * These are payment-flow values,
+       * not authentication tokens.
+       */
+      localStorage.setItem(
+        "orentemist_pending_order_id",
+        String(order.id)
+      );
 
-localStorage.setItem(
-  "orentemist_pending_checkout_token",
-  String(order.checkout_token)
-);
+      localStorage.setItem(
+        "orentemist_pending_checkout_token",
+        String(order.checkout_token)
+      );
 
-localStorage.setItem(
-  "orentemist_pending_payment_reference",
-  String(reference)
-);
+      localStorage.setItem(
+        "orentemist_pending_payment_reference",
+        String(reference)
+      );
 
-/*
- * PAYSTACK AUTHORIZATION URL
- */
-const authorizationUrl =
-  paymentData.authorization_url ||
-  paymentData.data?.authorization_url;
+      /*
+       * PAYSTACK AUTHORIZATION URL
+       */
+      const authorizationUrl =
+        paymentData.authorization_url ||
+        paymentData.data?.authorization_url;
 
-if (!authorizationUrl) {
-  throw new Error(
-    "Paystack did not return an authorization URL."
-  );
-}
-
+      if (!authorizationUrl) {
+        throw new Error(
+          "Paystack did not return an authorization URL."
+        );
+      }
 
       /*
        * DO NOT CLEAR CART HERE.
@@ -982,143 +1009,141 @@ if (!authorizationUrl) {
     preorderItems.length > 0;
 
   /*
-   * EMPTY CART
+   * PRIVACY MODAL
    */
-
   const privacyModal = privacyOpen ? (
-  <div
-    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="privacy-policy-title"
-  >
-    <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-[#faf9f6] shadow-2xl">
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="privacy-policy-title"
+    >
+      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-[#faf9f6] shadow-2xl">
 
-      {/* HEADER */}
-      <div className="flex items-center justify-between border-b border-black/10 px-5 py-4 sm:px-7">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
-            ORENTEMIST
-          </p>
+        <div className="flex items-center justify-between border-b border-black/10 px-5 py-4 sm:px-7">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+              ORENTEMIST
+            </p>
 
-          <h2
-            id="privacy-policy-title"
-            className="mt-1 text-xl font-semibold"
+            <h2
+              id="privacy-policy-title"
+              className="mt-1 text-xl font-semibold"
+            >
+              Privacy Policy
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setPrivacyOpen(false)}
+            aria-label="Close privacy policy"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-xl leading-none transition hover:border-black/30"
           >
-            Privacy Policy
-          </h2>
+            ×
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setPrivacyOpen(false)}
-          aria-label="Close privacy policy"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-xl leading-none transition hover:border-black/30"
-        >
-          ×
-        </button>
-      </div>
+        <div className="overflow-y-auto px-5 py-6 text-sm leading-7 text-gray-600 sm:px-7 sm:py-7">
 
-      {/* SCROLLABLE CONTENT */}
-      <div className="overflow-y-auto px-5 py-6 text-sm leading-7 text-gray-600 sm:px-7 sm:py-7">
+          <p>
+            At ORENTEMIST, we respect your privacy and are committed to
+            protecting the personal information you provide when placing an
+            order or using our website.
+          </p>
 
-        <p>
-          At ORENTEMIST, we respect your privacy and are committed to
-          protecting the personal information you provide when placing an
-          order or using our website.
-        </p>
+          <h3 className="mt-6 text-sm font-semibold text-black">
+            Information We Collect
+          </h3>
 
-        <h3 className="mt-6 text-sm font-semibold text-black">
-          Information We Collect
-        </h3>
+          <p className="mt-2">
+            We may collect your name, email address, phone number, delivery
+            address, order details, and payment-related information needed to
+            process and deliver your order.
+          </p>
 
-        <p className="mt-2">
-          We may collect your name, email address, phone number, delivery
-          address, order details, and payment-related information needed to
-          process and deliver your order.
-        </p>
+          <h3 className="mt-6 text-sm font-semibold text-black">
+            How We Use Your Information
+          </h3>
 
-        <h3 className="mt-6 text-sm font-semibold text-black">
-          How We Use Your Information
-        </h3>
+          <p className="mt-2">
+            Your information is used to process payments, fulfil orders,
+            arrange delivery or pickup, provide customer support, prevent
+            fraudulent transactions, and communicate important order updates.
+          </p>
 
-        <p className="mt-2">
-          Your information is used to process payments, fulfil orders,
-          arrange delivery or pickup, provide customer support, prevent
-          fraudulent transactions, and communicate important order updates.
-        </p>
+          <h3 className="mt-6 text-sm font-semibold text-black">
+            Payment Information
+          </h3>
 
-        <h3 className="mt-6 text-sm font-semibold text-black">
-          Payment Information
-        </h3>
+          <p className="mt-2">
+            Payments are processed securely through our payment provider.
+            ORENTEMIST does not store your full card details on our servers.
+          </p>
 
-        <p className="mt-2">
-          Payments are processed securely through our payment provider.
-          ORENTEMIST does not store your full card details on our servers.
-        </p>
+          <h3 className="mt-6 text-sm font-semibold text-black">
+            Sharing Your Information
+          </h3>
 
-        <h3 className="mt-6 text-sm font-semibold text-black">
-          Sharing Your Information
-        </h3>
+          <p className="mt-2">
+            We only share information with service providers where necessary
+            to operate the store, such as payment processing, delivery,
+            hosting, and customer communications.
+          </p>
 
-        <p className="mt-2">
-          We only share information with service providers where necessary
-          to operate the store, such as payment processing, delivery,
-          hosting, and customer communications.
-        </p>
+          <h3 className="mt-6 text-sm font-semibold text-black">
+            Data Security
+          </h3>
 
-        <h3 className="mt-6 text-sm font-semibold text-black">
-          Data Security
-        </h3>
+          <p className="mt-2">
+            We take reasonable measures to protect your information against
+            unauthorized access, alteration, disclosure, or loss. However, no
+            online system can be guaranteed to be completely secure.
+          </p>
 
-        <p className="mt-2">
-          We take reasonable measures to protect your information against
-          unauthorized access, alteration, disclosure, or loss. However, no
-          online system can be guaranteed to be completely secure.
-        </p>
+          <h3 className="mt-6 text-sm font-semibold text-black">
+            Your Choices
+          </h3>
 
-        <h3 className="mt-6 text-sm font-semibold text-black">
-          Your Choices
-        </h3>
+          <p className="mt-2">
+            You may contact ORENTEMIST if you have questions about the personal
+            information associated with your orders or if you need assistance
+            with your privacy rights.
+          </p>
 
-        <p className="mt-2">
-          You may contact ORENTEMIST if you have questions about the personal
-          information associated with your orders or if you need assistance
-          with your privacy rights.
-        </p>
+          <h3 className="mt-6 text-sm font-semibold text-black">
+            Contact
+          </h3>
 
-        <h3 className="mt-6 text-sm font-semibold text-black">
-          Contact
-        </h3>
+          <p className="mt-2">
+            For privacy questions or requests, please contact ORENTEMIST
+            through the contact details provided on our website.
+          </p>
+        </div>
 
-        <p className="mt-2">
-          For privacy questions or requests, please contact ORENTEMIST
-          through the contact details provided on our website.
-        </p>
-      </div>
-
-      {/* FOOTER */}
-      <div className="border-t border-black/10 px-5 py-4 sm:px-7">
-        <button
-          type="button"
-          onClick={() => setPrivacyOpen(false)}
-          className="w-full rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-800"
-        >
-          Close
-        </button>
+        <div className="border-t border-black/10 px-5 py-4 sm:px-7">
+          <button
+            type="button"
+            onClick={() => setPrivacyOpen(false)}
+            className="w-full rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-) : null;
+  ) : null;
 
-
-
+  /*
+   * EMPTY CART
+   */
   if (items.length === 0) {
     return (
       <main className="min-h-screen bg-[#fafafa]">
-       
+
         <div className="flex min-h-screen items-center justify-center px-5">
           <div className="w-full max-w-md text-center">
+
             <div className="mx-auto mb-7 flex h-20 w-20 items-center justify-center rounded-full bg-black text-white">
               <svg
                 width="28"
@@ -1150,22 +1175,28 @@ if (!authorizationUrl) {
             >
               Continue Shopping
             </Link>
+
           </div>
         </div>
+
       </main>
     );
   }
 
   return (
     <main className="min-h-screen bg-[#faf9f6] text-black">
-       {privacyModal}
+
+      {privacyModal}
+
       <Script
         src="https://js.paystack.co/v2/inline.js"
         strategy="afterInteractive"
       />
 
       <header className="border-b border-black/10 bg-[#faf9f6]">
+
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-12">
+
           <Link
             href="/"
             className="text-xl font-semibold tracking-[0.28em]"
@@ -1174,6 +1205,7 @@ if (!authorizationUrl) {
           </Link>
 
           <div className="flex items-center gap-2 text-xs text-gray-500">
+
             <span className="hidden sm:inline">
               Secure Checkout
             </span>
@@ -1196,12 +1228,15 @@ if (!authorizationUrl) {
 
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
+
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
+
         <div className="mb-10">
+
           <Link
             href="/cart"
             className="mb-5 inline-flex items-center gap-2 text-xs text-gray-500 transition hover:text-black"
@@ -1229,19 +1264,20 @@ if (!authorizationUrl) {
             Complete your details to continue
             with your order.
           </p>
+
         </div>
 
-        {/*
-         * PRE-ORDER NOTICE
-         */}
         {hasPreorderItems && (
           <div className="mb-8 rounded-3xl border border-black bg-black p-5 text-white sm:p-6">
+
             <div className="flex gap-4">
+
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20">
                 ✓
               </div>
 
               <div>
+
                 <h2 className="text-sm font-semibold uppercase tracking-[0.15em]">
                   Pre-order included
                 </h2>
@@ -1264,6 +1300,7 @@ if (!authorizationUrl) {
                   information provided for each
                   product.
                 </p>
+
               </div>
             </div>
           </div>
@@ -1273,11 +1310,14 @@ if (!authorizationUrl) {
           onSubmit={handlePlaceOrder}
           className="grid items-start gap-10 lg:grid-cols-[1fr_420px]"
         >
-          <div className="space-y-8">
-            {/* CONTACT */}
 
+          <div className="space-y-8">
+
+            {/* CONTACT */}
             <section className="rounded-3xl border border-black/10 bg-[#faf9f6] p-5 sm:p-7">
+
               <div className="mb-7">
+
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
                   01
                 </span>
@@ -1290,9 +1330,11 @@ if (!authorizationUrl) {
                   We&apos;ll use these details to
                   contact you about your order.
                 </p>
+
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
+
                 <div>
                   <label
                     htmlFor="firstName"
@@ -1372,13 +1414,15 @@ if (!authorizationUrl) {
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
+
               </div>
             </section>
 
             {/* DELIVERY */}
-
             <section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
+
               <div className="mb-7">
+
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
                   02
                 </span>
@@ -1391,14 +1435,17 @@ if (!authorizationUrl) {
                   Choose how you want to receive
                   your order.
                 </p>
+
               </div>
 
               <div className="mb-6">
+
                 <label className="mb-3 block text-xs font-medium">
                   Delivery method
                 </label>
 
                 <div className="grid gap-3 sm:grid-cols-2">
+
                   <button
                     type="button"
                     onClick={() =>
@@ -1460,14 +1507,17 @@ if (!authorizationUrl) {
                       our location.
                     </p>
                   </button>
+
                 </div>
               </div>
 
               <div className="space-y-5">
+
                 {deliveryMethod ===
                 "delivery" ? (
                   <>
                     <div>
+
                       <label
                         htmlFor="address"
                         className="mb-2 block text-xs font-medium"
@@ -1485,10 +1535,13 @@ if (!authorizationUrl) {
                         placeholder="House number, street name, area..."
                         className="w-full resize-none rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                       />
+
                     </div>
 
                     <div className="grid gap-5 sm:grid-cols-2">
+
                       <div>
+
                         <label
                           htmlFor="city"
                           className="mb-2 block text-xs font-medium"
@@ -1506,9 +1559,11 @@ if (!authorizationUrl) {
                           placeholder="Lagos"
                           className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                         />
+
                       </div>
 
                       <div>
+
                         <label
                           htmlFor="state"
                           className="mb-2 block text-xs font-medium"
@@ -1529,13 +1584,18 @@ if (!authorizationUrl) {
                           }
                           className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                         />
+
                       </div>
+
                     </div>
                   </>
                 ) : (
                   <div className="rounded-2xl border border-black/10 bg-[#fafafa] p-5">
+
                     <div className="flex items-start gap-3">
+
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white">
+
                         <svg
                           width="18"
                           height="18"
@@ -1548,9 +1608,11 @@ if (!authorizationUrl) {
                           <path d="M8 7V4h8v3" />
                           <path d="M8 12h8" />
                         </svg>
+
                       </div>
 
                       <div className="min-w-0 flex-1">
+
                         <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
                           Pickup location
                         </p>
@@ -1580,14 +1642,18 @@ if (!authorizationUrl) {
                             available.
                           </p>
                         )}
+
                       </div>
                     </div>
                   </div>
                 )}
 
                 <div className="rounded-2xl border border-black/10 bg-[#fafafa] p-4">
+
                   <div className="flex items-start gap-3">
+
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-white">
+
                       <svg
                         width="16"
                         height="16"
@@ -1609,9 +1675,11 @@ if (!authorizationUrl) {
                           r="1.5"
                         />
                       </svg>
+
                     </div>
 
                     <div className="min-w-0 flex-1">
+
                       <p className="text-sm font-semibold">
                         {deliveryMethod ===
                         "pickup"
@@ -1627,6 +1695,7 @@ if (!authorizationUrl) {
                       ) : deliveryMethod ===
                         "pickup" ? (
                         <div className="mt-1">
+
                           <p className="text-xs text-gray-500">
                             Pickup from
                           </p>
@@ -1642,38 +1711,42 @@ if (!authorizationUrl) {
                                 0
                             )}
                           </p>
+
                         </div>
                       ) : selectedShipping ? (
                         <div className="mt-1">
-                         <p className="text-xs text-gray-500">
-  Delivery to{" "}
-  <span className="font-medium text-black">
-    {selectedShipping.city
-      ? `${selectedShipping.city}, ${selectedShipping.state}`
-      : selectedShipping.state}
-  </span>
-</p>
+
+                          <p className="text-xs text-gray-500">
+                            Delivery to{" "}
+                            <span className="font-medium text-black">
+                              {selectedShipping.city
+                                ? `${selectedShipping.city}, ${selectedShipping.state}`
+                                : selectedShipping.state}
+                            </span>
+                          </p>
 
                           <p className="mt-1 text-sm font-semibold">
                             {formatPrice(
                               selectedShipping.delivery_fee
                             )}
                           </p>
+
                         </div>
                       ) : form.state ? (
-                       <p className="mt-1 text-xs text-gray-500">
-  {findShippingRate()
-    ? findShippingRate().city
-      ? `Delivery available to ${findShippingRate().city}, ${findShippingRate().state}.`
-      : `Delivery available to ${findShippingRate().state}.`
-    : "No delivery rate found for this city or state."}
-</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {findShippingRate()
+                            ? findShippingRate().city
+                              ? `Delivery available to ${findShippingRate().city}, ${findShippingRate().state}.`
+                              : `Delivery available to ${findShippingRate().state}.`
+                            : "No delivery rate found for this city or state."}
+                        </p>
                       ) : (
                         <p className="mt-1 text-xs text-gray-500">
                           Enter your state to
                           calculate delivery.
                         </p>
                       )}
+
                     </div>
                   </div>
 
@@ -1682,9 +1755,11 @@ if (!authorizationUrl) {
                       {shippingError}
                     </p>
                   )}
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="country"
                     className="mb-2 block text-xs font-medium"
@@ -1701,15 +1776,18 @@ if (!authorizationUrl) {
                     required
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
+
                 </div>
+
               </div>
             </section>
 
             {/* PREORDER INFORMATION */}
-
             {hasPreorderItems && (
               <section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
+
                 <div className="mb-6">
+
                   <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
                     03
                   </span>
@@ -1722,20 +1800,25 @@ if (!authorizationUrl) {
                     Review the availability
                     information before paying.
                   </p>
+
                 </div>
 
                 <div className="space-y-3">
-                 {preorderItems.map(
-  (item, index) => (
+
+                  {preorderItems.map(
+                    (item, index) => (
                       <div
-                       key={
-  item.key ||
-  `${item.id || item.product_id || item.product || "preorder"}-${item.variantId || item.variant_id || "preorder"}-${index}`
-}
+                        key={
+                          item.key ||
+                          `${item.id || item.product_id || item.product || "preorder"}-${item.variantId || item.variant_id || "preorder"}-${index}`
+                        }
                         className="rounded-2xl bg-[#fafafa] p-4"
                       >
+
                         <div className="flex items-start justify-between gap-4">
+
                           <div>
+
                             <p className="text-sm font-semibold">
                               {item.product_name}
                             </p>
@@ -1743,6 +1826,7 @@ if (!authorizationUrl) {
                             <span className="mt-2 inline-flex rounded-full bg-black px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.15em] text-white">
                               Pre-order
                             </span>
+
                           </div>
 
                           <p className="shrink-0 text-sm font-semibold">
@@ -1750,6 +1834,7 @@ if (!authorizationUrl) {
                               item.subtotal
                             )}
                           </p>
+
                         </div>
 
                         {item.preorder_message && (
@@ -1766,12 +1851,15 @@ if (!authorizationUrl) {
                             }
                           </p>
                         )}
+
                       </div>
                     )
                   )}
+
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-black/10 p-4">
+
                   <p className="text-xs font-semibold">
                     Full payment required
                   </p>
@@ -1782,15 +1870,19 @@ if (!authorizationUrl) {
                     processed through the normal
                     Paystack checkout.
                   </p>
+
                 </div>
+
               </section>
             )}
 
             {/* DELIVERY INFO */}
-
             <section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
+
               <div className="flex gap-4">
+
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white">
+
                   <svg
                     width="18"
                     height="18"
@@ -1812,9 +1904,11 @@ if (!authorizationUrl) {
                       r="1.5"
                     />
                   </svg>
+
                 </div>
 
                 <div>
+
                   <h3 className="text-sm font-semibold">
                     {deliveryMethod ===
                     "pickup"
@@ -1828,16 +1922,20 @@ if (!authorizationUrl) {
                       ? "Your order will be prepared for pickup at the location shown above."
                       : "Your delivery fee is automatically calculated based on your selected city or state."}
                   </p>
+
                 </div>
               </div>
             </section>
+
           </div>
 
           {/* ORDER SUMMARY */}
-
           <aside className="lg:sticky lg:top-8">
+
             <div className="overflow-hidden rounded-3xl border border-black/10 bg-white">
+
               <div className="border-b border-black/10 px-5 py-5 sm:px-6">
+
                 <h2 className="text-lg font-semibold">
                   Order Summary
                 </h2>
@@ -1849,19 +1947,24 @@ if (!authorizationUrl) {
                     : "items"}{" "}
                   in your cart
                 </p>
+
               </div>
 
               <div className="max-h-[430px] overflow-y-auto px-5 sm:px-6">
+
                 <div className="divide-y divide-black/10">
-                 {items.map((item, index) => (
-  <div
-    key={
-      item.key ||
-      `${item.id || item.product_id || item.product || "item"}-${item.variantId || item.variant_id || "default"}-${index}`
-    }
-    className="flex gap-4 py-5"
-  >
+
+                  {items.map((item, index) => (
+                    <div
+                      key={
+                        item.key ||
+                        `${item.id || item.product_id || item.product || "item"}-${item.variantId || item.variant_id || "default"}-${index}`
+                      }
+                      className="flex gap-4 py-5"
+                    >
+
                       <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-gray-100">
+
                         <img
                           src={getImageUrl(
                             item.product_image
@@ -1876,10 +1979,13 @@ if (!authorizationUrl) {
                         <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-black px-1 text-[9px] font-semibold text-white">
                           {item.quantity}
                         </span>
+
                       </div>
 
                       <div className="min-w-0 flex-1">
+
                         <div className="flex items-start gap-2">
+
                           <h3 className="truncate text-sm font-medium">
                             {item.product_name}
                           </h3>
@@ -1889,6 +1995,7 @@ if (!authorizationUrl) {
                               Pre-order
                             </span>
                           )}
+
                         </div>
 
                         {item.size && (
@@ -1903,23 +2010,31 @@ if (!authorizationUrl) {
                           )}{" "}
                           each
                         </p>
+
                       </div>
 
                       <div className="text-right">
+
                         <p className="text-sm font-semibold">
                           {formatPrice(
                             item.subtotal
                           )}
                         </p>
+
                       </div>
+
                     </div>
                   ))}
+
                 </div>
               </div>
 
               <div className="border-t border-black/10 px-5 py-5 sm:px-6">
+
                 <div className="space-y-3 text-sm">
+
                   <div className="flex justify-between text-gray-500">
+
                     <span>Subtotal</span>
 
                     <span className="font-medium text-black">
@@ -1927,12 +2042,13 @@ if (!authorizationUrl) {
                         subtotal
                       )}
                     </span>
+
                   </div>
 
                   {/* COUPON */}
-
                   {!appliedCoupon ? (
                     <div className="pt-2">
+
                       <div className="mb-2">
                         <span className="text-xs font-medium text-black">
                           Have a coupon?
@@ -1940,6 +2056,7 @@ if (!authorizationUrl) {
                       </div>
 
                       <div className="flex gap-2">
+
                         <input
                           type="text"
                           value={couponCode}
@@ -1968,7 +2085,6 @@ if (!authorizationUrl) {
                           }}
                           placeholder="ENTER CODE"
                           className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
-                          
                         />
 
                         <button
@@ -1985,6 +2101,7 @@ if (!authorizationUrl) {
                             ? "..."
                             : "Apply"}
                         </button>
+
                       </div>
 
                       {couponError && (
@@ -1992,16 +2109,21 @@ if (!authorizationUrl) {
                           {couponError}
                         </p>
                       )}
+
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-black/10 bg-[#fafafa] p-3.5">
+
                       <div className="flex items-center justify-between gap-3">
+
                         <div className="flex min-w-0 items-center gap-2.5">
+
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black text-white">
                             ✓
                           </div>
 
                           <div className="min-w-0">
+
                             <p className="text-xs font-semibold">
                               Coupon applied
                             </p>
@@ -2009,7 +2131,9 @@ if (!authorizationUrl) {
                             <p className="mt-0.5 truncate text-[10px] uppercase tracking-wider text-gray-500">
                               {appliedCoupon.code}
                             </p>
+
                           </div>
+
                         </div>
 
                         <button
@@ -2021,12 +2145,14 @@ if (!authorizationUrl) {
                         >
                           Remove
                         </button>
+
                       </div>
                     </div>
                   )}
 
                   {appliedCoupon && (
                     <div className="flex justify-between text-sm text-green-600">
+
                       <span>
                         Discount
                       </span>
@@ -2037,10 +2163,12 @@ if (!authorizationUrl) {
                           discount
                         )}
                       </span>
+
                     </div>
                   )}
 
                   <div className="flex justify-between text-gray-500">
+
                     <span>
                       {deliveryMethod ===
                       "pickup"
@@ -2055,12 +2183,15 @@ if (!authorizationUrl) {
                           )
                         : "—"}
                     </span>
+
                   </div>
 
                   <div className="my-4 h-px bg-black/10" />
 
                   <div className="flex items-end justify-between">
+
                     <div>
+
                       <p className="text-sm font-medium">
                         Total
                       </p>
@@ -2068,9 +2199,11 @@ if (!authorizationUrl) {
                       <p className="mt-1 text-[10px] uppercase tracking-wider text-gray-400">
                         Including delivery
                       </p>
+
                     </div>
 
                     <div className="text-right">
+
                       {appliedCoupon && (
                         <p className="mb-1 text-xs text-gray-400 line-through">
                           {formatPrice(
@@ -2085,8 +2218,10 @@ if (!authorizationUrl) {
                           finalTotal
                         )}
                       </p>
+
                     </div>
                   </div>
+
                 </div>
 
                 <button
@@ -2098,6 +2233,7 @@ if (!authorizationUrl) {
                   }
                   className="mt-6 flex w-full items-center justify-center gap-3 rounded-full bg-black px-6 py-4 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
+
                   {placingOrder ||
                   paymentLoading ? (
                     <>
@@ -2124,9 +2260,11 @@ if (!authorizationUrl) {
                       </svg>
                     </>
                   )}
+
                 </button>
 
                 <div className="mt-5 flex items-start gap-2 text-[10px] leading-4 text-gray-400">
+
                   <svg
                     className="mt-0.5 shrink-0"
                     width="13"
@@ -2147,18 +2285,22 @@ if (!authorizationUrl) {
                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                   </svg>
 
-                 <button
-  type="button"
-  onClick={() => setPrivacyOpen(true)}
-  className="text-left underline underline-offset-2 transition hover:text-black"
->
-  Your information is securely handled during checkout.
-  View our Privacy Policy.
-</button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPrivacyOpen(true)
+                    }
+                    className="text-left underline underline-offset-2 transition hover:text-black"
+                  >
+                    Your information is securely handled during checkout.
+                    View our Privacy Policy.
+                  </button>
+
                 </div>
 
                 {hasPreorderItems && (
                   <div className="mt-4 rounded-2xl bg-[#fafafa] p-4">
+
                     <p className="text-[10px] font-semibold uppercase tracking-[0.15em]">
                       Pre-order payment
                     </p>
@@ -2169,11 +2311,14 @@ if (!authorizationUrl) {
                       secure Paystack payment
                       process.
                     </p>
+
                   </div>
                 )}
+
               </div>
             </div>
           </aside>
+
         </form>
       </div>
     </main>

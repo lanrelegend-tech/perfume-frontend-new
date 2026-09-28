@@ -473,12 +473,7 @@ export default function ProductDetailsPage() {
       try {
         setOrdersLoading(true);
 
-        const token =
-          typeof window !== "undefined"
-            ? localStorage.getItem(
-                "access_token"
-              )
-            : null;
+       
 
         /*
           Try the admin orders endpoint first.
@@ -497,15 +492,13 @@ export default function ProductDetailsPage() {
         for (const endpoint of endpoints) {
           try {
             const response = await fetch(
-              endpoint,
-              {
-                headers: token
-                  ? {
-                      Authorization: `Bearer ${token}`,
-                    }
-                  : {},
-              }
-            );
+  endpoint,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
             if (
               response.status === 401 ||
@@ -716,38 +709,46 @@ export default function ProductDetailsPage() {
     if (!confirmed) return;
 
     try {
-      const token =
-        localStorage.getItem(
-          "access_token"
-        );
+  const csrfResponse = await fetch(
+    `${API_URL}/auth/csrf/`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
 
-      const response = await fetch(
+  const csrfData = await csrfResponse
+    .json()
+    .catch(() => ({}));
+
+  if (
+    !csrfResponse.ok ||
+    !csrfData?.csrfToken
+  ) {
+    throw new Error(
+      "Unable to initialize secure request. Please refresh and try again."
+    );
+  }
+
+  const response = await fetch(
         `${API_URL}/products/admin/${product.id}/`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+       {
+  method: "DELETE",
+  credentials: "include",
+  headers: {
+    "X-CSRFToken": csrfData.csrfToken,
+  },
+}
       );
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        localStorage.removeItem(
-          "access_token"
-        );
-
-        localStorage.removeItem(
-          "refresh_token"
-        );
-
-        router.push("/admin/login");
-
-        return;
-      }
-
+     if (
+  response.status === 401 ||
+  response.status === 403
+) {
+  router.push("/admin/login");
+  return;
+}
       if (!response.ok) {
         throw new Error(
           "Failed to delete product"

@@ -42,8 +42,8 @@ export default function CouponsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [currentTime, setCurrentTime] = useState(() =>
-  Date.now()
-        );
+    Date.now()
+  );
 
   const [showModal, setShowModal] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState(null);
@@ -65,14 +65,7 @@ export default function CouponsPage() {
   |--------------------------------------------------------------------------
   */
 
-  const getToken = () => {
-    return localStorage.getItem("access_token");
-  };
-
   const handleUnauthorized = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-
     router.push("/admin/login");
   };
 
@@ -87,34 +80,21 @@ export default function CouponsPage() {
       setLoading(true);
       setError("");
 
-      const token = getToken();
-
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
       const response = await fetch(
         `${API_URL}/coupons/admin/`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+          credentials: "include",
           cache: "no-store",
         }
       );
 
-      if (response.status === 401) {
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
         handleUnauthorized();
         return;
-      }
-
-      if (response.status === 403) {
-        throw new Error(
-          "You do not have permission to manage coupons."
-        );
       }
 
       if (!response.ok) {
@@ -142,7 +122,7 @@ export default function CouponsPage() {
 
         If it returns:
         [...]
-        
+
         we use the array directly.
       */
       const couponList = Array.isArray(data)
@@ -167,22 +147,22 @@ export default function CouponsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCoupons();
-    
   }, []);
 
-
-
   useEffect(() => {
-  const updateTime = () => {
-    setCurrentTime(Date.now());
-  };
+    const updateTime = () => {
+      setCurrentTime(Date.now());
+    };
 
-  updateTime();
+    updateTime();
 
-  const interval = setInterval(updateTime, 60000);
+    const interval = setInterval(
+      updateTime,
+      60000
+    );
 
-  return () => clearInterval(interval);
-}, []);
+    return () => clearInterval(interval);
+  }, []);
 
   /*
   |--------------------------------------------------------------------------
@@ -237,13 +217,13 @@ export default function CouponsPage() {
   };
 
   const isExpired = (coupon) => {
-  if (!coupon.expires_at) return false;
+    if (!coupon.expires_at) return false;
 
-  return (
-    new Date(coupon.expires_at).getTime() <
-    currentTime
-  );
-};
+    return (
+      new Date(coupon.expires_at).getTime() <
+      currentTime
+    );
+  };
 
   const getCouponStatus = (coupon) => {
     if (isExpired(coupon)) {
@@ -309,47 +289,49 @@ export default function CouponsPage() {
   |--------------------------------------------------------------------------
   */
 
-const filteredCoupons = useMemo(() => {
-  return coupons.filter((coupon) => {
-    const code = String(
-      coupon.code || ""
-    ).toLowerCase();
+  const filteredCoupons = useMemo(() => {
+    return coupons.filter((coupon) => {
+      const code = String(
+        coupon.code || ""
+      ).toLowerCase();
 
-    const matchesSearch = code.includes(
-      search.toLowerCase()
-    );
+      const matchesSearch = code.includes(
+        search.toLowerCase()
+      );
 
-    let status = "Inactive";
+      let status = "Inactive";
 
-    if (coupon.expires_at) {
-      const expired =
-        new Date(coupon.expires_at).getTime() <
-        currentTime;
+      if (coupon.expires_at) {
+        const expired =
+          new Date(
+            coupon.expires_at
+          ).getTime() < currentTime;
 
-      if (expired) {
-        status = "Expired";
+        if (expired) {
+          status = "Expired";
+        } else if (coupon.is_active) {
+          status = "Active";
+        }
       } else if (coupon.is_active) {
         status = "Active";
       }
-    } else if (coupon.is_active) {
-      status = "Active";
-    }
 
-    const matchesStatus =
-      statusFilter === "All" ||
-      status === statusFilter;
+      const matchesStatus =
+        statusFilter === "All" ||
+        status === statusFilter;
 
-    return (
-      matchesSearch &&
-      matchesStatus
-    );
-  });
-}, [
-  coupons,
-  search,
-  statusFilter,
-  currentTime,
-]);
+      return (
+        matchesSearch &&
+        matchesStatus
+      );
+    });
+  }, [
+    coupons,
+    search,
+    statusFilter,
+    currentTime,
+  ]);
+
   /*
   |--------------------------------------------------------------------------
   | STATS
@@ -457,13 +439,13 @@ const filteredCoupons = useMemo(() => {
       form.minOrder || 0
     );
 
-    const maximumDiscount =
-      Number(
-        form.maximumDiscount || 0
-      );
+    const maximumDiscount = Number(
+      form.maximumDiscount || 0
+    );
 
-    const usageLimit =
-      Number(form.usageLimit || 0);
+    const usageLimit = Number(
+      form.usageLimit || 0
+    );
 
     if (!code) {
       setError(
@@ -520,11 +502,26 @@ const filteredCoupons = useMemo(() => {
     try {
       setSaving(true);
 
-      const token = getToken();
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
-      if (!token) {
-        handleUnauthorized();
-        return;
+      const csrfData = await csrfResponse
+        .json()
+        .catch(() => ({}));
+
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        throw new Error(
+          "Unable to initialize secure request. Please refresh and try again."
+        );
       }
 
       /*
@@ -556,27 +553,22 @@ const filteredCoupons = useMemo(() => {
         ? "PATCH"
         : "POST";
 
-      const response = await fetch(
-        url,
-        {
-          method,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfData.csrfToken,
+        },
+        body: JSON.stringify(payload),
+      });
 
-      if (response.status === 401) {
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
         handleUnauthorized();
         return;
-      }
-
-      if (response.status === 403) {
-        throw new Error(
-          "You do not have permission to manage coupons."
-        );
       }
 
       if (!response.ok) {
@@ -662,33 +654,45 @@ const filteredCoupons = useMemo(() => {
       setError("");
       setSuccess("");
 
-      const token = getToken();
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
-      if (!token) {
-        handleUnauthorized();
-        return;
+      const csrfData = await csrfResponse
+        .json()
+        .catch(() => ({}));
+
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        throw new Error(
+          "Unable to initialize secure request. Please refresh and try again."
+        );
       }
 
       const response = await fetch(
         `${API_URL}/coupons/admin/${id}/`,
         {
           method: "DELETE",
+          credentials: "include",
           headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
+            "X-CSRFToken": csrfData.csrfToken,
           },
         }
       );
 
-      if (response.status === 401) {
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
         handleUnauthorized();
         return;
-      }
-
-      if (response.status === 403) {
-        throw new Error(
-          "You do not have permission to delete coupons."
-        );
       }
 
       if (!response.ok) {
@@ -747,20 +751,36 @@ const filteredCoupons = useMemo(() => {
       setError("");
       setSuccess("");
 
-      const token = getToken();
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
-      if (!token) {
-        handleUnauthorized();
-        return;
+      const csrfData = await csrfResponse
+        .json()
+        .catch(() => ({}));
+
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        throw new Error(
+          "Unable to initialize secure request. Please refresh and try again."
+        );
       }
 
       const response = await fetch(
         `${API_URL}/coupons/admin/${coupon.id}/`,
         {
           method: "PATCH",
+          credentials: "include",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "X-CSRFToken": csrfData.csrfToken,
           },
           body: JSON.stringify({
             is_active:
@@ -769,15 +789,12 @@ const filteredCoupons = useMemo(() => {
         }
       );
 
-      if (response.status === 401) {
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
         handleUnauthorized();
         return;
-      }
-
-      if (response.status === 403) {
-        throw new Error(
-          "You do not have permission to update coupons."
-        );
       }
 
       if (!response.ok) {
@@ -855,16 +872,49 @@ const filteredCoupons = useMemo(() => {
   |--------------------------------------------------------------------------
   */
 
-  const logout = () => {
-    localStorage.removeItem(
-      "access_token"
-    );
+  const logout = async () => {
+    try {
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
-    localStorage.removeItem(
-      "refresh_token"
-    );
+      const csrfData = await csrfResponse
+        .json()
+        .catch(() => ({}));
 
-    router.push("/admin/login");
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        throw new Error(
+          "Unable to initialize secure logout."
+        );
+      }
+
+      await fetch(
+        `${API_URL}/auth/logout/`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "X-CSRFToken":
+              csrfData.csrfToken,
+          },
+        }
+      );
+    } catch (err) {
+      console.error(
+        "LOGOUT ERROR:",
+        err
+      );
+    } finally {
+      router.push("/admin/login");
+    }
   };
 
   /*

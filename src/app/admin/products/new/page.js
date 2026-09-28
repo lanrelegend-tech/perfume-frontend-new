@@ -328,12 +328,7 @@ export default function AddProductPage() {
       return;
     }
 
-    const token = localStorage.getItem("access_token");
-
-    if (!token) {
-      router.push("/admin/login");
-      return;
-    }
+    
 
     setLoading(true);
 
@@ -438,16 +433,40 @@ export default function AddProductPage() {
       // ------------------------------------------------
       // CREATE PRODUCT
       // ------------------------------------------------
-      const response = await fetch(
-        `${API_URL}/products/admin/`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const csrfResponse = await fetch(
+  `${API_URL}/auth/csrf/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
+
+const csrfData = await csrfResponse
+  .json()
+  .catch(() => ({}));
+
+if (
+  !csrfResponse.ok ||
+  !csrfData?.csrfToken
+) {
+  setError(
+    "Unable to initialize secure request. Please refresh and try again."
+  );
+  return;
+}
+
+const response = await fetch(
+  `${API_URL}/products/admin/`,
+  {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "X-CSRFToken": csrfData.csrfToken,
+    },
+    body: formData,
+  }
+);
 
       const data = await response
         .json()
@@ -457,21 +476,12 @@ export default function AddProductPage() {
       // AUTH ERROR
       // ------------------------------------------------
       if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        localStorage.removeItem(
-          "access_token"
-        );
-
-        localStorage.removeItem(
-          "refresh_token"
-        );
-
-        router.push("/admin/login");
-        return;
-      }
-
+  response.status === 401 ||
+  response.status === 403
+) {
+  router.push("/admin/login");
+  return;
+}
       // ------------------------------------------------
       // API ERROR
       // ------------------------------------------------
@@ -506,16 +516,17 @@ export default function AddProductPage() {
           }
         });
 
-        const imageResponse = await fetch(
-          `${API_URL}/products/admin/images/bulk/`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            body: imageFormData,
-          }
-        );
+      const imageResponse = await fetch(
+  `${API_URL}/products/admin/images/bulk/`,
+  {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "X-CSRFToken": csrfData.csrfToken,
+    },
+    body: imageFormData,
+  }
+);
 
         const imageData =
           await imageResponse

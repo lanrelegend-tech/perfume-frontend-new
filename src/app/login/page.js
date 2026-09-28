@@ -39,6 +39,29 @@ function LoginPageContent() {
     }
   }
 
+  async function getCSRFToken() {
+    const response = await fetch(
+      `${API_URL}/auth/csrf/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    const data = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok || !data?.csrfToken) {
+      throw new Error(
+        "Unable to initialize secure login. Please try again."
+      );
+    }
+
+    return data.csrfToken;
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
 
@@ -46,29 +69,72 @@ function LoginPageContent() {
     setSuccess("");
 
     if (!form.email.trim() || !form.password) {
-      setError("Please enter your email and password.");
+      setError(
+        "Please enter your email and password."
+      );
       return;
     }
 
     try {
       setLoading(true);
 
-      const response = await fetch(`${API_URL}/auth/login/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: form.email.trim(),
-          password: form.password,
-        }),
-      });
+      /*
+       * =====================================================
+       * GET CSRF TOKEN
+       * =====================================================
+       *
+       * Django creates the csrftoken cookie here.
+       * The token is returned so we can send it in the
+       * X-CSRFToken header.
+       */
 
-      const data = await response.json().catch(() => ({}));
+      const csrfToken = await getCSRFToken();
 
-      console.log("LOGIN STATUS:", response.status);
-      console.log("LOGIN RESPONSE:", data);
-      console.log("LOGIN ERROR VALUE:", data?.error);
+      /*
+       * =====================================================
+       * LOGIN
+       * =====================================================
+       *
+       * The JWT access and refresh tokens are NOT stored
+       * in localStorage.
+       *
+       * Django sends them back as HttpOnly cookies.
+       */
+
+      const response = await fetch(
+        `${API_URL}/auth/login/`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
+          body: JSON.stringify({
+            email: form.email.trim(),
+            password: form.password,
+          }),
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      console.log(
+        "LOGIN STATUS:",
+        response.status
+      );
+
+      console.log(
+        "LOGIN RESPONSE:",
+        data
+      );
+
+      console.log(
+        "LOGIN ERROR VALUE:",
+        data?.error
+      );
 
       if (!response.ok) {
         /*
@@ -82,21 +148,26 @@ function LoginPageContent() {
           data?.error?.[0] === "email_not_verified"
         ) {
           try {
-            const resendResponse = await fetch(
-              `${API_URL}/users/resend-verification/`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  email: form.email.trim(),
-                }),
-              }
-            );
+            const resendResponse =
+              await fetch(
+                `${API_URL}/users/resend-verification/`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type":
+                      "application/json",
+                  },
+                  body: JSON.stringify({
+                    email:
+                      form.email.trim(),
+                  }),
+                }
+              );
 
             const resendData =
-              await resendResponse.json().catch(() => ({}));
+              await resendResponse
+                .json()
+                .catch(() => ({}));
 
             if (!resendResponse.ok) {
               throw new Error(
@@ -115,7 +186,7 @@ function LoginPageContent() {
             );
 
             setError(
-              "Your email is not verified, but we couldnapos;t send a new verification email right now. Please try again later."
+              "Your email is not verified, but we couldn't send a new verification email right now. Please try again later."
             );
           }
 
@@ -134,36 +205,18 @@ function LoginPageContent() {
         throw new Error(message);
       }
 
-      const accessToken =
-        data?.access ||
-        data?.access_token ||
-        data?.token;
-
-      const refreshToken =
-        data?.refresh ||
-        data?.refresh_token;
-
-      if (!accessToken) {
-        throw new Error(
-          "Login succeeded, but no access token was returned."
-        );
-      }
-
-      localStorage.setItem(
-        "access_token",
-        accessToken
-      );
-
-      if (refreshToken) {
-        localStorage.setItem(
-          "refresh_token",
-          refreshToken
-        );
-      }
+      /*
+       * =====================================================
+       * LOGIN SUCCESSFUL
+       * =====================================================
+       */
 
       const next = searchParams.get("next");
 
-      if (next && next.startsWith("/")) {
+      if (
+        next &&
+        next.startsWith("/")
+      ) {
         router.push(next);
       } else {
         router.push("/account");
@@ -171,7 +224,10 @@ function LoginPageContent() {
 
       router.refresh();
     } catch (err) {
-      console.error("Login error:", err);
+      console.error(
+        "Login error:",
+        err
+      );
 
       setError(
         err.message ||
@@ -257,33 +313,36 @@ function LoginPageContent() {
 
             </div>
 
-           {/* =================================================
-    HEADER
-================================================= */}
+            {/* =================================================
+                HEADER
+            ================================================= */}
 
-<div className="mb-9">
+            <div className="mb-9">
 
-  <Link
-    href="/"
-    className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-black"
-  >
-    <span aria-hidden="true">←</span>
-    Back to Home
-  </Link>
+              <Link
+                href="/"
+                className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-neutral-500 transition hover:text-black"
+              >
+                <span aria-hidden="true">
+                  ←
+                </span>
 
-  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
-    My account
-  </p>
+                Back to Home
+              </Link>
 
-  <h2 className="text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
-    Sign in to your account
-  </h2>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
+                My account
+              </p>
 
-  <p className="mt-3 text-sm leading-6 text-neutral-500">
-    Enter your email and password to access your ORENTEMIST account.
-  </p>
+              <h2 className="text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
+                Sign in to your account
+              </h2>
 
-</div>
+              <p className="mt-3 text-sm leading-6 text-neutral-500">
+                Enter your email and password to access your ORENTEMIST account.
+              </p>
+
+            </div>
 
             {/* =================================================
                 SUCCESS MESSAGE
@@ -310,7 +369,9 @@ function LoginPageContent() {
                   <path d="m8 12 2.5 2.5L16 9" />
                 </svg>
 
-                <span>{success}</span>
+                <span>
+                  {success}
+                </span>
 
               </div>
             )}
@@ -341,7 +402,9 @@ function LoginPageContent() {
                   <path d="M12 16h.01" />
                 </svg>
 
-                <span>{error}</span>
+                <span>
+                  {error}
+                </span>
 
               </div>
             )}
@@ -517,7 +580,7 @@ function LoginPageContent() {
 
               <p className="text-sm text-neutral-500">
 
-                Donapos;t have an account?{" "}
+                Don't have an account?{" "}
 
                 <Link
                   href="/signup"

@@ -98,104 +98,126 @@ export default function AccountPage() {
 
 
   async function loadAccount() {
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("access_token")
-        : null;
+  try {
+    const headers = {
+      "Content-Type": "application/json",
+    };
 
-    if (!token) {
-      window.location.href = "/login";
+    const [
+      userResponse,
+      profileResponse,
+      ordersResponse,
+    ] = await Promise.all([
+      fetch(`${API_URL}/auth/me/`, {
+        method: "GET",
+        credentials: "include",
+        headers,
+        cache: "no-store",
+      }),
+
+      fetch(`${API_URL}/auth/profile/`, {
+        method: "GET",
+        credentials: "include",
+        headers,
+        cache: "no-store",
+      }),
+
+      fetch(`${API_URL}/orders/my-orders/`, {
+        method: "GET",
+        credentials: "include",
+        headers,
+        cache: "no-store",
+      }),
+    ]);
+
+    if (
+      userResponse.status === 401 ||
+      profileResponse.status === 401 ||
+      ordersResponse.status === 401
+    ) {
+      handleLogout();
       return;
     }
 
-    try {
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      };
+    if (userResponse.ok) {
+      const userData =
+        await userResponse.json();
 
-      const [
-        userResponse,
-        profileResponse,
-        ordersResponse,
-      ] = await Promise.all([
-        fetch(`${API_URL}/auth/me/`, {
-          headers,
-        }),
-
-        fetch(`${API_URL}/auth/profile/`, {
-          headers,
-        }),
-
-        fetch(`${API_URL}/orders/my-orders/`, {
-          headers,
-        }),
-      ]);
-
-
-      if (
-        userResponse.status === 401 ||
-        profileResponse.status === 401 ||
-        ordersResponse.status === 401
-      ) {
-        handleLogout();
-        return;
-      }
-
-
-      if (userResponse.ok) {
-        const userData =
-          await userResponse.json();
-
-        setUser(userData);
-      }
-
-
-      if (profileResponse.ok) {
-        const profileData =
-          await profileResponse.json();
-
-        setProfile(profileData);
-      }
-
-
-      if (ordersResponse.ok) {
-        const ordersData =
-          await ordersResponse.json();
-
-        if (Array.isArray(ordersData)) {
-          setOrders(ordersData);
-        } else if (
-          Array.isArray(ordersData?.results)
-        ) {
-          setOrders(ordersData.results);
-        }
-      }
-
-    } catch (error) {
-      console.error(
-        "Failed to load account:",
-        error
-      );
-
-      setError(
-        "We couldnapos;t load your account right now."
-      );
-
-    } finally {
-      setLoading(false);
-      setOrdersLoading(false);
+      setUser(userData);
     }
+
+    if (profileResponse.ok) {
+      const profileData =
+        await profileResponse.json();
+
+      setProfile(profileData);
+    }
+
+    if (ordersResponse.ok) {
+      const ordersData =
+        await ordersResponse.json();
+
+      if (Array.isArray(ordersData)) {
+        setOrders(ordersData);
+      } else if (
+        Array.isArray(ordersData?.results)
+      ) {
+        setOrders(ordersData.results);
+      }
+    }
+
+  } catch (error) {
+    console.error(
+      "Failed to load account:",
+      error
+    );
+
+    setError(
+      "We couldn't load your account right now."
+    );
+
+  } finally {
+    setLoading(false);
+    setOrdersLoading(false);
   }
+}
 
+async function handleLogout() {
+  try {
+    const csrfResponse = await fetch(
+      `${API_URL}/auth/csrf/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
 
-  function handleLogout() {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    const csrfData =
+      await csrfResponse.json().catch(() => ({}));
 
+    if (csrfData?.csrfToken) {
+      await fetch(
+        `${API_URL}/auth/logout/`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfData.csrfToken,
+          },
+        }
+      );
+    }
+  } catch (error) {
+    console.error(
+      "Logout request failed:",
+      error
+    );
+  } finally {
     window.location.href = "/login";
   }
-
+}
 
   /* =========================================================
      USER DATA

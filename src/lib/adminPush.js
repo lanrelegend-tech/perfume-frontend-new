@@ -5,23 +5,19 @@ const API_URL =
 const VAPID_PUBLIC_KEY =
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
-
 function urlBase64ToUint8Array(base64String) {
   const padding =
     "=".repeat(
       (4 - (base64String.length % 4)) % 4
     );
 
-  const base64 =
-    (
-      base64String +
-      padding
-    )
-      .replace(/-/g, "+")
-      .replace(/_/g, "/");
+  const base64 = (
+    base64String + padding
+  )
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
 
-  const rawData =
-    window.atob(base64);
+  const rawData = window.atob(base64);
 
   return Uint8Array.from(
     [...rawData].map(
@@ -30,12 +26,55 @@ function urlBase64ToUint8Array(base64String) {
   );
 }
 
+async function getCsrfToken() {
+  const response = await fetch(
+    `${API_URL}/users/auth/csrf/`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok || !data.csrfToken) {
+    throw new Error(
+      "Unable to get security token."
+    );
+  }
+
+  return data.csrfToken;
+}
+
+async function checkAuthentication() {
+  const response = await fetch(
+    `${API_URL}/users/me/`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
+
+  if (response.status === 401 || response.status === 403) {
+    return false;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      "Unable to verify your login session."
+    );
+  }
+
+  return true;
+}
 
 export async function enableAdminPush() {
- if (
-  typeof window === "undefined" ||
-  !("serviceWorker" in navigator)
-) {
+  if (
+    typeof window === "undefined" ||
+    !("serviceWorker" in navigator)
+  ) {
     throw new Error(
       "Push notifications are not supported on this device."
     );
@@ -53,12 +92,10 @@ export async function enableAdminPush() {
     );
   }
 
-  const token =
-    localStorage.getItem(
-      "access_token"
-    );
+  const isAuthenticated =
+    await checkAuthentication();
 
-  if (!token) {
+  if (!isAuthenticated) {
     throw new Error(
       "You are not logged in."
     );
@@ -72,21 +109,22 @@ export async function enableAdminPush() {
       "Notification permission was not granted."
     );
   }
+
   const registration =
-     await navigator.serviceWorker.register(
-    "/sw.js",
-    {
-      scope: "/",
-    }
-  );
+    await navigator.serviceWorker.register(
+      "/sw.js",
+      {
+        scope: "/",
+      }
+    );
 
   await navigator.serviceWorker.ready;
 
   if (!("pushManager" in registration)) {
-  throw new Error(
-    "Web Push is not available here. On iPhone, open the installed Admin app from your Home Screen."
-  );
-}
+    throw new Error(
+      "Web Push is not available here. On iPhone, open the installed Admin app from your Home Screen."
+    );
+  }
 
   let subscription =
     await registration.pushManager.getSubscription();
@@ -102,15 +140,20 @@ export async function enableAdminPush() {
       });
   }
 
+  const csrfToken =
+    await getCsrfToken();
+
   const response =
     await fetch(
       `${API_URL}/notifications/admin/push/subscribe/`,
       {
         method: "POST",
+        credentials: "include",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type":
             "application/json",
+          "X-CSRFToken":
+            csrfToken,
         },
         body: JSON.stringify(
           subscription.toJSON()
@@ -123,6 +166,15 @@ export async function enableAdminPush() {
       .json()
       .catch(() => ({}));
 
+  if (
+    response.status === 401 ||
+    response.status === 403
+  ) {
+    throw new Error(
+      "Your login session has expired. Please log in again."
+    );
+  }
+
   if (!response.ok) {
     throw new Error(
       data.detail ||
@@ -133,10 +185,20 @@ export async function enableAdminPush() {
   return subscription;
 }
 
-
 export async function disableAdminPush() {
+  if (
+    typeof window === "undefined" ||
+    !("serviceWorker" in navigator)
+  ) {
+    return;
+  }
+
   const registration =
     await navigator.serviceWorker.ready;
+
+  if (!("pushManager" in registration)) {
+    return;
+  }
 
   const subscription =
     await registration.pushManager.getSubscription();
@@ -145,27 +207,37 @@ export async function disableAdminPush() {
     return;
   }
 
-  const token =
-    localStorage.getItem(
-      "access_token"
-    );
+  const isAuthenticated =
+    await checkAuthentication();
 
-  if (token) {
-    await fetch(
-      `${API_URL}/notifications/admin/push/subscribe/`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          endpoint:
-            subscription.endpoint,
-        }),
-      }
-    );
+  if (isAuthenticated) {
+    try {
+      const csrfToken =
+        await getCsrfToken();
+
+      await fetch(
+        `${API_URL}/notifications/admin/push/subscribe/`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            "Content-Type":
+              "application/json",
+            "X-CSRFToken":
+              csrfToken,
+          },
+          body: JSON.stringify({
+            endpoint:
+              subscription.endpoint,
+          }),
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Unable to remove push subscription from server:",
+        error
+      );
+    }
   }
 
   await subscription.unsubscribe();

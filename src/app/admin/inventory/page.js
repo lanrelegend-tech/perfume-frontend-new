@@ -20,6 +20,10 @@ import {
   X,
 } from "lucide-react";
 
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || ""
+).replace(/\/$/, "");
+
 function getImageUrl(image) {
   if (!image) return "/placeholder-product.jpg";
 
@@ -30,15 +34,11 @@ function getImageUrl(image) {
     return image;
   }
 
-  const baseUrl = (
-    process.env.NEXT_PUBLIC_API_URL || ""
-  ).replace(/\/$/, "");
-
   const imagePath = image.startsWith("/")
     ? image
     : `/${image}`;
 
-  return `${baseUrl}${imagePath}`;
+  return `${API_URL}${imagePath}`;
 }
 
 export default function InventoryPage() {
@@ -65,6 +65,43 @@ export default function InventoryPage() {
   const [stockMessage, setStockMessage] = useState("");
 
   /*
+   * AUTH REDIRECT
+   */
+  const redirectToLogin = () => {
+    router.push("/admin/login");
+  };
+
+  /*
+   * CSRF TOKEN
+   */
+  const getCsrfToken = async () => {
+    const response = await fetch(
+      `${API_URL}/users/auth/csrf/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        "Unable to initialize secure session."
+      );
+    }
+
+    const data = await response.json();
+
+    if (!data?.csrfToken) {
+      throw new Error(
+        "Unable to get security token."
+      );
+    }
+
+    return data.csrfToken;
+  };
+
+  /*
    * LOAD PRODUCTS + CATEGORIES
    */
   useEffect(() => {
@@ -73,23 +110,42 @@ export default function InventoryPage() {
         setLoading(true);
         setError("");
 
-        const token =
-          localStorage.getItem("access_token");
+        /*
+         * VERIFY CURRENT COOKIE SESSION
+         */
+        const meResponse = await fetch(
+          `${API_URL}/users/me/`,
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          }
+        );
 
-        if (!token) {
-          router.push("/admin/login");
+        if (
+          meResponse.status === 401 ||
+          meResponse.status === 403
+        ) {
+          redirectToLogin();
           return;
         }
 
+        if (!meResponse.ok) {
+          throw new Error(
+            "Unable to verify your session."
+          );
+        }
+
+        /*
+         * LOAD PRODUCTS
+         */
         const productsResponse =
           await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/products/admin/`,
+            `${API_URL}/products/admin/`,
             {
               method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
+              credentials: "include",
+              cache: "no-store",
             }
           );
 
@@ -97,15 +153,7 @@ export default function InventoryPage() {
           productsResponse.status === 401 ||
           productsResponse.status === 403
         ) {
-          localStorage.removeItem(
-            "access_token"
-          );
-
-          localStorage.removeItem(
-            "refresh_token"
-          );
-
-          router.push("/admin/login");
+          redirectToLogin();
           return;
         }
 
@@ -135,8 +183,21 @@ export default function InventoryPage() {
         try {
           const categoriesResponse =
             await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL}/products/categories/`
+              `${API_URL}/products/categories/`,
+              {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+              }
             );
+
+          if (
+            categoriesResponse.status === 401 ||
+            categoriesResponse.status === 403
+          ) {
+            redirectToLogin();
+            return;
+          }
 
           if (categoriesResponse.ok) {
             const categoriesData =
@@ -243,6 +304,15 @@ export default function InventoryPage() {
           err
         );
 
+        if (
+          err?.message?.includes(
+            "session"
+          )
+        ) {
+          redirectToLogin();
+          return;
+        }
+
         setError(
           err.message ||
             "Unable to load inventory."
@@ -348,27 +418,26 @@ export default function InventoryPage() {
       setUpdatingStock(true);
       setStockMessage("");
 
-      const token =
-        localStorage.getItem(
-          "access_token"
-        );
-
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
+      /*
+       * GET CSRF TOKEN
+       */
+      const csrfToken =
+        await getCsrfToken();
 
       /*
-       * SEND UPDATED STOCK TO BACKEND
+       * SEND UPDATED STOCK
        */
       const response =
         await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/products/admin/${stockProduct.id}/`,
+          `${API_URL}/products/admin/${stockProduct.id}/`,
           {
             method: "PATCH",
+            credentials: "include",
             headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
+              "Content-Type":
+                "application/json",
+              "X-CSRFToken":
+                csrfToken,
             },
             body: JSON.stringify({
               stock_quantity: newStock,
@@ -388,15 +457,7 @@ export default function InventoryPage() {
         response.status === 401 ||
         response.status === 403
       ) {
-        localStorage.removeItem(
-          "access_token"
-        );
-
-        localStorage.removeItem(
-          "refresh_token"
-        );
-
-        router.push("/admin/login");
+        redirectToLogin();
         return;
       }
 
@@ -516,13 +577,23 @@ export default function InventoryPage() {
         const searchValue =
           search.toLowerCase();
 
+        const productName =
+          String(
+            product.name || ""
+          ).toLowerCase();
+
+        const productSku =
+          String(
+            product.sku || ""
+          ).toLowerCase();
+
         const matchesSearch =
-          product.name
-            .toLowerCase()
-            .includes(searchValue) ||
-          product.sku
-            .toLowerCase()
-            .includes(searchValue);
+          productName.includes(
+            searchValue
+          ) ||
+          productSku.includes(
+            searchValue
+          );
 
         const matchesStatus =
           statusFilter === "All" ||
@@ -665,7 +736,13 @@ export default function InventoryPage() {
 
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
-                  
+                  onClick={() => {
+                    if (products.length > 0) {
+                      openAddStock(
+                        products[0]
+                      );
+                    }
+                  }}
                   className="flex items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-black/80"
                 >
                   <Plus size={17} />
@@ -673,7 +750,13 @@ export default function InventoryPage() {
                 </button>
 
                 <button
-                  
+                  onClick={() => {
+                    if (products.length > 0) {
+                      openRemoveStock(
+                        products[0]
+                      );
+                    }
+                  }}
                   className="flex items-center justify-center gap-2 rounded-xl border border-black/15 bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-black/5"
                 >
                   <Minus size={17} />
@@ -784,7 +867,7 @@ export default function InventoryPage() {
                         e.target.value
                       )
                     }
-                    className="w-full rounded-xl border border-black/10 bg-[#fafafa] py-3 pl-11 pr-4 text-base sm:text-sm outline-none focus:border-black/30"
+                    className="w-full rounded-xl border border-black/10 bg-[#fafafa] py-3 pl-11 pr-4 text-base outline-none focus:border-black/30 sm:text-sm"
                   />
                 </div>
 
@@ -797,7 +880,7 @@ export default function InventoryPage() {
                       e.target.value
                     )
                   }
-                  className="rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base sm:text-sm outline-none"
+                  className="rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base outline-none sm:text-sm"
                 >
                   <option value="All">
                     All Categories
@@ -830,7 +913,7 @@ export default function InventoryPage() {
                       e.target.value
                     )
                   }
-                  className="rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base sm:text-sm outline-none"
+                  className="rounded-xl border border-black/10 bg-[#fafafa] px-4 py-3 text-base outline-none sm:text-sm"
                 >
                   <option value="All">
                     All Stock Status
@@ -1301,7 +1384,7 @@ export default function InventoryPage() {
                     : "e.g. 20"
                 }
                 autoFocus
-                className="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-base sm:text-sm outline-none transition focus:border-black/40"
+                className="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-base outline-none transition focus:border-black/40 sm:text-sm"
               />
 
               {stockAmount &&

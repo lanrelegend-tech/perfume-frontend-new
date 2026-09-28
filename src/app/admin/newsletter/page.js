@@ -47,18 +47,9 @@ export default function NewsletterPage() {
 
   const [notice, setNotice] = useState(null);
 
-  const getToken = () => {
-    return localStorage.getItem("access_token");
-  };
-
-  const authHeaders = () => {
-    const token = getToken();
-
-    return {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
-  };
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+});
 
   const showNotice = (type, title, message) => {
     setNotice({
@@ -71,31 +62,26 @@ export default function NewsletterPage() {
       setNotice(null);
     }, 5000);
   };
-
   const handleUnauthorized = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+  router.replace("/admin/login");
+};
 
-    window.location.href = "/admin/login";
-  };
+  
 
   const fetchSubscribers = async () => {
     try {
       setLoadingSubscribers(true);
 
-      const token = getToken();
 
-      if (!token) {
-        handleUnauthorized();
-        return;
-      }
-
-      const response = await fetch(
-        `${API_URL}/newsletter/subscribers/`,
-        {
-          headers: authHeaders(),
-        }
-      );
+     const response = await fetch(
+  `${API_URL}/newsletter/subscribers/`,
+  {
+    method: "GET",
+    credentials: "include",
+    headers: authHeaders(),
+    cache: "no-store",
+  }
+);
 
       if (
         response.status === 401 ||
@@ -141,19 +127,19 @@ export default function NewsletterPage() {
     try {
       setLoadingCampaigns(true);
 
-      const token = getToken();
 
-      if (!token) {
-        handleUnauthorized();
-        return;
-      }
+    const response = await fetch(
+  `${API_URL}/newsletter/campaigns/`,
+  {
+    method: "GET",
+    credentials: "include",
+    headers: authHeaders(),
+    cache: "no-store",
+  }
+);  
 
-      const response = await fetch(
-        `${API_URL}/newsletter/campaigns/`,
-        {
-          headers: authHeaders(),
-        }
-      );
+      
+
 
       if (
         response.status === 401 ||

@@ -24,23 +24,58 @@ export default function OrdersPage() {
   const router = useRouter();
 
   const [orders, setOrders] = useState([]);
-
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [openMenu, setOpenMenu] = useState(null);
 
-  const getToken = () => {
-    if (typeof window === "undefined") {
-      return null;
+  const getCsrfToken = async () => {
+    const response = await fetch(
+      `${API_URL}/users/auth/csrf/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    const data =
+      await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.csrfToken) {
+      throw new Error(
+        "Unable to get security token."
+      );
     }
 
-    return localStorage.getItem(
-      "access_token"
+    return data.csrfToken;
+  };
+
+  const checkAuthentication = async () => {
+    const response = await fetch(
+      `${API_URL}/users/me/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
     );
+
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      return false;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        "Unable to verify login session."
+      );
+    }
+
+    return true;
   };
 
   /*
@@ -88,23 +123,17 @@ export default function OrdersPage() {
       itemCount = order.items.reduce(
         (total, item) =>
           total +
-          Number(
-            item.quantity || 1
-          ),
+          Number(item.quantity || 1),
         0
       );
     } else if (
-      Array.isArray(
-        order.order_items
-      )
+      Array.isArray(order.order_items)
     ) {
       itemCount =
         order.order_items.reduce(
           (total, item) =>
             total +
-            Number(
-              item.quantity || 1
-            ),
+            Number(item.quantity || 1),
           0
         );
     } else {
@@ -145,9 +174,10 @@ export default function OrdersPage() {
       setLoading(true);
       setError("");
 
-      const token = getToken();
+      const authenticated =
+        await checkAuthentication();
 
-      if (!token) {
+      if (!authenticated) {
         router.push("/admin/login");
         return;
       }
@@ -156,11 +186,7 @@ export default function OrdersPage() {
         `${API_URL}/orders/admin/`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
+          credentials: "include",
           cache: "no-store",
         }
       );
@@ -169,16 +195,7 @@ export default function OrdersPage() {
         response.status === 401 ||
         response.status === 403
       ) {
-        localStorage.removeItem(
-          "access_token"
-        );
-
-        localStorage.removeItem(
-          "refresh_token"
-        );
-
         router.push("/admin/login");
-
         return;
       }
 
@@ -208,24 +225,16 @@ export default function OrdersPage() {
       const orderList =
         Array.isArray(data)
           ? data
-          : Array.isArray(
-              data.results
-            )
+          : Array.isArray(data.results)
           ? data.results
-          : Array.isArray(
-              data.orders
-            )
+          : Array.isArray(data.orders)
           ? data.orders
           : [];
 
       const formattedOrders =
-        orderList.map(
-          formatOrder
-        );
+        orderList.map(formatOrder);
 
-      setOrders(
-        formattedOrders
-      );
+      setOrders(formattedOrders);
     } catch (err) {
       console.error(
         "ORDERS API ERROR:",
@@ -245,15 +254,10 @@ export default function OrdersPage() {
   }, []);
 
   /*
-   * Normalize status values so that
-   * "paid", "Paid", "PAID", etc. work.
+   * Normalize status values.
    */
-  const normalizeStatus = (
-    value
-  ) => {
-    return String(
-      value || ""
-    )
+  const normalizeStatus = (value) => {
+    return String(value || "")
       .trim()
       .toLowerCase();
   };
@@ -261,9 +265,7 @@ export default function OrdersPage() {
   /*
    * Format status for display.
    */
-  const displayStatus = (
-    value
-  ) => {
+  const displayStatus = (value) => {
     const normalized =
       normalizeStatus(value);
 
@@ -280,24 +282,22 @@ export default function OrdersPage() {
       refunded: "Refunded",
     };
 
-    if (
-      statusMap[normalized]
-    ) {
-      return statusMap[
-        normalized
-      ];
+    if (statusMap[normalized]) {
+      return statusMap[normalized];
     }
 
     if (!value) {
       return "Pending";
     }
 
-    return String(value)
-      .charAt(0)
-      .toUpperCase() +
+    return (
+      String(value)
+        .charAt(0)
+        .toUpperCase() +
       String(value)
         .slice(1)
-        .toLowerCase();
+        .toLowerCase()
+    );
   };
 
   /*
@@ -305,117 +305,98 @@ export default function OrdersPage() {
    */
   const filteredOrders = useMemo(() => {
     const searchValue =
-      search
-        .toLowerCase()
-        .trim();
+      search.toLowerCase().trim();
 
-    return orders.filter(
-      (order) => {
-        const orderNumber =
-          String(
-            order.orderNumber ||
-              ""
-          ).toLowerCase();
+    return orders.filter((order) => {
+      const orderNumber =
+        String(
+          order.orderNumber || ""
+        ).toLowerCase();
 
-        const customer =
-          String(
-            order.customerName ||
-              ""
-          ).toLowerCase();
+      const customer =
+        String(
+          order.customerName || ""
+        ).toLowerCase();
 
-        const email =
-          String(
-            order.email || ""
-          ).toLowerCase();
+      const email =
+        String(
+          order.email || ""
+        ).toLowerCase();
 
-        const matchesSearch =
-          !searchValue ||
-          orderNumber.includes(
-            searchValue
-          ) ||
-          customer.includes(
-            searchValue
-          ) ||
-          email.includes(
-            searchValue
-          );
-
-        const currentStatus =
-          normalizeStatus(
-            order.orderStatus
-          );
-
-        let matchesStatus =
-          true;
-
-        if (
-          status !== "All"
-        ) {
-          const selectedStatus =
-            normalizeStatus(
-              status
-            );
-
-          matchesStatus =
-            currentStatus ===
-            selectedStatus;
-        }
-
-        return (
-          matchesSearch &&
-          matchesStatus
+      const matchesSearch =
+        !searchValue ||
+        orderNumber.includes(
+          searchValue
+        ) ||
+        customer.includes(
+          searchValue
+        ) ||
+        email.includes(
+          searchValue
         );
+
+      const currentStatus =
+        normalizeStatus(
+          order.orderStatus
+        );
+
+      let matchesStatus = true;
+
+      if (status !== "All") {
+        const selectedStatus =
+          normalizeStatus(status);
+
+        matchesStatus =
+          currentStatus ===
+          selectedStatus;
       }
-    );
-  }, [
-    orders,
-    search,
-    status,
-  ]);
+
+      return (
+        matchesSearch &&
+        matchesStatus
+      );
+    });
+  }, [orders, search, status]);
 
   /*
    * Statistics from REAL orders.
    */
-  const statistics =
-    useMemo(() => {
-      const total =
-        orders.length;
+  const statistics = useMemo(() => {
+    const total = orders.length;
 
-      const pending =
-        orders.filter(
-          (order) =>
-            normalizeStatus(
-              order.orderStatus
-            ) === "pending"
-        ).length;
+    const pending =
+      orders.filter(
+        (order) =>
+          normalizeStatus(
+            order.orderStatus
+          ) === "pending"
+      ).length;
 
-      const processing =
-        orders.filter(
-          (order) =>
-            normalizeStatus(
-              order.orderStatus
-            ) === "processing"
-        ).length;
+    const processing =
+      orders.filter(
+        (order) =>
+          normalizeStatus(
+            order.orderStatus
+          ) === "processing"
+      ).length;
 
-      const delivered =
-        orders.filter(
-          (order) =>
-            normalizeStatus(
-              order.orderStatus
-            ) === "delivered"
-        ).length;
+    const delivered =
+      orders.filter(
+        (order) =>
+          normalizeStatus(
+            order.orderStatus
+          ) === "delivered"
+      ).length;
 
-      return {
-        total,
-        pending,
-        processing,
-        delivered,
-      };
-    }, [orders]);
+    return {
+      total,
+      pending,
+      processing,
+      delivered,
+    };
+  }, [orders]);
 
-  const formatCurrency = (
-    amount
-  ) => {
+  const formatCurrency = (amount) => {
     return new Intl.NumberFormat(
       "en-NG",
       {
@@ -423,28 +404,17 @@ export default function OrdersPage() {
         currency: "NGN",
         maximumFractionDigits: 0,
       }
-    ).format(
-      Number(
-        amount || 0
-      )
-    );
+    ).format(Number(amount || 0));
   };
 
-  const formatDate = (
-    value
-  ) => {
+  const formatDate = (value) => {
     if (!value) {
       return "—";
     }
 
-    const date =
-      new Date(value);
+    const date = new Date(value);
 
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
+    if (Number.isNaN(date.getTime())) {
       return String(value);
     }
 
@@ -458,9 +428,7 @@ export default function OrdersPage() {
     );
   };
 
-  const handleViewOrder = (
-    order
-  ) => {
+  const handleViewOrder = (order) => {
     if (!order.id) {
       return;
     }
@@ -479,7 +447,6 @@ export default function OrdersPage() {
 
           {/* HEADER */}
           <header className="flex h-[82px] items-center justify-between border-b border-black/10 bg-white px-5 sm:px-8">
-
             <div>
               <p className="text-xs text-black/40">
                 ORENTEMIST ADMIN
@@ -491,7 +458,6 @@ export default function OrdersPage() {
             </div>
 
             <div className="flex items-center gap-3">
-
               <button className="hidden rounded-xl border border-black/10 p-3 sm:block">
                 <Search size={18} />
               </button>
@@ -503,9 +469,7 @@ export default function OrdersPage() {
               <button className="rounded-xl border border-black/10 p-3">
                 <MessageCircle size={18} />
               </button>
-
             </div>
-
           </header>
 
           {/* CONTENT */}
@@ -513,21 +477,12 @@ export default function OrdersPage() {
 
             {/* TITLE */}
             <div className="mb-8">
-
               <div className="mb-2 flex items-center gap-2 text-xs text-black/40">
+                <span>Dashboard</span>
 
-                <span>
-                  Dashboard
-                </span>
+                <ChevronRight size={13} />
 
-                <ChevronRight
-                  size={13}
-                />
-
-                <span>
-                  Orders
-                </span>
-
+                <span>Orders</span>
               </div>
 
               <h1 className="text-3xl font-semibold tracking-tight">
@@ -537,12 +492,10 @@ export default function OrdersPage() {
               <p className="mt-1 text-sm text-black/45">
                 Manage and track all ORENTEMIST customer orders.
               </p>
-
             </div>
 
             {/* STATS */}
             <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-
               <MiniCard
                 label="Total Orders"
                 value={statistics.total.toLocaleString()}
@@ -562,7 +515,6 @@ export default function OrdersPage() {
                 label="Delivered"
                 value={statistics.delivered.toLocaleString()}
               />
-
             </div>
 
             {/* ORDERS */}
@@ -570,12 +522,10 @@ export default function OrdersPage() {
 
               {/* FILTER BAR */}
               <div className="border-b border-black/10 p-4 sm:p-5">
-
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
 
                   {/* SEARCH */}
                   <div className="relative w-full xl:max-w-[380px]">
-
                     <Search
                       size={17}
                       className="absolute left-4 top-1/2 -translate-y-1/2 text-black/35"
@@ -589,7 +539,7 @@ export default function OrdersPage() {
                         )
                       }
                       placeholder="Search order, customer..."
-                      className="h-11 w-full rounded-xl border border-black/10 bg-[#fafafa] pl-11 pr-10 text-base sm:text-sm outline-none transition focus:border-black/30"
+                      className="h-11 w-full rounded-xl border border-black/10 bg-[#fafafa] pl-11 pr-10 text-base outline-none transition focus:border-black/30 sm:text-sm"
                     />
 
                     {search && (
@@ -602,14 +552,11 @@ export default function OrdersPage() {
                         <X size={16} />
                       </button>
                     )}
-
                   </div>
 
                   {/* FILTER */}
                   <div className="flex flex-wrap gap-3">
-
                     <div className="relative">
-
                       <select
                         value={status}
                         onChange={(e) =>
@@ -617,9 +564,8 @@ export default function OrdersPage() {
                             e.target.value
                           )
                         }
-                        className="h-11 appearance-none rounded-xl border border-black/10 bg-white pl-4 pr-10 text-base sm:text-sm outline-none"
+                        className="h-11 appearance-none rounded-xl border border-black/10 bg-white pl-4 pr-10 text-base outline-none sm:text-sm"
                       >
-
                         <option value="All">
                           All
                         </option>
@@ -647,467 +593,389 @@ export default function OrdersPage() {
                         <option value="Cancelled">
                           Cancelled
                         </option>
-
                       </select>
 
                       <ChevronDown
                         size={15}
                         className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-black/40"
                       />
-
                     </div>
 
                     <button className="flex h-11 items-center gap-2 rounded-xl border border-black/10 px-4 text-sm">
                       <Truck size={15} />
                       Delivery
                     </button>
-
                   </div>
-
                 </div>
-
               </div>
 
               {/* LOADING */}
               {loading && (
                 <div className="px-6 py-20 text-center">
-
                   <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-black/10 border-t-black" />
 
                   <p className="mt-4 text-sm text-black/40">
                     Loading orders...
                   </p>
-
                 </div>
               )}
 
               {/* ERROR */}
-              {!loading &&
-                error && (
-                  <div className="px-6 py-16 text-center">
+              {!loading && error && (
+                <div className="px-6 py-16 text-center">
+                  <ShoppingBag
+                    size={35}
+                    className="mx-auto mb-4 text-red-300"
+                  />
 
-                    <ShoppingBag
-                      size={35}
-                      className="mx-auto mb-4 text-red-300"
-                    />
+                  <h3 className="font-medium">
+                    Unable to load orders
+                  </h3>
 
-                    <h3 className="font-medium">
-                      Unable to load orders
-                    </h3>
+                  <p className="mt-1 text-sm text-black/40">
+                    {error}
+                  </p>
 
-                    <p className="mt-1 text-sm text-black/40">
-                      {error}
-                    </p>
+                  <button
+                    onClick={fetchOrders}
+                    className="mt-5 rounded-xl bg-black px-5 py-3 text-sm text-white"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
 
-                    <button
-                      onClick={
-                        fetchOrders
-                      }
-                      className="mt-5 rounded-xl bg-black px-5 py-3 text-sm text-white"
-                    >
-                      Try Again
-                    </button>
+              {/* ORDERS */}
+              {!loading && !error && (
+                <>
+                  {/* DESKTOP TABLE */}
+                  <div className="hidden overflow-x-auto md:block">
+                    <table className="w-full min-w-[1050px]">
+                      <thead>
+                        <tr className="border-b border-black/10 text-left text-xs uppercase tracking-wider text-black/40">
+                          <th className="px-6 py-4 font-medium">
+                            Order
+                          </th>
 
-                  </div>
-                )}
+                          <th className="px-6 py-4 font-medium">
+                            Customer
+                          </th>
 
-              {/* DESKTOP TABLE */}
-              {!loading &&
-                !error && (
-                  <>
-                    <div className="hidden overflow-x-auto md:block">
+                          <th className="px-6 py-4 font-medium">
+                            Date
+                          </th>
 
-                      <table className="w-full min-w-[1050px]">
+                          <th className="px-6 py-4 font-medium">
+                            Items
+                          </th>
 
-                        <thead>
+                          <th className="px-6 py-4 font-medium">
+                            Amount
+                          </th>
 
-                          <tr className="border-b border-black/10 text-left text-xs uppercase tracking-wider text-black/40">
+                          <th className="px-6 py-4 font-medium">
+                            Payment
+                          </th>
 
-                            <th className="px-6 py-4 font-medium">
-                              Order
-                            </th>
+                          <th className="px-6 py-4 font-medium">
+                            Status
+                          </th>
 
-                            <th className="px-6 py-4 font-medium">
-                              Customer
-                            </th>
+                          <th className="px-6 py-4 text-right font-medium">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
 
-                            <th className="px-6 py-4 font-medium">
-                              Date
-                            </th>
-
-                            <th className="px-6 py-4 font-medium">
-                              Items
-                            </th>
-
-                            <th className="px-6 py-4 font-medium">
-                              Amount
-                            </th>
-
-                            <th className="px-6 py-4 font-medium">
-                              Payment
-                            </th>
-
-                            <th className="px-6 py-4 font-medium">
-                              Status
-                            </th>
-
-                            <th className="px-6 py-4 text-right font-medium">
-                              Action
-                            </th>
-
-                          </tr>
-
-                        </thead>
-
-                        <tbody>
-
-                          {filteredOrders.map(
-                            (order) => (
-                              <tr
-                                key={
-                                  order.id
-                                }
-                                className="border-b border-black/5 transition hover:bg-black/[0.02]"
-                              >
-
-                                {/* ORDER */}
-                                <td className="px-6 py-5">
-
-                                  <p className="font-medium">
-                                    {order.orderNumber}
-                                  </p>
-
-                                  <p className="mt-1 text-xs text-black/40">
-                                    ORENTEMIST Store
-                                  </p>
-
-                                </td>
-
-                                {/* CUSTOMER */}
-                                <td className="px-6 py-5">
-
-                                  <p className="text-sm font-medium">
-                                    {
-                                      order.customerName
-                                    }
-                                  </p>
-
-                                  <p className="mt-1 text-xs text-black/40">
-                                    {
-                                      order.email ||
-                                        "—"
-                                    }
-                                  </p>
-
-                                </td>
-
-                                {/* DATE */}
-                                <td className="px-6 py-5 text-sm text-black/60">
-                                  {formatDate(
-                                    order.date
-                                  )}
-                                </td>
-
-                                {/* ITEMS */}
-                                <td className="px-6 py-5 text-sm">
-                                  {order.items ||
-                                    0}
-                                </td>
-
-                                {/* AMOUNT */}
-                                <td className="px-6 py-5 text-sm font-medium">
-                                  {formatCurrency(
-                                    order.amount
-                                  )}
-                                </td>
-
-                                {/* PAYMENT */}
-                                <td className="px-6 py-5">
-
-                                  <PaymentBadge
-                                    status={
-                                      displayStatus(
-                                        order.paymentStatus
-                                      )
-                                    }
-                                  />
-
-                                </td>
-
-                                {/* STATUS */}
-                                <td className="px-6 py-5">
-
-                                  <OrderStatus
-                                    status={
-                                      displayStatus(
-                                        order.orderStatus
-                                      )
-                                    }
-                                  />
-
-                                </td>
-
-                                {/* ACTION */}
-                                <td className="relative px-6 py-5 text-right">
-
-                                  <button
-                                    onClick={() =>
-                                      setOpenMenu(
-                                        openMenu ===
-                                          order.id
-                                          ? null
-                                          : order.id
-                                      )
-                                    }
-                                    className="rounded-lg p-2 transition hover:bg-black/5"
-                                  >
-                                    <MoreHorizontal
-                                      size={18}
-                                    />
-                                  </button>
-
-                                  {openMenu ===
-                                    order.id && (
-                                    <div className="absolute right-6 top-14 z-20 w-44 rounded-xl border border-black/10 bg-white p-1 text-left shadow-xl">
-
-                                      <button
-                                        onClick={() =>
-                                          handleViewOrder(
-                                            order
-                                          )
-                                        }
-                                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5"
-                                      >
-                                        <Eye
-                                          size={
-                                            15
-                                          }
-                                        />
-
-                                        View Order
-                                      </button>
-
-                                      <button
-                                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5"
-                                      >
-                                        <Truck
-                                          size={
-                                            15
-                                          }
-                                        />
-
-                                        Track Order
-                                      </button>
-
-                                    </div>
-                                  )}
-
-                                </td>
-
-                              </tr>
-                            )
-                          )}
-
-                        </tbody>
-
-                      </table>
-
-                    </div>
-
-                    {/* MOBILE */}
-                    <div className="divide-y divide-black/5 md:hidden">
-
-                      {filteredOrders.map(
-                        (order) => (
-                          <div
-                            key={
-                              order.id
-                            }
-                            className="p-5"
-                          >
-
-                            <div className="flex items-start justify-between gap-4">
-
-                              <div>
-
-                                <p className="font-semibold">
+                      <tbody>
+                        {filteredOrders.map(
+                          (order) => (
+                            <tr
+                              key={order.id}
+                              className="border-b border-black/5 transition hover:bg-black/[0.02]"
+                            >
+                              <td className="px-6 py-5">
+                                <p className="font-medium">
                                   {
                                     order.orderNumber
                                   }
                                 </p>
 
-                                <p className="mt-1 text-sm text-black/60">
+                                <p className="mt-1 text-xs text-black/40">
+                                  ORENTEMIST Store
+                                </p>
+                              </td>
+
+                              <td className="px-6 py-5">
+                                <p className="text-sm font-medium">
                                   {
                                     order.customerName
                                   }
                                 </p>
 
                                 <p className="mt-1 text-xs text-black/40">
-                                  {formatDate(
-                                    order.date
-                                  )}
+                                  {order.email ||
+                                    "—"}
                                 </p>
+                              </td>
 
-                              </div>
+                              <td className="px-6 py-5 text-sm text-black/60">
+                                {formatDate(
+                                  order.date
+                                )}
+                              </td>
 
-                              <button
-                                onClick={() =>
-                                  setOpenMenu(
-                                    openMenu ===
-                                      order.id
-                                      ? null
-                                      : order.id
-                                  )
-                                }
-                                className="rounded-lg p-1"
-                              >
-                                <MoreHorizontal
-                                  size={18}
+                              <td className="px-6 py-5 text-sm">
+                                {order.items ||
+                                  0}
+                              </td>
+
+                              <td className="px-6 py-5 text-sm font-medium">
+                                {formatCurrency(
+                                  order.amount
+                                )}
+                              </td>
+
+                              <td className="px-6 py-5">
+                                <PaymentBadge
+                                  status={displayStatus(
+                                    order.paymentStatus
+                                  )}
                                 />
-                              </button>
+                              </td>
 
-                            </div>
-
-                            <div className="mt-5 grid grid-cols-2 gap-4">
-
-                              <div>
-                                <p className="text-xs text-black/40">
-                                  Amount
-                                </p>
-
-                                <p className="mt-1 text-sm font-medium">
-                                  {formatCurrency(
-                                    order.amount
+                              <td className="px-6 py-5">
+                                <OrderStatus
+                                  status={displayStatus(
+                                    order.orderStatus
                                   )}
-                                </p>
-                              </div>
+                                />
+                              </td>
 
-                              <div>
-                                <p className="text-xs text-black/40">
-                                  Items
-                                </p>
-
-                                <p className="mt-1 text-sm">
-                                  {order.items ||
-                                    0}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-xs text-black/40">
-                                  Payment
-                                </p>
-
-                                <div className="mt-1">
-                                  <PaymentBadge
-                                    status={
-                                      displayStatus(
-                                        order.paymentStatus
-                                      )
-                                    }
-                                  />
-                                </div>
-                              </div>
-
-                              <div>
-                                <p className="text-xs text-black/40">
-                                  Status
-                                </p>
-
-                                <div className="mt-1">
-                                  <OrderStatus
-                                    status={
-                                      displayStatus(
-                                        order.orderStatus
-                                      )
-                                    }
-                                  />
-                                </div>
-                              </div>
-
-                            </div>
-
-                            {openMenu ===
-                              order.id && (
-                              <div className="mt-4 flex gap-2">
-
+                              <td className="relative px-6 py-5 text-right">
                                 <button
                                   onClick={() =>
-                                    handleViewOrder(
-                                      order
+                                    setOpenMenu(
+                                      openMenu ===
+                                        order.id
+                                        ? null
+                                        : order.id
                                     )
                                   }
-                                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm text-white"
+                                  className="rounded-lg p-2 transition hover:bg-black/5"
                                 >
-                                  <Eye
-                                    size={15}
+                                  <MoreHorizontal
+                                    size={18}
                                   />
-                                  View Order
                                 </button>
 
-                                <button className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-black/10 px-4 py-3 text-sm">
-                                  <Truck
-                                    size={15}
-                                  />
-                                  Track
-                                </button>
+                                {openMenu ===
+                                  order.id && (
+                                  <div className="absolute right-6 top-14 z-20 w-44 rounded-xl border border-black/10 bg-white p-1 text-left shadow-xl">
+                                    <button
+                                      onClick={() =>
+                                        handleViewOrder(
+                                          order
+                                        )
+                                      }
+                                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5"
+                                    >
+                                      <Eye
+                                        size={
+                                          15
+                                        }
+                                      />
+                                      View Order
+                                    </button>
 
-                              </div>
-                            )}
+                                    <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-black/5">
+                                      <Truck
+                                        size={
+                                          15
+                                        }
+                                      />
+                                      Track Order
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
+                  {/* MOBILE */}
+                  <div className="divide-y divide-black/5 md:hidden">
+                    {filteredOrders.map(
+                      (order) => (
+                        <div
+                          key={order.id}
+                          className="p-5"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="font-semibold">
+                                {
+                                  order.orderNumber
+                                }
+                              </p>
+
+                              <p className="mt-1 text-sm text-black/60">
+                                {
+                                  order.customerName
+                                }
+                              </p>
+
+                              <p className="mt-1 text-xs text-black/40">
+                                {formatDate(
+                                  order.date
+                                )}
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={() =>
+                                setOpenMenu(
+                                  openMenu ===
+                                    order.id
+                                    ? null
+                                    : order.id
+                                )
+                              }
+                              className="rounded-lg p-1"
+                            >
+                              <MoreHorizontal
+                                size={18}
+                              />
+                            </button>
                           </div>
-                        )
-                      )}
 
-                    </div>
+                          <div className="mt-5 grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs text-black/40">
+                                Amount
+                              </p>
 
-                    {/* EMPTY */}
-                    {filteredOrders.length ===
-                      0 && (
-                      <div className="px-6 py-16 text-center">
+                              <p className="mt-1 text-sm font-medium">
+                                {formatCurrency(
+                                  order.amount
+                                )}
+                              </p>
+                            </div>
 
-                        <ShoppingBag
-                          size={35}
-                          className="mx-auto mb-4 text-black/20"
-                        />
+                            <div>
+                              <p className="text-xs text-black/40">
+                                Items
+                              </p>
 
-                        <h3 className="font-medium">
-                          No orders found
-                        </h3>
+                              <p className="mt-1 text-sm">
+                                {order.items ||
+                                  0}
+                              </p>
+                            </div>
 
-                        <p className="mt-1 text-sm text-black/40">
-                          Try changing your search or status filter.
-                        </p>
+                            <div>
+                              <p className="text-xs text-black/40">
+                                Payment
+                              </p>
 
-                      </div>
+                              <div className="mt-1">
+                                <PaymentBadge
+                                  status={displayStatus(
+                                    order.paymentStatus
+                                  )}
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-xs text-black/40">
+                                Status
+                              </p>
+
+                              <div className="mt-1">
+                                <OrderStatus
+                                  status={displayStatus(
+                                    order.orderStatus
+                                  )}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {openMenu ===
+                            order.id && (
+                            <div className="mt-4 flex gap-2">
+                              <button
+                                onClick={() =>
+                                  handleViewOrder(
+                                    order
+                                  )
+                                }
+                                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm text-white"
+                              >
+                                <Eye
+                                  size={15}
+                                />
+                                View Order
+                              </button>
+
+                              <button className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-black/10 px-4 py-3 text-sm"
+                              >
+                                <Truck
+                                  size={15}
+                                />
+                                Track
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
                     )}
+                  </div>
 
-                    {/* FOOTER */}
-                    <div className="flex flex-col justify-between gap-4 border-t border-black/10 px-5 py-4 text-sm text-black/45 sm:flex-row sm:items-center">
+                  {/* EMPTY */}
+                  {filteredOrders.length ===
+                    0 && (
+                    <div className="px-6 py-16 text-center">
+                      <ShoppingBag
+                        size={35}
+                        className="mx-auto mb-4 text-black/20"
+                      />
 
-                      <p>
-                        Showing{" "}
-                        <span className="font-medium text-black">
-                          {
-                            filteredOrders.length
-                          }
-                        </span>{" "}
-                        of{" "}
-                        <span className="font-medium text-black">
-                          {orders.length}
-                        </span>{" "}
-                        orders
+                      <h3 className="font-medium">
+                        No orders found
+                      </h3>
+
+                      <p className="mt-1 text-sm text-black/40">
+                        Try changing your search
+                        or status filter.
                       </p>
-
                     </div>
+                  )}
 
-                  </>
-                )}
-
+                  {/* FOOTER */}
+                  <div className="flex flex-col justify-between gap-4 border-t border-black/10 px-5 py-4 text-sm text-black/45 sm:flex-row sm:items-center">
+                    <p>
+                      Showing{" "}
+                      <span className="font-medium text-black">
+                        {
+                          filteredOrders.length
+                        }
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-medium text-black">
+                        {orders.length}
+                      </span>{" "}
+                      orders
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
-
           </div>
-
         </div>
       </main>
     </div>
@@ -1118,13 +986,9 @@ export default function OrdersPage() {
    STAT CARD
 ================================= */
 
-function MiniCard({
-  label,
-  value,
-}) {
+function MiniCard({ label, value }) {
   return (
     <div className="rounded-2xl border border-black/10 bg-white p-5">
-
       <p className="text-xs text-black/40">
         {label}
       </p>
@@ -1132,7 +996,6 @@ function MiniCard({
       <p className="mt-2 text-2xl font-semibold">
         {value}
       </p>
-
     </div>
   );
 }
@@ -1141,12 +1004,9 @@ function MiniCard({
    PAYMENT BADGE
 ================================= */
 
-function PaymentBadge({
-  status,
-}) {
+function PaymentBadge({ status }) {
   const normalized =
-    String(status || "")
-      .toLowerCase();
+    String(status || "").toLowerCase();
 
   const isPaid =
     normalized === "paid";
@@ -1168,9 +1028,7 @@ function PaymentBadge({
    ORDER STATUS
 ================================= */
 
-function OrderStatus({
-  status,
-}) {
+function OrderStatus({ status }) {
   const styles = {
     Pending:
       "bg-yellow-50 text-yellow-700",

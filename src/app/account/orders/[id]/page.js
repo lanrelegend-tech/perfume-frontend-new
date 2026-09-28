@@ -127,11 +127,6 @@ function getItemTotal(item) {
   return getProductPrice(item) * getQuantity(item);
 }
 
-/*
-  IMPORTANT:
-  This uses the exact direct fields from the order object,
-  matching the working admin order page.
-*/
 function getAddress(order) {
   return {
     name: order?.full_name || "",
@@ -213,43 +208,33 @@ export default function OrderDetailsPage() {
         setLoading(true);
         setError("");
 
-        const token = localStorage.getItem("access_token");
-
-        if (!token) {
-          router.push("/login");
-          return;
-        }
-
         let response = await fetch(
           `${API_URL}/orders/${orderId}/`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
+            method: "GET",
+            credentials: "include",
             cache: "no-store",
           }
         );
 
         /*
           If direct order endpoint returns 404,
-          use the userapos;s orders endpoint.
+          use the user's orders endpoint.
         */
         if (!response.ok && response.status === 404) {
           const listResponse = await fetch(
             `${API_URL}/orders/my-orders/`,
             {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
+              method: "GET",
+              credentials: "include",
               cache: "no-store",
             }
           );
 
-          if (listResponse.status === 401) {
-            localStorage.removeItem("access_token");
-            localStorage.removeItem("refresh_token");
+          if (
+            listResponse.status === 401 ||
+            listResponse.status === 403
+          ) {
             router.push("/login");
             return;
           }
@@ -278,9 +263,10 @@ export default function OrderDetailsPage() {
           return;
         }
 
-        if (response.status === 401) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
+        if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
           router.push("/login");
           return;
         }
@@ -334,7 +320,7 @@ export default function OrderDetailsPage() {
           </h1>
 
           <p className="mt-3 text-sm leading-6 text-neutral-600">
-            {error || "We couldnapos;t find this order."}
+            {error || "We couldn't find this order."}
           </p>
 
           <Link
@@ -354,10 +340,6 @@ export default function OrderDetailsPage() {
     ? order.items
     : order.items?.results || [];
 
-  /*
-    Get address ONCE here.
-    No duplicate getAddress function inside the component.
-  */
   const address = getAddress(order);
 
   const subtotal = Number(
@@ -412,8 +394,7 @@ export default function OrderDetailsPage() {
     status === "cancelled" ||
     status === "canceled";
 
-  const isDelivered =
-    status === "delivered";
+  const isDelivered = status === "delivered";
 
   const isShipped =
     status === "shipped" ||
@@ -423,8 +404,7 @@ export default function OrderDetailsPage() {
     status === "processing" ||
     status === "confirmed";
 
-  const isPending =
-    status === "pending";
+  const isPending = status === "pending";
 
   const timeline = [
     {
@@ -435,7 +415,6 @@ export default function OrderDetailsPage() {
         !isPending &&
         !isCancelled,
     },
-
     {
       title: "Preparing your order",
       description:
@@ -445,7 +424,6 @@ export default function OrderDetailsPage() {
         isShipped ||
         isDelivered,
     },
-
     {
       title: "Order shipped",
       description:
@@ -454,7 +432,6 @@ export default function OrderDetailsPage() {
         isShipped ||
         isDelivered,
     },
-
     {
       title: "Order delivered",
       description:
@@ -479,8 +456,6 @@ export default function OrderDetailsPage() {
     <main className="min-h-screen bg-[#fafafa] pb-20">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
 
-        {/* BACK */}
-
         <Link
           href="/account"
           className="inline-flex items-center gap-2 text-sm font-medium text-neutral-600 transition hover:text-black"
@@ -498,8 +473,6 @@ export default function OrderDetailsPage() {
 
           Back to my account
         </Link>
-
-        {/* HEADER */}
 
         <div className="mt-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
 
@@ -536,11 +509,7 @@ export default function OrderDetailsPage() {
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_360px]">
 
-          {/* LEFT */}
-
           <div className="space-y-6">
-
-            {/* ORDER TRACKING */}
 
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
 
@@ -606,8 +575,6 @@ export default function OrderDetailsPage() {
                 )}
 
               </div>
-
-              {/* TRACKING DETAILS */}
 
               {(trackingNumber ||
                 courier) && (
@@ -686,8 +653,6 @@ export default function OrderDetailsPage() {
 
             </section>
 
-            {/* ITEMS */}
-
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
 
               <div className="border-b border-neutral-100 pb-6">
@@ -722,19 +687,13 @@ export default function OrderDetailsPage() {
                     (item, index) => {
 
                       const image =
-                        getProductImage(
-                          item
-                        );
+                        getProductImage(item);
 
                       const name =
-                        getProductName(
-                          item
-                        );
+                        getProductName(item);
 
                       const price =
-                        getProductPrice(
-                          item
-                        );
+                        getProductPrice(item);
 
                       const quantity =
                         getQuantity(item);
@@ -824,8 +783,6 @@ export default function OrderDetailsPage() {
 
             </section>
 
-            {/* DELIVERY ADDRESS */}
-
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
 
               <div className="border-b border-neutral-100 pb-6">
@@ -845,8 +802,6 @@ export default function OrderDetailsPage() {
 
                 <div className="grid gap-5 sm:grid-cols-2">
 
-                  {/* FULL NAME */}
-
                   <div>
 
                     <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
@@ -859,8 +814,6 @@ export default function OrderDetailsPage() {
                     </p>
 
                   </div>
-
-                  {/* PHONE */}
 
                   <div>
 
@@ -875,8 +828,6 @@ export default function OrderDetailsPage() {
 
                   </div>
 
-                  {/* STREET */}
-
                   <div className="sm:col-span-2">
 
                     <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
@@ -889,8 +840,6 @@ export default function OrderDetailsPage() {
                     </p>
 
                   </div>
-
-                  {/* CITY */}
 
                   <div>
 
@@ -905,8 +854,6 @@ export default function OrderDetailsPage() {
 
                   </div>
 
-                  {/* STATE */}
-
                   <div>
 
                     <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
@@ -919,8 +866,6 @@ export default function OrderDetailsPage() {
                     </p>
 
                   </div>
-
-                  {/* COUNTRY */}
 
                   <div>
 
@@ -942,11 +887,7 @@ export default function OrderDetailsPage() {
 
           </div>
 
-          {/* RIGHT SIDE */}
-
           <aside className="space-y-6">
-
-            {/* ORDER SUMMARY */}
 
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8 lg:sticky lg:top-6">
 
@@ -972,9 +913,7 @@ export default function OrderDetailsPage() {
                   </span>
 
                   <span className="text-sm font-semibold text-black">
-                    {formatPrice(
-                      subtotal
-                    )}
+                    {formatPrice(subtotal)}
                   </span>
 
                 </div>
@@ -987,10 +926,7 @@ export default function OrderDetailsPage() {
                     </span>
 
                     <span className="text-sm font-semibold text-green-600">
-                      -
-                      {formatPrice(
-                        discount
-                      )}
+                      -{formatPrice(discount)}
                     </span>
 
                   </div>
@@ -1004,9 +940,7 @@ export default function OrderDetailsPage() {
 
                   <span className="text-sm font-semibold text-black">
                     {deliveryFee > 0
-                      ? formatPrice(
-                          deliveryFee
-                        )
+                      ? formatPrice(deliveryFee)
                       : "Free"}
                   </span>
 
@@ -1030,8 +964,6 @@ export default function OrderDetailsPage() {
 
               </div>
 
-              {/* PAYMENT */}
-
               <div className="mt-7 border-t border-neutral-100 pt-6">
 
                 <h3 className="text-base font-bold text-black">
@@ -1047,16 +979,13 @@ export default function OrderDetailsPage() {
                   <span
                     className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                       String(
-                        order.payment_status ||
-                          ""
-                      ).toLowerCase() ===
-                      "paid"
+                        order.payment_status || ""
+                      ).toLowerCase() === "paid"
                         ? "bg-green-50 text-green-700"
                         : "bg-amber-50 text-amber-700"
                     }`}
                   >
-                    {order.payment_status ||
-                      "Pending"}
+                    {order.payment_status || "Pending"}
                   </span>
 
                 </div>
@@ -1069,17 +998,13 @@ export default function OrderDetailsPage() {
                     </p>
 
                     <p className="mt-2 break-all text-xs font-medium leading-5 text-neutral-700">
-                      {
-                        order.payment_reference
-                      }
+                      {order.payment_reference}
                     </p>
 
                   </div>
                 )}
 
               </div>
-
-              {/* ORDER INFORMATION */}
 
               <div className="mt-6 border-t border-neutral-100 pt-6">
 
@@ -1096,9 +1021,7 @@ export default function OrderDetailsPage() {
                     </span>
 
                     <span className="text-xs font-semibold text-black">
-                      {formatDate(
-                        order.created_at
-                      )}
+                      {formatDate(order.created_at)}
                     </span>
 
                   </div>
@@ -1124,8 +1047,6 @@ export default function OrderDetailsPage() {
               </div>
 
             </section>
-
-            {/* HELP */}
 
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-7">
 

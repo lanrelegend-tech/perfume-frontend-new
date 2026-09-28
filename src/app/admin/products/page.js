@@ -99,31 +99,19 @@ export default function ProductsPage() {
         setLoading(true);
         setError("");
 
-        const token = localStorage.getItem("access_token");
-
-        if (!token) {
-          router.push("/admin/login");
-          return;
-        }
-
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/products/admin/`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (response.status === 401 || response.status === 403) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          router.push("/admin/login");
-          return;
-        }
-
+        
+       const response = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/products/admin/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
+if (response.status === 401 || response.status === 403) {
+  router.push("/admin/login");
+  return;
+}
         if (!response.ok) {
           throw new Error("Failed to load products");
         }

@@ -52,27 +52,19 @@ export default function CustomerDetailsPage() {
         setLoading(true);
         setError("");
 
-        const token = localStorage.getItem("access_token");
-
-        if (!token) {
-          router.push("/admin/login");
-          return;
-        }
-
         const response = await fetch(
           `${API_URL}/users/admin/customers/${params?.id}/`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
           }
         );
 
-        if (response.status === 401 || response.status === 403) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-
+        if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
           router.push("/admin/login");
           return;
         }
@@ -149,30 +141,31 @@ export default function CustomerDetailsPage() {
       "Customer"
     );
   };
-const getAddress = () => {
-  if (!latestOrder) {
-    return ["No delivery address saved."];
-  }
-
-  return latestOrderAddress.length
-    ? latestOrderAddress
-    : ["No delivery address saved."];
-};
 
   const orders = customer?.order_history || [];
 
-const latestOrder = orders[0] || null;
+  const latestOrder = orders[0] || null;
 
-const latestOrderPhone =
-  latestOrder?.phone || "";
+  const latestOrderPhone =
+    latestOrder?.phone || "";
 
-const latestOrderAddress = latestOrder
-  ? [
-      latestOrder.address,
-      latestOrder.city,
-      latestOrder.state,
-    ].filter(Boolean)
-  : [];
+  const latestOrderAddress = latestOrder
+    ? [
+        latestOrder.address,
+        latestOrder.city,
+        latestOrder.state,
+      ].filter(Boolean)
+    : [];
+
+  const getAddress = () => {
+    if (!latestOrder) {
+      return ["No delivery address saved."];
+    }
+
+    return latestOrderAddress.length
+      ? latestOrderAddress
+      : ["No delivery address saved."];
+  };
 
   const totalOrders = Number(
     customer?.order_count ||
@@ -207,13 +200,14 @@ const latestOrderAddress = latestOrder
   const closeCallModal = () => {
     setCallModal(false);
   };
-const callCustomer = () => {
-  if (!latestOrderPhone) {
-    return;
-  }
 
-  window.location.href = `tel:${latestOrderPhone}`;
-};
+  const callCustomer = () => {
+    if (!latestOrderPhone) {
+      return;
+    }
+
+    window.location.href = `tel:${latestOrderPhone}`;
+  };
 
   /*
   |--------------------------------------------------------------------------
@@ -235,104 +229,114 @@ const callCustomer = () => {
   };
 
   const sendMessage = async () => {
-  if (!customer?.email) {
-    setNotice({
-      type: "error",
-      title: "No email address",
-      message:
-        "This customer does not have an email address.",
-    });
+    if (!customer?.email) {
+      setNotice({
+        type: "error",
+        title: "No email address",
+        message:
+          "This customer does not have an email address.",
+      });
 
-    return;
-  }
-
-  if (!messageText.trim()) {
-    setNotice({
-      type: "error",
-      title: "Message is empty",
-      message:
-        "Please enter a message before sending.",
-    });
-
-    return;
-  }
-
-  const token =
-    localStorage.getItem("access_token");
-
-  if (!token) {
-    router.push("/admin/login");
-    return;
-  }
-
-  try {
-    setActionLoading(true);
-
-    const response = await fetch(
-      `${API_URL}/users/admin/customers/${customer.id}/`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: messageText.trim(),
-        }),
-      }
-    );
-
-    const data =
-      await response.json().catch(() => ({}));
-
-    if (
-      response.status === 401 ||
-      response.status === 403
-    ) {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-
-      router.push("/admin/login");
       return;
     }
 
-    if (!response.ok) {
-      throw new Error(
-        data.detail ||
-          data.error ||
-          "Unable to send message."
-      );
+    if (!messageText.trim()) {
+      setNotice({
+        type: "error",
+        title: "Message is empty",
+        message:
+          "Please enter a message before sending.",
+      });
+
+      return;
     }
 
-    setMessageText("");
-    setMessageModal(false);
+    try {
+      setActionLoading(true);
 
-    setNotice({
-      type: "success",
-      title: "Message sent",
-      message:
-        `Your message was sent to ${getCustomerName()}.`,
-    });
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
-  } catch (error) {
+      const csrfData = await csrfResponse
+        .json()
+        .catch(() => ({}));
 
-    console.error(
-      "Customer message error:",
-      error
-    );
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        throw new Error(
+          "Unable to initialize secure request. Please refresh and try again."
+        );
+      }
 
-    setNotice({
-      type: "error",
-      title: "Message failed",
-      message:
-        error.message ||
-        "Unable to send the message. Please try again.",
-    });
+      const response = await fetch(
+        `${API_URL}/users/admin/customers/${customer.id}/`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfData.csrfToken,
+          },
+          body: JSON.stringify({
+            message: messageText.trim(),
+          }),
+        }
+      );
 
-  } finally {
-    setActionLoading(false);
-  }
-};
+      const data =
+        await response.json().catch(() => ({}));
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        router.push("/admin/login");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            data.error ||
+            "Unable to send message."
+        );
+      }
+
+      setMessageText("");
+      setMessageModal(false);
+
+      setNotice({
+        type: "success",
+        title: "Message sent",
+        message:
+          `Your message was sent to ${getCustomerName()}.`,
+      });
+    } catch (error) {
+      console.error(
+        "Customer message error:",
+        error
+      );
+
+      setNotice({
+        type: "error",
+        title: "Message failed",
+        message:
+          error.message ||
+          "Unable to send the message. Please try again.",
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   /*
   |--------------------------------------------------------------------------
   | CUSTOMER ACTIONS
@@ -367,24 +371,39 @@ const callCustomer = () => {
   */
 
   const toggleCustomerStatus = async () => {
-    const token =
-      localStorage.getItem("access_token");
-
-    if (!token) {
-      router.push("/admin/login");
-      return;
-    }
-
     try {
       setActionLoading(true);
+
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
+
+      const csrfData = await csrfResponse
+        .json()
+        .catch(() => ({}));
+
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        throw new Error(
+          "Unable to initialize secure request. Please refresh and try again."
+        );
+      }
 
       const response = await fetch(
         `${API_URL}/users/admin/customers/${customer.id}/`,
         {
           method: "PATCH",
+          credentials: "include",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "X-CSRFToken": csrfData.csrfToken,
           },
           body: JSON.stringify({
             is_active: !customer.is_active,
@@ -398,9 +417,6 @@ const callCustomer = () => {
         response.status === 401 ||
         response.status === 403
       ) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-
         router.push("/admin/login");
         return;
       }
@@ -449,11 +465,42 @@ const callCustomer = () => {
   |--------------------------------------------------------------------------
   */
 
-  const logout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+  const logout = async () => {
+    try {
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
-    router.push("/admin/login");
+      const csrfData = await csrfResponse
+        .json()
+        .catch(() => ({}));
+
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        throw new Error(
+          "Unable to initialize secure logout."
+        );
+      }
+
+      await fetch(`${API_URL}/auth/logout/`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken": csrfData.csrfToken,
+        },
+      });
+    } catch (err) {
+      console.error("LOGOUT ERROR:", err);
+    } finally {
+      router.push("/admin/login");
+    }
   };
 
   /*
@@ -918,11 +965,11 @@ const callCustomer = () => {
                       value={customer.email || "—"}
                     />
 
-                   <DetailRow
-  icon={<Phone size={16} />}
-  label="Phone"
-  value={latestOrderPhone || "—"}
-/>
+                    <DetailRow
+                      icon={<Phone size={16} />}
+                      label="Phone"
+                      value={latestOrderPhone || "—"}
+                    />
 
                   </div>
                 </section>
@@ -944,12 +991,10 @@ const callCustomer = () => {
                       </h2>
 
                       <p className="text-xs text-black/40">
-  Address from most recent order
-</p>
+                        Address from most recent order
+                      </p>
                     </div>
                   </div>
-
-
 
                   <div className="mt-5 overflow-hidden rounded-xl bg-[#f7f7f5] p-4 text-sm leading-6 text-black/65">
                     {getAddress().map(
@@ -1018,7 +1063,7 @@ const callCustomer = () => {
                   </h2>
 
                   <p className="mt-2 text-xs leading-5 text-white/45">
-                    Quickly contact or manage this customerapos;s account.
+                    Quickly contact or manage this customer's account.
                   </p>
 
                   <div className="mt-5 space-y-2">
@@ -1035,7 +1080,7 @@ const callCustomer = () => {
                     <button
                       type="button"
                       onClick={openCallModal}
-                      disabled={!latestOrderPhone }
+                      disabled={!latestOrderPhone}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
                     >
                       <Phone size={16} />
@@ -1093,7 +1138,7 @@ const callCustomer = () => {
                   </p>
 
                   <p className="mt-1 break-all text-sm text-black/45">
-                    {latestOrderPhone  ||
+                    {latestOrderPhone ||
                       "No phone number saved"}
                   </p>
                 </div>
@@ -1113,7 +1158,7 @@ const callCustomer = () => {
               <button
                 type="button"
                 onClick={callCustomer}
-                disabled={!latestOrderPhone }
+                disabled={!latestOrderPhone}
                 className="flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Phone size={16} />
@@ -1200,15 +1245,17 @@ const callCustomer = () => {
               <button
                 type="button"
                 onClick={sendMessage}
-               disabled={
-  !customer.email ||
-  !messageText.trim() ||
-  actionLoading
-}
+                disabled={
+                  !customer.email ||
+                  !messageText.trim() ||
+                  actionLoading
+                }
                 className="flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-medium text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40"
               >
-               <Send size={16} />
-{actionLoading ? "Sending..." : "Send Message"}
+                <Send size={16} />
+                {actionLoading
+                  ? "Sending..."
+                  : "Send Message"}
               </button>
 
             </div>
@@ -1276,7 +1323,7 @@ const callCustomer = () => {
                   closeActionModal();
                   setCallModal(true);
                 }}
-                disabled={!latestOrderPhone }
+                disabled={!latestOrderPhone}
                 className="flex w-full items-center gap-3 rounded-2xl border border-black/10 p-4 text-left transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-white">
@@ -1289,7 +1336,7 @@ const callCustomer = () => {
                   </p>
 
                   <p className="mt-1 break-all text-xs text-black/40">
-                    {latestOrderPhone  ||
+                    {latestOrderPhone ||
                       "No phone number saved"}
                   </p>
                 </div>
@@ -1297,10 +1344,7 @@ const callCustomer = () => {
 
               <button
                 type="button"
-                onClick={() => {
-                  closeActionModal();
-                  setConfirmModal(true);
-                }}
+                onClick={openConfirmModal}
                 className="flex w-full items-center gap-3 rounded-2xl border border-red-100 p-4 text-left transition hover:bg-red-50"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
@@ -1316,8 +1360,8 @@ const callCustomer = () => {
 
                   <p className="mt-1 text-xs text-black/40">
                     {customer.is_active
-                      ? "Disable this customerapos;s account"
-                      : "Restore this customerapos;s account"}
+                      ? "Disable this customer's account"
+                      : "Restore this customer's account"}
                   </p>
                 </div>
               </button>

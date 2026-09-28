@@ -105,25 +105,27 @@ export default function SettingsPage() {
   // AUTH
   // ==================================================
 
-  const getToken = () => {
-    if (typeof window === "undefined") {
-      return null;
+  const getCsrfToken = async () => {
+    const response = await fetch(
+      `${API_URL}/users/auth/csrf/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    const data = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok || !data.csrfToken) {
+      throw new Error(
+        "Unable to get security token."
+      );
     }
 
-    return localStorage.getItem("access_token");
-  };
-
-  const getHeaders = () => {
-    const token = getToken();
-
-    return {
-      "Content-Type": "application/json",
-      ...(token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {}),
-    };
+    return data.csrfToken;
   };
 
   const handleUnauthorized = (response) => {
@@ -132,11 +134,8 @@ export default function SettingsPage() {
       response.status === 403
     ) {
       if (typeof window !== "undefined") {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+        window.location.href = "/admin/login";
       }
-
-      window.location.href = "/admin/login";
 
       return true;
     }
@@ -196,7 +195,7 @@ export default function SettingsPage() {
         `${API_URL}/settings/admin/`,
         {
           method: "GET",
-          headers: getHeaders(),
+          credentials: "include",
           cache: "no-store",
         }
       );
@@ -287,6 +286,8 @@ export default function SettingsPage() {
     try {
       setSettingsSaving(true);
 
+      const csrfToken = await getCsrfToken();
+
       const payload = {
         store_name: storeName.trim(),
         store_email: storeEmail.trim(),
@@ -307,7 +308,11 @@ export default function SettingsPage() {
         `${API_URL}/settings/admin/`,
         {
           method: "PATCH",
-          headers: getHeaders(),
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
           body: JSON.stringify(payload),
         }
       );
@@ -384,7 +389,7 @@ export default function SettingsPage() {
         `${API_URL}/shipping/`,
         {
           method: "GET",
-          headers: getHeaders(),
+          credentials: "include",
           cache: "no-store",
         }
       );
@@ -502,6 +507,8 @@ export default function SettingsPage() {
     try {
       setShippingSaving(true);
 
+      const csrfToken = await getCsrfToken();
+
       const payload = {
         delivery_type: newDeliveryType,
 
@@ -529,7 +536,11 @@ export default function SettingsPage() {
         `${API_URL}/shipping/`,
         {
           method: "POST",
-          headers: getHeaders(),
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
           body: JSON.stringify(payload),
         }
       );
@@ -659,6 +670,8 @@ export default function SettingsPage() {
     try {
       setShippingSaving(true);
 
+      const csrfToken = await getCsrfToken();
+
       const payload = {
         delivery_type:
           shipping.delivery_type,
@@ -689,7 +702,11 @@ export default function SettingsPage() {
         `${API_URL}/shipping/${shipping.id}/`,
         {
           method: "PATCH",
-          headers: getHeaders(),
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
           body: JSON.stringify(payload),
         }
       );
@@ -753,11 +770,17 @@ export default function SettingsPage() {
     try {
       setShippingSaving(true);
 
+      const csrfToken = await getCsrfToken();
+
       const response = await fetch(
         `${API_URL}/shipping/${shipping.id}/`,
         {
           method: "PATCH",
-          headers: getHeaders(),
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
           body: JSON.stringify({
             is_active:
               !shipping.is_active,
@@ -835,11 +858,16 @@ export default function SettingsPage() {
     try {
       setShippingSaving(true);
 
+      const csrfToken = await getCsrfToken();
+
       const response = await fetch(
         `${API_URL}/shipping/${shipping.id}/`,
         {
           method: "DELETE",
-          headers: getHeaders(),
+          credentials: "include",
+          headers: {
+            "X-CSRFToken": csrfToken,
+          },
         }
       );
 

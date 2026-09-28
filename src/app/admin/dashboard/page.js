@@ -45,23 +45,47 @@ export default function AdminDashboard() {
 
 const [pushMessage, setPushMessage] =
   useState("");
+// ==================================================
+// AUTH
+// ==================================================
 
-  // ==================================================
-  // AUTH
-  // ==================================================
+const logout = async () => {
+  try {
+    const csrfResponse = await fetch(
+      `${API_URL}/auth/csrf/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
 
-  const getToken = () => {
-    if (typeof window === "undefined") return null;
+    const csrfData = await csrfResponse
+      .json()
+      .catch(() => ({}));
 
-    return localStorage.getItem("access_token");
-  };
+    if (
+      !csrfResponse.ok ||
+      !csrfData?.csrfToken
+    ) {
+      throw new Error(
+        "Unable to initialize secure logout."
+      );
+    }
 
-  const logout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-
+    await fetch(`${API_URL}/auth/logout/`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "X-CSRFToken": csrfData.csrfToken,
+      },
+    });
+  } catch (err) {
+    console.error("LOGOUT ERROR:", err);
+  } finally {
     router.replace("/admin/login");
-  };
+  }
+};
 
   // ==================================================
   // API HELPERS
@@ -95,26 +119,31 @@ const [pushMessage, setPushMessage] =
     return 0;
   };
 
-  const fetchApi = async (url, token) => {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
-    });
+  const fetchApi = async (url) => {
+  const response = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+  });
 
-    if (response.status === 401 || response.status === 403) {
-      throw new Error("AUTH_ERROR");
-    }
+  if (
+    response.status === 401 ||
+    response.status === 403
+  ) {
+    throw new Error("AUTH_ERROR");
+  }
 
-    if (!response.ok) {
-      throw new Error(`Request failed: ${response.status}`);
-    }
+  if (!response.ok) {
+    throw new Error(
+      `Request failed: ${response.status}`
+    );
+  }
 
-    return response.json();
-  };
-
+  return response.json();
+};
   // ==================================================
   // LOAD DASHBOARD
   // ==================================================
@@ -123,26 +152,18 @@ const [pushMessage, setPushMessage] =
     try {
       setLoading(true);
       setError("");
-
-      const token = getToken();
-
-      if (!token) {
-        router.replace("/admin/login");
-        return;
-      }
-
       const [
-        productsData,
-        ordersData,
-        customersData,
-      ] = await Promise.all([
-        fetchApi(`${API_URL}/products/`, token),
-        fetchApi(`${API_URL}/orders/admin/`, token),
-        fetchApi(
-          `${API_URL}/users/admin/customers/`,
-          token
-        ),
-      ]);
+  productsData,
+  ordersData,
+  customersData,
+] = await Promise.all([
+  fetchApi(`${API_URL}/products/`),
+  fetchApi(`${API_URL}/orders/admin/`),
+  fetchApi(
+    `${API_URL}/users/admin/customers/`
+  ),
+]);
+
 
       // ----------------------------------------------
       // STORE CURRENT API RESULTS
@@ -174,17 +195,10 @@ const [pushMessage, setPushMessage] =
       setLoading(false);
     }
   };
-
   useEffect(() => {
-    const token = getToken();
+  loadDashboard();
+}, [router]);
 
-    if (!token) {
-      router.replace("/admin/login");
-      return;
-    }
-
-    loadDashboard();
-  }, [router]);
 
   // ==================================================
   // HELPERS

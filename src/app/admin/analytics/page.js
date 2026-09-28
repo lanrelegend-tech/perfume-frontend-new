@@ -56,42 +56,58 @@ const formatCompactCurrency = (value) => {
   return `₦${amount.toFixed(0)}`;
 };
 
-const getAuthToken = () => {
-  if (typeof window === "undefined") {
+/* =========================================================
+   AUTH HELPERS
+========================================================= */
+
+const getCsrfToken = async () => {
+  try {
+    const response = await fetch(
+      `${API_URL}/users/auth/csrf/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+
+    return data?.csrfToken || null;
+  } catch (error) {
+    console.error(
+      "CSRF token error:",
+      error
+    );
+
     return null;
   }
-
-  const possibleKeys = [
-    "access",
-    "access_token",
-    "accessToken",
-    "token",
-    "authToken",
-  ];
-
-  for (const key of possibleKeys) {
-    const value = localStorage.getItem(key);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return null;
 };
 
-const getHeaders = () => {
-  const token = getAuthToken();
+const getAuthenticatedHeaders = () => ({
+  "Content-Type": "application/json",
+});
+
+const getUnsafeHeaders = async () => {
+  const csrfToken = await getCsrfToken();
 
   return {
     "Content-Type": "application/json",
-    ...(token
+    ...(csrfToken
       ? {
-          Authorization: `Bearer ${token}`,
+          "X-CSRFToken": csrfToken,
         }
       : {}),
   };
-};
+});
+
+/* =========================================================
+   DATA HELPERS
+========================================================= */
 
 const getResults = (data) => {
   if (Array.isArray(data)) {
@@ -143,7 +159,9 @@ const getDeliveryFee = (order) => {
 };
 
 const getOrderStatus = (order) => {
-  return String(order?.status || "").toLowerCase();
+  return String(
+    order?.status || ""
+  ).toLowerCase();
 };
 
 const getProductName = (item) => {
@@ -166,15 +184,23 @@ const getProductCategory = (item) => {
 };
 
 const getItemQuantity = (item) => {
-  return Number(item?.quantity || 0);
+  return Number(
+    item?.quantity || 0
+  );
 };
 
 const getItemSubtotal = (item) => {
   return Number(
     item?.subtotal ??
       item?.total ??
-      Number(item?.product_price || item?.price || 0) *
-        Number(item?.quantity || 0)
+      Number(
+        item?.product_price ||
+          item?.price ||
+          0
+      ) *
+        Number(
+          item?.quantity || 0
+        )
   );
 };
 
@@ -193,7 +219,10 @@ const getDiscountInfo = (order) => {
   if (explicitDiscount > 0) {
     return {
       amount: explicitDiscount,
-      label: formatCurrency(explicitDiscount),
+      label:
+        formatCurrency(
+          explicitDiscount
+        ),
       hasAmount: true,
       percent: null,
     };
@@ -216,7 +245,9 @@ const getDiscountInfo = (order) => {
     };
   }
 
-  const items = Array.isArray(order?.items)
+  const items = Array.isArray(
+    order?.items
+  )
     ? order.items
     : [];
 
@@ -239,7 +270,8 @@ const getDiscountInfo = (order) => {
 
       return {
         amount,
-        label: formatCurrency(amount),
+        label:
+          formatCurrency(amount),
         hasAmount: true,
         percent: value,
       };
@@ -289,26 +321,41 @@ const getPeriodStart = (range) => {
 
   if (range === "7 Days") {
     const date = new Date(now);
-    date.setDate(date.getDate() - 7);
+
+    date.setDate(
+      date.getDate() - 7
+    );
+
     return date;
   }
 
   if (range === "30 Days") {
     const date = new Date(now);
-    date.setDate(date.getDate() - 30);
+
+    date.setDate(
+      date.getDate() - 30
+    );
+
     return date;
   }
 
   const date = new Date(now);
-  date.setFullYear(date.getFullYear() - 1);
+
+  date.setFullYear(
+    date.getFullYear() - 1
+  );
+
   return date;
 };
 
 const getDateKey = (date) => {
-  const year = date.getFullYear();
+  const year =
+    date.getFullYear();
+
   const month = String(
     date.getMonth() + 1
   ).padStart(2, "0");
+
   const day = String(
     date.getDate()
   ).padStart(2, "0");
@@ -375,12 +422,15 @@ function StatCard({
 ========================================================= */
 
 function Avatar({ name }) {
-  const safeName = name || "Customer";
+  const safeName =
+    name || "Customer";
 
   const initials = safeName
     .split(" ")
     .filter(Boolean)
-    .map((word) => word[0])
+    .map(
+      (word) => word[0]
+    )
     .join("")
     .slice(0, 2)
     .toUpperCase();
@@ -434,17 +484,23 @@ function DeliveryStatusCard({
 export default function AnalyticsPage() {
   const router = useRouter();
 
-  const [range, setRange] = useState("30 Days");
+  const [range, setRange] =
+    useState("30 Days");
 
-  const [orders, setOrders] = useState([]);
-  const [customers, setCustomers] = useState([]);
+  const [orders, setOrders] =
+    useState([]);
+
+  const [customers, setCustomers] =
+    useState([]);
+
   const [dashboard, setDashboard] =
     useState(null);
 
   const [loading, setLoading] =
     useState(true);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
   const [exporting, setExporting] =
     useState(false);
@@ -462,34 +518,103 @@ export default function AnalyticsPage() {
       setLoading(true);
       setError("");
 
-      const headers = getHeaders();
+      /*
+        First verify that the current session is still valid.
+        Authentication now comes from the HttpOnly access cookie.
+      */
+      const meResponse =
+        await fetch(
+          `${API_URL}/users/me/`,
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          }
+        );
+
+      if (
+        meResponse.status === 401 ||
+        meResponse.status === 403
+      ) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
+
+      if (!meResponse.ok) {
+        throw new Error(
+          "Unable to verify your admin session."
+        );
+      }
+
+      const headers =
+        getAuthenticatedHeaders();
 
       const [
         ordersResponse,
         customersResponse,
         dashboardResponse,
-      ] = await Promise.allSettled([
-        fetch(`${API_URL}/orders/admin/`, {
-          method: "GET",
-          headers,
-        }),
+      ] =
+        await Promise.allSettled([
+          fetch(
+            `${API_URL}/orders/admin/`,
+            {
+              method: "GET",
+              headers,
+              credentials: "include",
+              cache: "no-store",
+            }
+          ),
 
-        fetch(
-          `${API_URL}/users/admin/customers/`,
-          {
-            method: "GET",
-            headers,
-          }
-        ),
+          fetch(
+            `${API_URL}/users/admin/customers/`,
+            {
+              method: "GET",
+              headers,
+              credentials: "include",
+              cache: "no-store",
+            }
+          ),
 
-        fetch(
-          `${API_URL}/orders/admin/dashboard/`,
-          {
-            method: "GET",
-            headers,
-          }
-        ),
-      ]);
+          fetch(
+            `${API_URL}/orders/admin/dashboard/`,
+            {
+              method: "GET",
+              headers,
+              credentials: "include",
+              cache: "no-store",
+            }
+          ),
+        ]);
+
+      /*
+        If any authenticated endpoint returns 401/403,
+        the cookie session is no longer valid.
+      */
+      const responses = [
+        ordersResponse,
+        customersResponse,
+        dashboardResponse,
+      ];
+
+      const hasUnauthorizedResponse =
+        responses.some(
+          (result) =>
+            result.status ===
+              "fulfilled" &&
+            (result.value.status ===
+              401 ||
+              result.value.status ===
+                403)
+        );
+
+      if (hasUnauthorizedResponse) {
+        router.replace(
+          "/admin/login"
+        );
+        return;
+      }
 
       let loadedOrders = [];
       let loadedCustomers = [];
@@ -503,7 +628,8 @@ export default function AnalyticsPage() {
         const data =
           await ordersResponse.value.json();
 
-        loadedOrders = getResults(data);
+        loadedOrders =
+          getResults(data);
       }
 
       if (
@@ -514,7 +640,8 @@ export default function AnalyticsPage() {
         const data =
           await customersResponse.value.json();
 
-        loadedCustomers = getResults(data);
+        loadedCustomers =
+          getResults(data);
       }
 
       if (
@@ -526,7 +653,9 @@ export default function AnalyticsPage() {
           await dashboardResponse.value.json();
       }
 
-      if (loadedOrders.length === 0) {
+      if (
+        loadedOrders.length === 0
+      ) {
         if (
           ordersResponse.status ===
             "fulfilled" &&
@@ -535,7 +664,9 @@ export default function AnalyticsPage() {
           const data =
             await ordersResponse.value
               .json()
-              .catch(() => ({}));
+              .catch(
+                () => ({})
+              );
 
           throw new Error(
             data?.detail ||
@@ -545,14 +676,29 @@ export default function AnalyticsPage() {
         }
       }
 
-      setOrders(loadedOrders);
-      setCustomers(loadedCustomers);
-      setDashboard(loadedDashboard);
+      setOrders(
+        loadedOrders
+      );
+
+      setCustomers(
+        loadedCustomers
+      );
+
+      setDashboard(
+        loadedDashboard
+      );
     } catch (err) {
       console.error(
         "Analytics loading error:",
         err
       );
+
+      if (
+        err?.name ===
+        "AbortError"
+      ) {
+        return;
+      }
 
       setError(
         err?.message ||
@@ -567,50 +713,60 @@ export default function AnalyticsPage() {
      PERIOD ORDERS
   ======================================================= */
 
-  const periodOrders = useMemo(() => {
-    const startDate =
-      getPeriodStart(range);
+  const periodOrders =
+    useMemo(() => {
+      const startDate =
+        getPeriodStart(range);
 
-    return orders.filter((order) => {
-      const rawDate =
-        getOrderDate(order);
+      return orders.filter(
+        (order) => {
+          const rawDate =
+            getOrderDate(order);
 
-      if (!rawDate) {
-        return false;
-      }
+          if (!rawDate) {
+            return false;
+          }
 
-      const date = new Date(rawDate);
+          const date =
+            new Date(rawDate);
 
-      if (Number.isNaN(date.getTime())) {
-        return false;
-      }
+          if (
+            Number.isNaN(
+              date.getTime()
+            )
+          ) {
+            return false;
+          }
 
-      return date >= startDate;
-    });
-  }, [orders, range]);
+          return date >= startDate;
+        }
+      );
+    }, [orders, range]);
 
   /* =======================================================
      COMPLETED ORDERS
   ======================================================= */
 
-  const completedOrders = useMemo(() => {
-    return periodOrders.filter(
-      isCompletedOrder
-    );
-  }, [periodOrders]);
+  const completedOrders =
+    useMemo(() => {
+      return periodOrders.filter(
+        isCompletedOrder
+      );
+    }, [periodOrders]);
 
   /* =======================================================
      TOTAL REVENUE
   ======================================================= */
 
-  const totalRevenue = useMemo(() => {
-    return completedOrders.reduce(
-      (total, order) =>
-        total + getOrderAmount(order),
-      0
-    );
-  }, [completedOrders]);
-  
+  const totalRevenue =
+    useMemo(() => {
+      return completedOrders.reduce(
+        (total, order) =>
+          total +
+          getOrderAmount(order),
+        0
+      );
+    }, [completedOrders]);
 
   /* =======================================================
      TOTAL ORDERS
@@ -623,78 +779,92 @@ export default function AnalyticsPage() {
      ITEMS SOLD
   ======================================================= */
 
-  const totalItemsSold = useMemo(() => {
-    return completedOrders.reduce(
-      (total, order) => {
-        const items = Array.isArray(
-          order?.items
-        )
-          ? order.items
-          : [];
+  const totalItemsSold =
+    useMemo(() => {
+      return completedOrders.reduce(
+        (total, order) => {
+          const items =
+            Array.isArray(
+              order?.items
+            )
+              ? order.items
+              : [];
 
-        return (
-          total +
-          items.reduce(
-            (sum, item) =>
-              sum +
-              getItemQuantity(item),
-            0
-          )
-        );
-      },
-      0
-    );
-  }, [completedOrders]);
+          return (
+            total +
+            items.reduce(
+              (sum, item) =>
+                sum +
+                getItemQuantity(
+                  item
+                ),
+              0
+            )
+          );
+        },
+        0
+      );
+    }, [completedOrders]);
 
   /* =======================================================
      DELIVERY FEES
   ======================================================= */
 
-  const totalDeliveryFees = useMemo(() => {
-    return completedOrders.reduce(
-      (total, order) =>
-        total + getDeliveryFee(order),
-      0
-    );
-  }, [completedOrders]);
+  const totalDeliveryFees =
+    useMemo(() => {
+      return completedOrders.reduce(
+        (total, order) =>
+          total +
+          getDeliveryFee(order),
+        0
+      );
+    }, [completedOrders]);
+
   const netSales = Math.max(
-  0,
-  totalRevenue - totalDeliveryFees
-);
+    0,
+    totalRevenue -
+      totalDeliveryFees
+  );
 
   /* =======================================================
      TOTAL DISCOUNTS
   ======================================================= */
 
-  const totalDiscounts = useMemo(() => {
-    return completedOrders.reduce(
-      (total, order) =>
-        total +
-        getDiscountInfo(order).amount,
-      0
-    );
-  }, [completedOrders]);
+  const totalDiscounts =
+    useMemo(() => {
+      return completedOrders.reduce(
+        (total, order) =>
+          total +
+          getDiscountInfo(
+            order
+          ).amount,
+        0
+      );
+    }, [completedOrders]);
 
   /* =======================================================
      CUSTOMERS
   ======================================================= */
 
-  const totalCustomers = useMemo(() => {
-    if (customers.length > 0) {
-      return customers.length;
-    }
+  const totalCustomers =
+    useMemo(() => {
+      if (
+        customers.length > 0
+      ) {
+        return customers.length;
+      }
 
-    if (dashboard) {
-      return Number(
-        dashboard?.total_customers ??
-          dashboard?.customers ??
-          dashboard?.customer_count ??
-          0
-      );
-    }
+      if (dashboard) {
+        return Number(
+          dashboard?.total_customers ??
+            dashboard?.customers ??
+            dashboard?.customer_count ??
+            0
+        );
+      }
 
-    return 0;
-  }, [customers, dashboard]);
+      return 0;
+    }, [customers, dashboard]);
 
   /* =======================================================
      AVERAGE ORDER VALUE
@@ -702,448 +872,645 @@ export default function AnalyticsPage() {
 
   const averageOrderValue =
     totalOrders > 0
-      ? totalRevenue / totalOrders
+      ? totalRevenue /
+        totalOrders
       : 0;
 
   /* =======================================================
      DELIVERY STATUS
   ======================================================= */
 
-  const deliveryStats = useMemo(() => {
-    const stats = {
-      pending: 0,
-      processing: 0,
-      shipped: 0,
-      delivered: 0,
-    };
+  const deliveryStats =
+    useMemo(() => {
+      const stats = {
+        pending: 0,
+        processing: 0,
+        shipped: 0,
+        delivered: 0,
+      };
 
-    periodOrders.forEach((order) => {
-      const status =
-        getOrderStatus(order);
+      periodOrders.forEach(
+        (order) => {
+          const status =
+            getOrderStatus(
+              order
+            );
 
-      if (
-        [
-          "pending",
-          "pending_payment",
-          "awaiting_payment",
-        ].includes(status)
-      ) {
-        stats.pending += 1;
-      } else if (
-        [
-          "processing",
-          "confirmed",
-          "paid",
-        ].includes(status)
-      ) {
-        stats.processing += 1;
-      } else if (
-        status === "shipped"
-      ) {
-        stats.shipped += 1;
-      } else if (
-        status === "delivered"
-      ) {
-        stats.delivered += 1;
-      }
-    });
+          if (
+            [
+              "pending",
+              "pending_payment",
+              "awaiting_payment",
+            ].includes(status)
+          ) {
+            stats.pending +=
+              1;
+          } else if (
+            [
+              "processing",
+              "confirmed",
+              "paid",
+            ].includes(status)
+          ) {
+            stats.processing +=
+              1;
+          } else if (
+            status ===
+            "shipped"
+          ) {
+            stats.shipped +=
+              1;
+          } else if (
+            status ===
+            "delivered"
+          ) {
+            stats.delivered +=
+              1;
+          }
+        }
+      );
 
-    return stats;
-  }, [periodOrders]);
+      return stats;
+    }, [periodOrders]);
 
   /* =======================================================
      REVENUE CHART
   ======================================================= */
 
-  const chartData = useMemo(() => {
-    const now = new Date();
+  const chartData =
+    useMemo(() => {
+      const now =
+        new Date();
 
-    if (range === "12 Months") {
-      const months = [];
+      if (
+        range ===
+        "12 Months"
+      ) {
+        const months = [];
 
-      for (let i = 11; i >= 0; i--) {
-        const date = new Date(
-          now.getFullYear(),
-          now.getMonth() - i,
-          1
+        for (
+          let i = 11;
+          i >= 0;
+          i--
+        ) {
+          const date =
+            new Date(
+              now.getFullYear(),
+              now.getMonth() -
+                i,
+              1
+            );
+
+          months.push({
+            key: `${date.getFullYear()}-${date.getMonth()}`,
+
+            label:
+              date.toLocaleDateString(
+                "en-NG",
+                {
+                  month:
+                    "short",
+                }
+              ),
+
+            revenue: 0,
+            orders: 0,
+          });
+        }
+
+        completedOrders.forEach(
+          (order) => {
+            const rawDate =
+              getOrderDate(
+                order
+              );
+
+            if (!rawDate)
+              return;
+
+            const date =
+              new Date(
+                rawDate
+              );
+
+            if (
+              Number.isNaN(
+                date.getTime()
+              )
+            ) {
+              return;
+            }
+
+            const key = `${date.getFullYear()}-${date.getMonth()}`;
+
+            const month =
+              months.find(
+                (item) =>
+                  item.key ===
+                  key
+              );
+
+            if (month) {
+              month.revenue +=
+                getOrderAmount(
+                  order
+                );
+
+              month.orders +=
+                1;
+            }
+          }
         );
 
-        months.push({
-          key: `${date.getFullYear()}-${date.getMonth()}`,
-          label: date.toLocaleDateString(
-            "en-NG",
-            {
-              month: "short",
-            }
+        return months;
+      }
+
+      const days =
+        range ===
+        "7 Days"
+          ? 7
+          : 30;
+
+      const result = [];
+
+      for (
+        let i = days - 1;
+        i >= 0;
+        i--
+      ) {
+        const date =
+          new Date(now);
+
+        date.setHours(
+          0,
+          0,
+          0,
+          0
+        );
+
+        date.setDate(
+          date.getDate() -
+            i
+        );
+
+        result.push({
+          key: getDateKey(
+            date
           ),
+
+          label:
+            days === 30
+              ? date.toLocaleDateString(
+                  "en-NG",
+                  {
+                    day:
+                      "numeric",
+                    month:
+                      "short",
+                  }
+                )
+              : date.toLocaleDateString(
+                  "en-NG",
+                  {
+                    weekday:
+                      "short",
+                  }
+                ),
+
           revenue: 0,
           orders: 0,
         });
       }
 
-      completedOrders.forEach((order) => {
-        const rawDate =
-          getOrderDate(order);
+      completedOrders.forEach(
+        (order) => {
+          const rawDate =
+            getOrderDate(
+              order
+            );
 
-        if (!rawDate) return;
+          if (!rawDate)
+            return;
 
-        const date = new Date(rawDate);
+          const date =
+            new Date(
+              rawDate
+            );
 
-        if (Number.isNaN(date.getTime())) {
-          return;
+          if (
+            Number.isNaN(
+              date.getTime()
+            )
+          ) {
+            return;
+          }
+
+          const key =
+            getDateKey(
+              date
+            );
+
+          const day =
+            result.find(
+              (item) =>
+                item.key ===
+                key
+            );
+
+          if (day) {
+            day.revenue +=
+              getOrderAmount(
+                order
+              );
+
+            day.orders += 1;
+          }
         }
-
-        const key = `${date.getFullYear()}-${date.getMonth()}`;
-
-        const month = months.find(
-          (item) => item.key === key
-        );
-
-        if (month) {
-          month.revenue +=
-            getOrderAmount(order);
-
-          month.orders += 1;
-        }
-      });
-
-      return months;
-    }
-
-    const days =
-      range === "7 Days" ? 7 : 30;
-
-    const result = [];
-
-    for (
-      let i = days - 1;
-      i >= 0;
-      i--
-    ) {
-      const date = new Date(now);
-
-      date.setHours(0, 0, 0, 0);
-
-      date.setDate(
-        date.getDate() - i
       );
 
-      result.push({
-        key: getDateKey(date),
+      return result;
+    }, [completedOrders, range]);
 
-        label:
-          days === 30
-            ? date.toLocaleDateString(
-                "en-NG",
-                {
-                  day: "numeric",
-                  month: "short",
-                }
-              )
-            : date.toLocaleDateString(
-                "en-NG",
-                {
-                  weekday: "short",
-                }
-              ),
-
-        revenue: 0,
-        orders: 0,
-      });
-    }
-
-    completedOrders.forEach((order) => {
-      const rawDate =
-        getOrderDate(order);
-
-      if (!rawDate) return;
-
-      const date = new Date(rawDate);
-
-      if (Number.isNaN(date.getTime())) {
-        return;
-      }
-
-      const key = getDateKey(date);
-
-      const day = result.find(
-        (item) => item.key === key
-      );
-
-      if (day) {
-        day.revenue +=
-          getOrderAmount(order);
-
-        day.orders += 1;
-      }
-    });
-
-    return result;
-  }, [completedOrders, range]);
-
-  const maxRevenue = Math.max(
-    ...chartData.map(
-      (item) => item.revenue
-    ),
-    1
-  );
+  const maxRevenue =
+    Math.max(
+      ...chartData.map(
+        (item) =>
+          item.revenue
+      ),
+      1
+    );
 
   /* =======================================================
      TOP PRODUCTS
   ======================================================= */
 
-  const topProducts = useMemo(() => {
-    const productMap = {};
+  const topProducts =
+    useMemo(() => {
+      const productMap =
+        {};
 
-    completedOrders.forEach((order) => {
-      const items = Array.isArray(
-        order?.items
-      )
-        ? order.items
-        : [];
+      completedOrders.forEach(
+        (order) => {
+          const items =
+            Array.isArray(
+              order?.items
+            )
+              ? order.items
+              : [];
 
-      items.forEach((item) => {
-        const name =
-          getProductName(item);
+          items.forEach(
+            (item) => {
+              const name =
+                getProductName(
+                  item
+                );
 
-        if (!productMap[name]) {
-          productMap[name] = {
-            name,
-            category:
-              getProductCategory(item),
-            sales: 0,
-            revenue: 0,
-          };
+              if (
+                !productMap[
+                  name
+                ]
+              ) {
+                productMap[
+                  name
+                ] = {
+                  name,
+                  category:
+                    getProductCategory(
+                      item
+                    ),
+                  sales: 0,
+                  revenue: 0,
+                };
+              }
+
+              productMap[
+                name
+              ].sales +=
+                getItemQuantity(
+                  item
+                );
+
+              productMap[
+                name
+              ].revenue +=
+                getItemSubtotal(
+                  item
+                );
+            }
+          );
         }
+      );
 
-        productMap[name].sales +=
-          getItemQuantity(item);
-
-        productMap[name].revenue +=
-          getItemSubtotal(item);
-      });
-    });
-
-    return Object.values(productMap)
-      .sort(
-        (a, b) =>
-          b.revenue - a.revenue
+      return Object.values(
+        productMap
       )
-      .slice(0, 5);
-  }, [completedOrders]);
+        .sort(
+          (a, b) =>
+            b.revenue -
+            a.revenue
+        )
+        .slice(0, 5);
+    }, [completedOrders]);
 
   /* =======================================================
      CATEGORY DATA
   ======================================================= */
 
-  const categoryData = useMemo(() => {
-    const categoryMap = {};
+  const categoryData =
+    useMemo(() => {
+      const categoryMap =
+        {};
 
-    completedOrders.forEach((order) => {
-      const items = Array.isArray(
-        order?.items
-      )
-        ? order.items
-        : [];
+      completedOrders.forEach(
+        (order) => {
+          const items =
+            Array.isArray(
+              order?.items
+            )
+              ? order.items
+              : [];
 
-      items.forEach((item) => {
-        const category =
-          getProductCategory(item);
+          items.forEach(
+            (item) => {
+              const category =
+                getProductCategory(
+                  item
+                );
 
-        if (!categoryMap[category]) {
-          categoryMap[category] = 0;
+              if (
+                !categoryMap[
+                  category
+                ]
+              ) {
+                categoryMap[
+                  category
+                ] = 0;
+              }
+
+              categoryMap[
+                category
+              ] +=
+                getItemSubtotal(
+                  item
+                );
+            }
+          );
         }
+      );
 
-        categoryMap[category] +=
-          getItemSubtotal(item);
-      });
-    });
+      const total =
+        Object.values(
+          categoryMap
+        ).reduce(
+          (sum, value) =>
+            sum + value,
+          0
+        );
 
-    const total = Object.values(
-      categoryMap
-    ).reduce(
-      (sum, value) => sum + value,
-      0
-    );
-
-    return Object.entries(categoryMap)
-      .map(([name, revenue]) => ({
-        name,
-        revenue,
-        percentage:
-          total > 0
-            ? Math.round(
-                (revenue / total) * 100
-              )
-            : 0,
-      }))
-      .sort(
-        (a, b) =>
-          b.revenue - a.revenue
+      return Object.entries(
+        categoryMap
       )
-      .slice(0, 6);
-  }, [completedOrders]);
+        .map(
+          ([
+            name,
+            revenue,
+          ]) => ({
+            name,
+            revenue,
+            percentage:
+              total > 0
+                ? Math.round(
+                    (revenue /
+                      total) *
+                      100
+                  )
+                : 0,
+          })
+        )
+        .sort(
+          (a, b) =>
+            b.revenue -
+            a.revenue
+        )
+        .slice(0, 6);
+    }, [completedOrders]);
 
   /* =======================================================
      RECENT SALES
   ======================================================= */
 
-  const recentSales = useMemo(() => {
-    return [...completedOrders]
-      .sort((a, b) => {
-        const dateA = new Date(
-          getOrderDate(a) || 0
-        );
+  const recentSales =
+    useMemo(() => {
+      return [...completedOrders]
+        .sort((a, b) => {
+          const dateA =
+            new Date(
+              getOrderDate(
+                a
+              ) || 0
+            );
 
-        const dateB = new Date(
-          getOrderDate(b) || 0
-        );
+          const dateB =
+            new Date(
+              getOrderDate(
+                b
+              ) || 0
+            );
 
-        return dateB - dateA;
-      })
-      .slice(0, 5)
-      .map((order) => {
-        const firstItem =
-          Array.isArray(order?.items)
-            ? order.items[0]
-            : null;
-
-        const userName = [
-          order?.user?.first_name,
-          order?.user?.last_name,
-        ]
-          .filter(Boolean)
-          .join(" ");
-
-        const customer =
-          order?.full_name ||
-          userName ||
-          order?.customer?.name ||
-          order?.email ||
-          "Customer";
-
-        const date = getOrderDate(
-          order
-        )
-          ? new Date(
-              getOrderDate(order)
+          return (
+            dateB - dateA
+          );
+        })
+        .slice(0, 5)
+        .map((order) => {
+          const firstItem =
+            Array.isArray(
+              order?.items
             )
-          : null;
+              ? order.items[0]
+              : null;
 
-        const discount =
-          getDiscountInfo(order);
+          const userName = [
+            order?.user
+              ?.first_name,
+            order?.user
+              ?.last_name,
+          ]
+            .filter(Boolean)
+            .join(" ");
 
-        return {
-          id:
-            order?.order_number ||
-            `#${order?.id || "N/A"}`,
+          const customer =
+            order?.full_name ||
+            userName ||
+            order?.customer
+              ?.name ||
+            order?.email ||
+            "Customer";
 
-          customer,
+          const date =
+            getOrderDate(
+              order
+            )
+              ? new Date(
+                  getOrderDate(
+                    order
+                  )
+                )
+              : null;
 
-          product:
-            getProductName(firstItem),
+          const discount =
+            getDiscountInfo(
+              order
+            );
 
-          amount:
-            getOrderAmount(order),
+          return {
+            id:
+              order?.order_number ||
+              `#${order?.id || "N/A"}`,
 
-          discount:
-            discount.label,
+            customer,
 
-          coupon:
-            order?.coupon_code || "",
+            product:
+              getProductName(
+                firstItem
+              ),
 
-          delivery:
-            getDeliveryFee(order),
+            amount:
+              getOrderAmount(
+                order
+              ),
 
-          status:
-            order?.status || "N/A",
+            discount:
+              discount.label,
 
-          date: date
-            ? date.toLocaleDateString(
-                "en-NG",
-                {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                }
-              )
-            : "N/A",
-        };
-      });
-  }, [completedOrders]);
+            coupon:
+              order?.coupon_code ||
+              "",
+
+            delivery:
+              getDeliveryFee(
+                order
+              ),
+
+            status:
+              order?.status ||
+              "N/A",
+
+            date: date
+              ? date.toLocaleDateString(
+                  "en-NG",
+                  {
+                    day:
+                      "numeric",
+                    month:
+                      "short",
+                    year:
+                      "numeric",
+                  }
+                )
+              : "N/A",
+          };
+        });
+    }, [completedOrders]);
 
   /* =======================================================
      NEW VS RETURNING
   ======================================================= */
 
-  const newVsReturning = useMemo(() => {
-    const uniqueCustomers = {};
+  const newVsReturning =
+    useMemo(() => {
+      const uniqueCustomers =
+        {};
 
-    completedOrders.forEach((order) => {
-      const key =
-        order?.email ||
-        order?.user?.id ||
-        order?.user?.email ||
-        order?.full_name ||
-        `order-${order?.id}`;
+      completedOrders.forEach(
+        (order) => {
+          const key =
+            order?.email ||
+            order?.user?.id ||
+            order?.user?.email ||
+            order?.full_name ||
+            `order-${order?.id}`;
 
-      if (!uniqueCustomers[key]) {
-        uniqueCustomers[key] = 0;
-      }
+          if (
+            !uniqueCustomers[
+              key
+            ]
+          ) {
+            uniqueCustomers[
+              key
+            ] = 0;
+          }
 
-      uniqueCustomers[key] += 1;
-    });
+          uniqueCustomers[
+            key
+          ] += 1;
+        }
+      );
 
-    let newCustomers = 0;
-    let returningCustomers = 0;
+      let newCustomers = 0;
+      let returningCustomers =
+        0;
 
-    Object.values(
-      uniqueCustomers
-    ).forEach((count) => {
-      if (count > 1) {
-        returningCustomers += 1;
-      } else {
-        newCustomers += 1;
-      }
-    });
+      Object.values(
+        uniqueCustomers
+      ).forEach(
+        (count) => {
+          if (count > 1) {
+            returningCustomers +=
+              1;
+          } else {
+            newCustomers +=
+              1;
+          }
+        }
+      );
 
-    const total =
-      newCustomers +
-      returningCustomers;
+      const total =
+        newCustomers +
+        returningCustomers;
 
-    return [
-      {
-        label: "New Customers",
-        value: newCustomers,
-        percentage:
-          total > 0
-            ? Math.round(
-                (newCustomers /
-                  total) *
-                  100
-              )
-            : 0,
-      },
+      return [
+        {
+          label:
+            "New Customers",
 
-      {
-        label: "Returning Customers",
-        value: returningCustomers,
-        percentage:
-          total > 0
-            ? Math.round(
-                (returningCustomers /
-                  total) *
-                  100
-              )
-            : 0,
-      },
-    ];
-  }, [completedOrders]);
+          value:
+            newCustomers,
+
+          percentage:
+            total > 0
+              ? Math.round(
+                  (newCustomers /
+                    total) *
+                    100
+                )
+              : 0,
+        },
+
+        {
+          label:
+            "Returning Customers",
+
+          value:
+            returningCustomers,
+
+          percentage:
+            total > 0
+              ? Math.round(
+                  (returningCustomers /
+                    total) *
+                    100
+                )
+              : 0,
+        },
+      ];
+    }, [completedOrders]);
 
   const totalCategoryRevenue =
     categoryData.reduce(
       (sum, category) =>
-        sum + category.revenue,
+        sum +
+        category.revenue,
       0
     );
 
@@ -1152,7 +1519,9 @@ export default function AnalyticsPage() {
   ======================================================= */
 
   function handleViewOrders() {
-    router.push("/admin/orders");
+    router.push(
+      "/admin/orders"
+    );
   }
 
   /* =======================================================
@@ -1178,63 +1547,83 @@ export default function AnalyticsPage() {
         ],
       ];
 
-      completedOrders.forEach((order) => {
-        const items = Array.isArray(
-          order?.items
-        )
-          ? order.items
-          : [];
+      completedOrders.forEach(
+        (order) => {
+          const items =
+            Array.isArray(
+              order?.items
+            )
+              ? order.items
+              : [];
 
-        const itemsSold =
-          items.reduce(
-            (sum, item) =>
-              sum +
-              getItemQuantity(item),
-            0
-          );
+          const itemsSold =
+            items.reduce(
+              (sum, item) =>
+                sum +
+                getItemQuantity(
+                  item
+                ),
+              0
+            );
 
-        const discount =
-          getDiscountInfo(order);
+          const discount =
+            getDiscountInfo(
+              order
+            );
 
-        rows.push([
-          order?.order_number ||
-            order?.id ||
-            "",
+          rows.push([
+            order?.order_number ||
+              order?.id ||
+              "",
 
-          order?.full_name ||
-            order?.email ||
-            "Customer",
+            order?.full_name ||
+              order?.email ||
+              "Customer",
 
-          itemsSold,
+            itemsSold,
 
-          getOrderAmount(order),
+            getOrderAmount(
+              order
+            ),
 
-          discount.label,
+            discount.label,
 
-          order?.coupon_code || "",
+            order?.coupon_code ||
+              "",
 
-          getDeliveryFee(order),
+            getDeliveryFee(
+              order
+            ),
 
-          order?.status || "",
+            order?.status ||
+              "",
 
-          order?.payment_status || "",
+            order?.payment_status ||
+              "",
 
-          getOrderDate(order)
-            ? new Date(
-                getOrderDate(order)
-              ).toLocaleDateString(
-                "en-NG"
-              )
-            : "",
-        ]);
-      });
+            getOrderDate(
+              order
+            )
+              ? new Date(
+                  getOrderDate(
+                    order
+                  )
+                ).toLocaleDateString(
+                  "en-NG"
+                )
+              : "",
+          ]);
+        }
+      );
 
       const csv = rows
         .map((row) =>
           row
             .map((value) => {
               const stringValue =
-                String(value ?? "");
+                String(
+                  value ?? ""
+                );
 
               return `"${stringValue.replace(
                 /"/g,
@@ -1245,29 +1634,43 @@ export default function AnalyticsPage() {
         )
         .join("\n");
 
-      const blob = new Blob([csv], {
-        type: "text/csv;charset=utf-8;",
-      });
+      const blob =
+        new Blob([csv], {
+          type: "text/csv;charset=utf-8;",
+        });
 
       const url =
-        URL.createObjectURL(blob);
+        URL.createObjectURL(
+          blob
+        );
 
       const link =
-        document.createElement("a");
+        document.createElement(
+          "a"
+        );
 
       link.href = url;
 
       link.download = `orentemist-analytics-${range
         .toLowerCase()
-        .replace(" ", "-")}.csv`;
+        .replace(
+          " ",
+          "-"
+        )}.csv`;
 
-      document.body.appendChild(link);
+      document.body.appendChild(
+        link
+      );
 
       link.click();
 
-      document.body.removeChild(link);
+      document.body.removeChild(
+        link
+      );
 
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(
+        url
+      );
     } catch (err) {
       console.error(
         "Export error:",
@@ -1343,10 +1746,14 @@ export default function AnalyticsPage() {
 
         {error && (
           <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
-            <span>{error}</span>
+            <span>
+              {error}
+            </span>
 
             <button
-              onClick={loadAnalytics}
+              onClick={
+                loadAnalytics
+              }
               className="w-fit rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white"
             >
               Retry
@@ -1359,13 +1766,19 @@ export default function AnalyticsPage() {
         <div className="mb-7 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm text-black/45">
-              <BarChart3 size={16} />
+              <BarChart3
+                size={16}
+              />
 
-              <span>Admin</span>
+              <span>
+                Admin
+              </span>
 
               <span>/</span>
 
-              <span>Analytics</span>
+              <span>
+                Analytics
+              </span>
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -1373,19 +1786,28 @@ export default function AnalyticsPage() {
             </h1>
 
             <p className="mt-2 text-sm text-black/50">
-              Monitor sales, products, customers,
-              discounts and deliveries from one
-              place.
+              Monitor sales,
+              products,
+              customers,
+              discounts and
+              deliveries from
+              one place.
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
-              onClick={handleExportReport}
-              disabled={exporting}
+              onClick={
+                handleExportReport
+              }
+              disabled={
+                exporting
+              }
               className="flex items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm font-medium transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Download size={17} />
+              <Download
+                size={17}
+              />
 
               {exporting
                 ? "Exporting..."
@@ -1401,13 +1823,24 @@ export default function AnalyticsPage() {
               <select
                 value={range}
                 onChange={(e) =>
-                  setRange(e.target.value)
+                  setRange(
+                    e.target
+                      .value
+                  )
                 }
                 className="w-full appearance-none rounded-xl border border-black/10 bg-white py-3 pl-10 pr-10 text-sm font-medium outline-none transition focus:border-black sm:w-[170px]"
               >
-                <option>7 Days</option>
-                <option>30 Days</option>
-                <option>12 Months</option>
+                <option>
+                  7 Days
+                </option>
+
+                <option>
+                  30 Days
+                </option>
+
+                <option>
+                  12 Months
+                </option>
               </select>
 
               <ChevronDown
@@ -1469,13 +1902,17 @@ export default function AnalyticsPage() {
             change={null}
             description="Delivery fees collected from orders"
           />
-<StatCard
-  icon={DollarSign}
-  title="Net Sales"
-  value={formatCurrency(netSales)}
-  change={null}
-  description="Sales excluding delivery fees"
-/>
+
+          <StatCard
+            icon={DollarSign}
+            title="Net Sales"
+            value={formatCurrency(
+              netSales
+            )}
+            change={null}
+            description="Sales excluding delivery fees"
+          />
+
         </div>
 
         {/* =================================================
@@ -1486,7 +1923,8 @@ export default function AnalyticsPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-black/40">
-                Average Order Value
+                Average Order
+                Value
               </p>
 
               <h2 className="mt-2 text-3xl font-semibold">
@@ -1496,13 +1934,16 @@ export default function AnalyticsPage() {
               </h2>
 
               <p className="mt-2 text-sm text-black/45">
-                Average revenue generated per
+                Average revenue
+                generated per
                 completed order.
               </p>
             </div>
 
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white">
-              <ShoppingBag size={24} />
+              <ShoppingBag
+                size={24}
+              />
             </div>
           </div>
         </div>
@@ -1520,7 +1961,8 @@ export default function AnalyticsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-black/45">
-                Revenue performance for the selected
+                Revenue performance
+                for the selected
                 period.
               </p>
             </div>
@@ -1542,10 +1984,18 @@ export default function AnalyticsPage() {
             <div className="relative h-[300px]">
 
               <div className="absolute inset-0 flex flex-col justify-between">
-                {[100, 75, 50, 25, 0].map(
+                {[
+                  100,
+                  75,
+                  50,
+                  25,
+                  0,
+                ].map(
                   (value) => (
                     <div
-                      key={value}
+                      key={
+                        value
+                      }
                       className="flex items-center gap-3"
                     >
                       <span className="w-12 text-right text-[10px] text-black/35">
@@ -1567,7 +2017,8 @@ export default function AnalyticsPage() {
                 {chartData.map(
                   (item) => {
                     const height =
-                      maxRevenue > 0
+                      maxRevenue >
+                      0
                         ? (item.revenue /
                             maxRevenue) *
                           100
@@ -1575,7 +2026,9 @@ export default function AnalyticsPage() {
 
                     return (
                       <div
-                        key={item.key}
+                        key={
+                          item.key
+                        }
                         className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end"
                       >
                         <div className="relative flex h-[calc(100%-25px)] w-full items-end justify-center">
@@ -1630,13 +2083,16 @@ export default function AnalyticsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-black/45">
-                Understand where your orders currently
-                are.
+                Understand where
+                your orders
+                currently are.
               </p>
             </div>
 
             <button
-              onClick={handleViewOrders}
+              onClick={
+                handleViewOrders
+              }
               className="self-start text-xs font-semibold underline underline-offset-4"
             >
               Manage Orders
@@ -1648,7 +2104,9 @@ export default function AnalyticsPage() {
             <DeliveryStatusCard
               icon={Clock3}
               title="Pending"
-              count={deliveryStats.pending}
+              count={
+                deliveryStats.pending
+              }
               description="Orders waiting to be processed."
             />
 
@@ -1699,7 +2157,9 @@ export default function AnalyticsPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-black/45">
-                  Orders placed during this period.
+                  Orders placed
+                  during this
+                  period.
                 </p>
               </div>
 
@@ -1711,53 +2171,65 @@ export default function AnalyticsPage() {
 
             <div className="mt-7 space-y-5">
 
-              {chartData.length === 0 ? (
+              {chartData.length ===
+              0 ? (
                 <p className="text-sm text-black/40">
-                  No order data available.
+                  No order data
+                  available.
                 </p>
               ) : (
-                chartData.map((item) => {
-                  const maxOrders =
-                    Math.max(
-                      ...chartData.map(
-                        (entry) =>
-                          entry.orders
-                      ),
-                      1
+                chartData.map(
+                  (item) => {
+                    const maxOrders =
+                      Math.max(
+                        ...chartData.map(
+                          (
+                            entry
+                          ) =>
+                            entry.orders
+                        ),
+                        1
+                      );
+
+                    const width =
+                      maxOrders >
+                      0
+                        ? (item.orders /
+                            maxOrders) *
+                          100
+                        : 0;
+
+                    return (
+                      <div
+                        key={
+                          item.key
+                        }
+                      >
+                        <div className="mb-2 flex items-center justify-between text-xs">
+                          <span className="font-medium">
+                            {item.label}
+                          </span>
+
+                          <span className="text-black/45">
+                            {
+                              item.orders
+                            }{" "}
+                            orders
+                          </span>
+                        </div>
+
+                        <div className="h-2 overflow-hidden rounded-full bg-black/5">
+                          <div
+                            className="h-full rounded-full bg-black transition-all"
+                            style={{
+                              width: `${width}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
                     );
-
-                  const width =
-                    maxOrders > 0
-                      ? (item.orders /
-                          maxOrders) *
-                        100
-                      : 0;
-
-                  return (
-                    <div
-                      key={item.key}
-                    >
-                      <div className="mb-2 flex items-center justify-between text-xs">
-                        <span className="font-medium">
-                          {item.label}
-                        </span>
-
-                        <span className="text-black/45">
-                          {item.orders} orders
-                        </span>
-                      </div>
-
-                      <div className="h-2 overflow-hidden rounded-full bg-black/5">
-                        <div
-                          className="h-full rounded-full bg-black transition-all"
-                          style={{
-                            width: `${width}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
+                  }
+                )
               )}
 
             </div>
@@ -1773,7 +2245,8 @@ export default function AnalyticsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-black/45">
-                New vs returning customers.
+                New vs returning
+                customers.
               </p>
             </div>
 
@@ -1785,16 +2258,20 @@ export default function AnalyticsPage() {
                   background:
                     `conic-gradient(#000 0deg ${
                       newVsReturning[0]
-                        .percentage * 3.6
+                        .percentage *
+                      3.6
                     }deg, #e5e5e5 ${
                       newVsReturning[0]
-                        .percentage * 3.6
+                        .percentage *
+                      3.6
                     }deg 360deg)`,
                 }}
               >
                 <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white">
                   <span className="text-2xl font-semibold">
-                    {totalCustomers}
+                    {
+                      totalCustomers
+                    }
                   </span>
 
                   <span className="text-[10px] text-black/40">
@@ -1806,33 +2283,46 @@ export default function AnalyticsPage() {
               <div className="w-full space-y-5">
 
                 {newVsReturning.map(
-                  (item, index) => (
+                  (
+                    item,
+                    index
+                  ) => (
                     <div
-                      key={item.label}
+                      key={
+                        item.label
+                      }
                     >
                       <div className="flex items-center gap-2">
 
                         <span
                           className={`h-2.5 w-2.5 rounded-full ${
-                            index === 0
+                            index ===
+                            0
                               ? "bg-black"
                               : "bg-black/15"
                           }`}
                         />
 
                         <span className="text-sm">
-                          {item.label}
+                          {
+                            item.label
+                          }
                         </span>
                       </div>
 
                       <div className="mt-1 flex items-baseline gap-2">
 
                         <span className="text-xl font-semibold">
-                          {item.value}
+                          {
+                            item.value
+                          }
                         </span>
 
                         <span className="text-xs text-black/40">
-                          {item.percentage}%
+                          {
+                            item.percentage
+                          }
+                          %
                         </span>
 
                       </div>
@@ -1863,7 +2353,9 @@ export default function AnalyticsPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-black/45">
-                  Products generating the most sales.
+                  Products
+                  generating the
+                  most sales.
                 </p>
               </div>
 
@@ -1882,28 +2374,38 @@ export default function AnalyticsPage() {
 
             <div className="mt-6 space-y-4">
 
-              {topProducts.length === 0 ? (
+              {topProducts.length ===
+              0 ? (
                 <div className="rounded-xl border border-black/[0.06] p-5 text-center text-sm text-black/40">
-                  No product sales available
-                  for this period.
+                  No product sales
+                  available for
+                  this period.
                 </div>
               ) : (
                 topProducts.map(
-                  (product, index) => (
+                  (
+                    product,
+                    index
+                  ) => (
                     <div
-                      key={product.name}
+                      key={
+                        product.name
+                      }
                       className="flex items-center gap-3 rounded-xl border border-black/[0.06] p-3"
                     >
 
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black text-xs font-semibold text-white">
-                        {index + 1}
+                        {index +
+                          1}
                       </div>
 
                       <div className="flex min-w-0 flex-1 items-center gap-3">
 
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#f1f1f1]">
                           <ShoppingBag
-                            size={18}
+                            size={
+                              18
+                            }
                             className="text-black/45"
                           />
                         </div>
@@ -1911,15 +2413,23 @@ export default function AnalyticsPage() {
                         <div className="min-w-0">
 
                           <p className="truncate text-sm font-semibold">
-                            {product.name}
+                            {
+                              product.name
+                            }
                           </p>
 
                           <p className="mt-1 text-xs text-black/40">
-                            {product.category}
+                            {
+                              product.category
+                            }
                           </p>
 
                           <p className="mt-1 text-xs font-medium text-black/60">
-                            {product.sales} items sold
+                            {
+                              product.sales
+                            }{" "}
+                            items
+                            sold
                           </p>
 
                         </div>
@@ -1957,33 +2467,47 @@ export default function AnalyticsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-black/45">
-                Revenue distribution across categories.
+                Revenue
+                distribution
+                across
+                categories.
               </p>
             </div>
 
             <div className="mt-7 space-y-6">
 
-              {categoryData.length === 0 ? (
+              {categoryData.length ===
+              0 ? (
                 <div className="rounded-xl bg-[#f7f7f7] p-5 text-center text-sm text-black/40">
-                  No category sales available.
+                  No category sales
+                  available.
                 </div>
               ) : (
                 categoryData.map(
-                  (category) => (
+                  (
+                    category
+                  ) => (
                     <div
-                      key={category.name}
+                      key={
+                        category.name
+                      }
                     >
 
                       <div className="mb-2 flex items-center justify-between">
 
                         <span className="text-sm font-medium">
-                          {category.name}
+                          {
+                            category.name
+                          }
                         </span>
 
                         <div className="text-right">
 
                           <span className="text-sm font-semibold">
-                            {category.percentage}%
+                            {
+                              category.percentage
+                            }
+                            %
                           </span>
 
                           <span className="ml-2 text-xs text-black/40">
@@ -2017,7 +2541,8 @@ export default function AnalyticsPage() {
               <div className="flex items-center justify-between">
 
                 <span className="text-sm text-black/50">
-                  Total Category Revenue
+                  Total Category
+                  Revenue
                 </span>
 
                 <span className="text-base font-semibold">
@@ -2046,13 +2571,17 @@ export default function AnalyticsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-black/45">
-                Latest completed orders, including
-                discounts and delivery fees.
+                Latest completed
+                orders, including
+                discounts and
+                delivery fees.
               </p>
             </div>
 
             <button
-              onClick={handleViewOrders}
+              onClick={
+                handleViewOrders
+              }
               className="self-start text-xs font-semibold underline underline-offset-4"
             >
               View All Orders
@@ -2064,9 +2593,11 @@ export default function AnalyticsPage() {
 
           <div className="mt-6 hidden overflow-x-auto md:block">
 
-            {recentSales.length === 0 ? (
+            {recentSales.length ===
+            0 ? (
               <div className="py-10 text-center text-sm text-black/40">
-                No recent sales available.
+                No recent sales
+                available.
               </div>
             ) : (
               <table className="w-full min-w-[1050px]">
@@ -2110,12 +2641,16 @@ export default function AnalyticsPage() {
                   {recentSales.map(
                     (sale) => (
                       <tr
-                        key={sale.id}
+                        key={
+                          sale.id
+                        }
                         className="border-b border-black/[0.05] last:border-0"
                       >
 
                         <td className="py-4 text-sm font-semibold">
-                          {sale.id}
+                          {
+                            sale.id
+                          }
                         </td>
 
                         <td className="py-4">
@@ -2129,14 +2664,18 @@ export default function AnalyticsPage() {
                             />
 
                             <span className="text-sm">
-                              {sale.customer}
+                              {
+                                sale.customer
+                              }
                             </span>
 
                           </div>
                         </td>
 
                         <td className="py-4 text-sm text-black/60">
-                          {sale.product}
+                          {
+                            sale.product
+                          }
                         </td>
 
                         <td className="py-4">
@@ -2150,12 +2689,16 @@ export default function AnalyticsPage() {
                                   : "font-semibold text-black"
                               }`}
                             >
-                              {sale.discount}
+                              {
+                                sale.discount
+                              }
                             </p>
 
                             {sale.coupon && (
                               <p className="mt-1 text-[10px] uppercase tracking-wide text-black/35">
-                                {sale.coupon}
+                                {
+                                  sale.coupon
+                                }
                               </p>
                             )}
                           </div>
@@ -2163,7 +2706,8 @@ export default function AnalyticsPage() {
                         </td>
 
                         <td className="py-4 text-sm text-black/60">
-                          {sale.delivery > 0
+                          {sale.delivery >
+                          0
                             ? formatCurrency(
                                 sale.delivery
                               )
@@ -2171,7 +2715,9 @@ export default function AnalyticsPage() {
                         </td>
 
                         <td className="py-4 text-sm text-black/50">
-                          {sale.date}
+                          {
+                            sale.date
+                          }
                         </td>
 
                         <td className="py-4 text-right text-sm font-semibold">
@@ -2194,15 +2740,19 @@ export default function AnalyticsPage() {
 
           <div className="mt-5 space-y-3 md:hidden">
 
-            {recentSales.length === 0 ? (
+            {recentSales.length ===
+            0 ? (
               <div className="py-10 text-center text-sm text-black/40">
-                No recent sales available.
+                No recent sales
+                available.
               </div>
             ) : (
               recentSales.map(
                 (sale) => (
                   <div
-                    key={sale.id}
+                    key={
+                      sale.id
+                    }
                     className="rounded-xl border border-black/[0.07] p-4"
                   >
 
@@ -2217,12 +2767,19 @@ export default function AnalyticsPage() {
                       <div className="min-w-0 flex-1">
 
                         <p className="truncate text-sm font-semibold">
-                          {sale.customer}
+                          {
+                            sale.customer
+                          }
                         </p>
 
                         <p className="mt-1 text-xs text-black/40">
-                          {sale.id} ·{" "}
-                          {sale.date}
+                          {
+                            sale.id
+                          }{" "}
+                          ·{" "}
+                          {
+                            sale.date
+                          }
                         </p>
 
                       </div>
@@ -2243,7 +2800,9 @@ export default function AnalyticsPage() {
                         </p>
 
                         <p className="mt-1 text-sm font-medium">
-                          {sale.product}
+                          {
+                            sale.product
+                          }
                         </p>
                       </div>
 
@@ -2253,12 +2812,16 @@ export default function AnalyticsPage() {
                         </p>
 
                         <p className="mt-1 text-sm font-medium">
-                          {sale.discount}
+                          {
+                            sale.discount
+                          }
                         </p>
 
                         {sale.coupon && (
                           <p className="mt-1 text-[10px] uppercase tracking-wide text-black/35">
-                            {sale.coupon}
+                            {
+                              sale.coupon
+                            }
                           </p>
                         )}
                       </div>
@@ -2269,7 +2832,8 @@ export default function AnalyticsPage() {
                         </p>
 
                         <p className="mt-1 text-sm font-medium">
-                          {sale.delivery > 0
+                          {sale.delivery >
+                          0
                             ? formatCurrency(
                                 sale.delivery
                               )
@@ -2302,7 +2866,8 @@ export default function AnalyticsPage() {
               </p>
 
               <h2 className="mt-2 text-xl font-semibold">
-                {totalItemsSold.toLocaleString()} items sold
+                {totalItemsSold.toLocaleString()}{" "}
+                items sold
               </h2>
 
               <p className="mt-2 max-w-xl text-sm text-white/50">
@@ -2312,12 +2877,14 @@ export default function AnalyticsPage() {
                 )}{" "}
                 from{" "}
                 {totalOrders.toLocaleString()}{" "}
-                completed orders during the selected
+                completed orders
+                during the selected
                 period, with{" "}
                 {formatCurrency(
                   totalDiscounts
                 )}{" "}
-                in discounts applied.
+                in discounts
+                applied.
               </p>
 
             </div>
@@ -2364,7 +2931,9 @@ export default function AnalyticsPage() {
                 </p>
 
                 <p className="mt-1 text-lg font-semibold">
-                  {deliveryStats.delivered}
+                  {
+                    deliveryStats.delivered
+                  }
                 </p>
               </div>
 

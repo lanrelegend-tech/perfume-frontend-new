@@ -64,41 +64,48 @@ export default function OrderDetailsPage() {
       }
 
       setError("");
+const authResponse = await fetch(
+  `${API_URL}/users/me/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
-      const token =
-        localStorage.getItem("access_token");
+if (
+  authResponse.status === 401 ||
+  authResponse.status === 403
+) {
+  if (redirectOnAuth) {
+    router.push("/admin/login");
+  }
 
-      if (!token) {
-        if (redirectOnAuth) {
-          router.push("/admin/login");
-        }
+  return null;
+}
 
-        return null;
-      }
+if (!authResponse.ok) {
+  throw new Error(
+    "Unable to verify your login session."
+  );
+}
 
-      const response = await fetch(
-        `${API_URL}/orders/admin/${orderId}/`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-        }
-      );
+const response = await fetch(
+  `${API_URL}/orders/admin/${orderId}/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
-      if (response.status === 401) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+if (response.status === 401) {
+  if (redirectOnAuth) {
+    router.push("/admin/login");
+  }
 
-        if (redirectOnAuth) {
-          router.push("/admin/login");
-        }
-
-        return null;
-      }
-
+  return null;
+}
       if (response.status === 403) {
         throw new Error(
           "You do not have permission to view this order."
@@ -418,50 +425,56 @@ const getStatusLabel = (
       setUpdating(true);
       setError("");
 
-      const token =
-        localStorage.getItem(
-          "access_token"
-        );
+      const csrfResponse = await fetch(
+  `${API_URL}/users/auth/csrf/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
+const csrfData =
+  await csrfResponse
+    .json()
+    .catch(() => ({}));
 
-      const response = await fetch(
-        `${API_URL}/orders/admin/${order.id}/`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status: newStatus,
-          }),
-        }
-      );
+if (
+  !csrfResponse.ok ||
+  !csrfData.csrfToken
+) {
+  throw new Error(
+    "Unable to get security token."
+  );
+}
 
-      if (response.status === 401) {
-        localStorage.removeItem(
-          "access_token"
-        );
+const response = await fetch(
+  `${API_URL}/orders/admin/${order.id}/`,
+  {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken":
+        csrfData.csrfToken,
+    },
+    body: JSON.stringify({
+      status: newStatus,
+    }),
+  }
+);
 
-        localStorage.removeItem(
-          "refresh_token"
-        );
 
-        router.push("/admin/login");
+if (
+  response.status === 401 ||
+  response.status === 403
+) {
+  router.push("/admin/login");
 
-        return;
-      }
+  return;
+}
 
-      if (response.status === 403) {
-        throw new Error(
-          "You do not have permission to update this order."
-        );
-      }
-
+      
       if (!response.ok) {
         const errorData =
           await response
@@ -521,53 +534,59 @@ const getStatusLabel = (
         setSavingShipping(true);
         setError("");
 
-        const token =
-          localStorage.getItem(
-            "access_token"
-          );
+        const csrfResponse = await fetch(
+  `${API_URL}/users/auth/csrf/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
-        if (!token) {
-          router.push("/admin/login");
-          return;
-        }
+const csrfData =
+  await csrfResponse
+    .json()
+    .catch(() => ({}));
 
-        const response = await fetch(
-          `${API_URL}/orders/admin/${order.id}/`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({
-              courier:
-                courier.trim(),
-              tracking_number:
-                trackingNumber.trim(),
-            }),
-          }
-        );
+if (
+  !csrfResponse.ok ||
+  !csrfData.csrfToken
+) {
+  throw new Error(
+    "Unable to get security token."
+  );
+}
 
-        if (response.status === 401) {
-          localStorage.removeItem(
-            "access_token"
-          );
+const response = await fetch(
+  `${API_URL}/orders/admin/${order.id}/`,
+  {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type":
+        "application/json",
+      "X-CSRFToken":
+        csrfData.csrfToken,
+    },
+    body: JSON.stringify({
+      courier:
+        courier.trim(),
+      tracking_number:
+        trackingNumber.trim(),
+    }),
+  }
+);
 
-          localStorage.removeItem(
-            "refresh_token"
-          );
+if (
+  response.status === 401 ||
+  response.status === 403
+) {
+  router.push("/admin/login");
 
-          router.push("/admin/login");
+  return;
+}
 
-          return;
-        }
-
-        if (response.status === 403) {
-          throw new Error(
-            "You do not have permission to update this order."
-          );
-        }
+       
 
         if (!response.ok) {
           const errorData =

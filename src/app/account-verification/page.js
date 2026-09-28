@@ -21,7 +21,8 @@ function AccountVerificationContent() {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [linkVerifying, setLinkVerifying] = useState(Boolean(token));
+  const [linkVerifying, setLinkVerifying] =
+    useState(Boolean(token));
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -44,7 +45,6 @@ function AccountVerificationContent() {
 
   useEffect(() => {
     if (!token) {
-      
       return;
     }
 
@@ -313,6 +313,7 @@ function AccountVerificationContent() {
 
         {/* DESKTOP BRAND PANEL */}
         <div className="hidden lg:flex lg:w-1/2 bg-black text-white relative overflow-hidden">
+
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_35%)]" />
 
           <div className="relative z-10 flex flex-col justify-between w-full p-12 xl:p-16">
@@ -327,6 +328,7 @@ function AccountVerificationContent() {
             </div>
 
             <div className="max-w-xl">
+
               <p className="text-xs uppercase tracking-[0.35em] text-white/50 mb-6">
                 ACCOUNT SECURITY
               </p>
@@ -341,6 +343,7 @@ function AccountVerificationContent() {
                 Confirm your email address to secure your
                 ORENTEMIST account and continue shopping.
               </p>
+
             </div>
 
             <p className="text-xs text-white/40 tracking-wide">
@@ -352,16 +355,19 @@ function AccountVerificationContent() {
 
         {/* FORM SIDE */}
         <div className="w-full lg:w-1/2 flex items-center justify-center px-5 py-8 sm:px-8 sm:py-12">
+
           <div className="w-full max-w-md">
 
             {/* MOBILE LOGO */}
             <div className="lg:hidden mb-8 text-center">
+
               <Link
                 href="/"
                 className="text-xl sm:text-2xl tracking-[0.3em] font-medium"
               >
                 ORENTEMIST
               </Link>
+
             </div>
 
             {/* LINK VERIFICATION */}
@@ -534,6 +540,7 @@ function AccountVerificationContent() {
                     >
                       Sign in
                     </Link>
+
                   </p>
 
                 </div>

@@ -111,18 +111,15 @@ export default function EditProductPage() {
         setLoading(true);
         setError("");
 
-        const token =
-          localStorage.getItem("access_token");
-
-        if (!token) {
-          router.push("/admin/login");
-          return;
-        }
 
         const productsResponse = await fetch(
-          `${API_URL}/products/`
-        );
-
+  `${API_URL}/products/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
         if (!productsResponse.ok) {
           throw new Error(
             "Failed to load products"
@@ -270,9 +267,14 @@ export default function EditProductPage() {
         ================================================= */
 
         const categoriesResponse =
-          await fetch(
-            `${API_URL}/products/categories/`
-          );
+  await fetch(
+    `${API_URL}/products/categories/`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
 
         if (categoriesResponse.ok) {
           const categoriesData =
@@ -519,15 +521,29 @@ export default function EditProductPage() {
       setSaved(false);
       setError("");
 
-      const token =
-        localStorage.getItem(
-          "access_token"
-        );
+    const csrfResponse = await fetch(
+  `${API_URL}/auth/csrf/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
+   const csrfData = await csrfResponse
+  .json()
+  .catch(() => ({}));
+
+if (
+  !csrfResponse.ok ||
+  !csrfData?.csrfToken
+) {
+  throw new Error(
+    "Unable to initialize secure request. Please refresh and try again."
+  );
+}
+
+      
 
       /*
        * Empty stock = 0.
@@ -640,10 +656,13 @@ export default function EditProductPage() {
         {
           method: "PATCH",
           headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
+  "Content-Type":
+    "application/json",
+  "X-CSRFToken":
+    csrfData.csrfToken,
+},
+credentials: "include",
+         
           body: JSON.stringify(
             payload
           ),
@@ -651,20 +670,12 @@ export default function EditProductPage() {
       );
 
       if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        localStorage.removeItem(
-          "access_token"
-        );
-
-        localStorage.removeItem(
-          "refresh_token"
-        );
-
-        router.push("/admin/login");
-        return;
-      }
+  response.status === 401 ||
+  response.status === 403
+) {
+  router.push("/admin/login");
+  return;
+}
 
       if (!response.ok) {
         let message =
@@ -737,33 +748,22 @@ export default function EditProductPage() {
             `${API_URL}/products/admin/${productId}/`,
             {
               method: "PATCH",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+              credentials: "include",
+headers: {
+  "X-CSRFToken":
+    csrfData.csrfToken,
+},
+             
               body: mainImageFormData,
             }
           );
-
-        if (
-          mainImageResponse.status ===
-            401 ||
-          mainImageResponse.status ===
-            403
-        ) {
-          localStorage.removeItem(
-            "access_token"
-          );
-
-          localStorage.removeItem(
-            "refresh_token"
-          );
-
-          router.push(
-            "/admin/login"
-          );
-
-          return;
-        }
+if (
+  mainImageResponse.status === 401 ||
+  mainImageResponse.status === 403
+) {
+  router.push("/admin/login");
+  return;
+}
 
         if (
           !mainImageResponse.ok
@@ -785,33 +785,22 @@ export default function EditProductPage() {
           await fetch(
             `${API_URL}/products/admin/images/${promotedMainImageId}/`,
             {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "X-CSRFToken":
+      csrfData.csrfToken,
+  },
+}
           );
 
-        if (
-          promoteResponse.status ===
-            401 ||
-          promoteResponse.status ===
-            403
-        ) {
-          localStorage.removeItem(
-            "access_token"
-          );
-
-          localStorage.removeItem(
-            "refresh_token"
-          );
-
-          router.push(
-            "/admin/login"
-          );
-
-          return;
-        }
+       if (
+  promoteResponse.status === 401 ||
+  promoteResponse.status === 403
+) {
+  router.push("/admin/login");
+  return;
+}
 
         if (
           !promoteResponse.ok
@@ -838,32 +827,21 @@ export default function EditProductPage() {
               `${API_URL}/products/admin/images/${imageId}/`,
               {
                 method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
+               credentials: "include",
+headers: {
+  "X-CSRFToken":
+    csrfData.csrfToken,
+},
               }
             );
 
-          if (
-            deleteResponse.status ===
-              401 ||
-            deleteResponse.status ===
-              403
-          ) {
-            localStorage.removeItem(
-              "access_token"
-            );
-
-            localStorage.removeItem(
-              "refresh_token"
-            );
-
-            router.push(
-              "/admin/login"
-            );
-
-            return;
-          }
+         if (
+  deleteResponse.status === 401 ||
+  deleteResponse.status === 403
+) {
+  router.push("/admin/login");
+  return;
+}
 
           if (
             !deleteResponse.ok
@@ -916,33 +894,22 @@ export default function EditProductPage() {
             `${API_URL}/products/admin/images/bulk/`,
             {
               method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+             credentials: "include",
+headers: {
+  "X-CSRFToken":
+    csrfData.csrfToken,
+},
               body: imageFormData,
             }
           );
 
-        if (
-          imageResponse.status ===
-            401 ||
-          imageResponse.status ===
-            403
-        ) {
-          localStorage.removeItem(
-            "access_token"
-          );
-
-          localStorage.removeItem(
-            "refresh_token"
-          );
-
-          router.push(
-            "/admin/login"
-          );
-
-          return;
-        }
+       if (
+  imageResponse.status === 401 ||
+  imageResponse.status === 403
+) {
+  router.push("/admin/login");
+  return;
+}
 
         if (!imageResponse.ok) {
           throw new Error(

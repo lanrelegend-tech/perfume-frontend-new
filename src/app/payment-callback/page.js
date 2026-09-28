@@ -3,21 +3,45 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-const API_URL =
+const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
+  "https://perfume-backend-sbvd.onrender.com/api"
+).replace(/\/$/, "");
 
-function getAccessToken() {
-  return (
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("access") ||
-    null
+async function getCsrfToken() {
+  const response = await fetch(
+    `${API_URL}/auth/csrf/`,
+    {
+      method: "GET",
+      credentials: "include",
+    }
   );
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.csrfToken) {
+    throw new Error(
+      data.detail ||
+        data.error ||
+        "Could not get CSRF token."
+    );
+  }
+
+  return data.csrfToken;
 }
 
 function cartItemKey(item) {
-  const productId = item.product_id ?? item.id ?? item.product;
-  const variantId = item.variant_id ?? item.variantId ?? item.variant ?? "";
+  const productId =
+    item.product_id ??
+    item.id ??
+    item.product;
+
+  const variantId =
+    item.variant_id ??
+    item.variantId ??
+    item.variant ??
+    "";
+
   return `${productId}:${variantId}`;
 }
 
@@ -28,77 +52,127 @@ function removePurchasedCartItems(orderItems) {
 
   try {
     const storedCart = JSON.parse(
-      localStorage.getItem("orentemist_cart") || "[]"
+      localStorage.getItem(
+        "orentemist_cart"
+      ) || "[]"
     );
 
     if (!Array.isArray(storedCart)) {
       return;
     }
 
-    const purchasedQuantities = new Map();
+    const purchasedQuantities =
+      new Map();
 
     for (const item of orderItems) {
       const key = cartItemKey(item);
-      const quantity = Number(item.quantity || 0);
+
+      const quantity = Number(
+        item.quantity || 0
+      );
 
       purchasedQuantities.set(
         key,
-        (purchasedQuantities.get(key) || 0) + quantity
+        (purchasedQuantities.get(key) || 0) +
+          quantity
       );
     }
 
-    const remainingCart = storedCart.flatMap((item) => {
-      const key = cartItemKey(item);
-      const purchasedQuantity = purchasedQuantities.get(key) || 0;
-      const remainingQuantity = Number(item.quantity || 0) - purchasedQuantity;
+    const remainingCart =
+      storedCart.flatMap((item) => {
+        const key = cartItemKey(item);
 
-      purchasedQuantities.delete(key);
+        const purchasedQuantity =
+          purchasedQuantities.get(key) || 0;
 
-      return remainingQuantity > 0
-        ? [{ ...item, quantity: remainingQuantity }]
-        : [];
-    });
+        const remainingQuantity =
+          Number(item.quantity || 0) -
+          purchasedQuantity;
+
+        purchasedQuantities.delete(key);
+
+        return remainingQuantity > 0
+          ? [
+              {
+                ...item,
+                quantity:
+                  remainingQuantity,
+              },
+            ]
+          : [];
+      });
 
     localStorage.setItem(
       "orentemist_cart",
       JSON.stringify(remainingCart)
     );
   } catch (error) {
-    console.error("Could not update the cart after payment:", error);
+    console.error(
+      "Could not update the cart after payment:",
+      error
+    );
   }
 }
 
 function PaymentCallbackContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams =
+    useSearchParams();
 
-  const [message, setMessage] = useState(
-    "Verifying your payment..."
-  );
-  const hasStartedVerification = useRef(false);
+  const [message, setMessage] =
+    useState(
+      "Verifying your payment..."
+    );
+
+  const hasStartedVerification =
+    useRef(false);
 
   useEffect(() => {
     async function verifyPayment() {
-      if (hasStartedVerification.current) {
+      if (
+        hasStartedVerification.current
+      ) {
         return;
       }
 
-      hasStartedVerification.current = true;
+      hasStartedVerification.current =
+        true;
 
-      const reference = searchParams.get("reference");
+      const reference =
+        searchParams.get(
+          "reference"
+        );
 
-      const pendingOrderId = localStorage.getItem(
-        "orentemist_pending_order_id"
-      );
+      const pendingOrderId =
+        localStorage.getItem(
+          "orentemist_pending_order_id"
+        );
+
+      const pendingCheckoutToken =
+        localStorage.getItem(
+          "orentemist_pending_checkout_token"
+        );
 
       if (!reference) {
         setMessage(
           "Payment reference was not found."
         );
+
+        return;
+      }
+
+      if (!pendingCheckoutToken) {
+        setMessage(
+          "Checkout information was not found. Please contact support if your payment was completed."
+        );
+
         return;
       }
 
       try {
+        const csrfToken =
+          await getCsrfToken();
+
         const verifyUrl =
           `${API_URL}/orders/verify-payment/`;
 
@@ -111,18 +185,28 @@ function PaymentCallbackContent() {
               headers: {
                 "Content-Type":
                   "application/json",
-                ...(getAccessToken()
-                  ? { Authorization: `Bearer ${getAccessToken()}` }
-                  : {}),
+
+                "X-CSRFToken":
+                  csrfToken,
               },
 
+              credentials:
+                "include",
+
               body: JSON.stringify({
-                reference: reference,
+                reference:
+                  reference,
+
+                checkout_token:
+                  pendingCheckoutToken,
               }),
             }
           );
 
-        const data = await response.json();
+        const data =
+          await response
+            .json()
+            .catch(() => ({}));
 
         if (!response.ok) {
           throw new Error(
@@ -142,8 +226,19 @@ function PaymentCallbackContent() {
           );
         }
 
-        localStorage.removeItem("orentemist_cart");
-
+        if (
+          Array.isArray(
+            data.order?.items
+          )
+        ) {
+          removePurchasedCartItems(
+            data.order.items
+          );
+        } else {
+          localStorage.removeItem(
+            "orentemist_cart"
+          );
+        }
 
         localStorage.removeItem(
           "orentemist_pending_order_id"
@@ -166,18 +261,26 @@ function PaymentCallbackContent() {
         const reviewRequired =
           response.status === 202 ||
           (
-            data.order?.payment_status === "paid" &&
-            data.order?.status === "pending"
+            data.order?.payment_status ===
+              "paid" &&
+            data.order?.status ===
+              "pending"
           );
 
         router.replace(
           `/order-success?order=${orderId}&reference=${encodeURIComponent(
             reference
-          )}${reviewRequired ? "&review=1" : ""}`
+          )}${
+            reviewRequired
+              ? "&review=1"
+              : ""
+          }`
         );
-
       } catch (error) {
-        console.error("Payment verification error:", error);
+        console.error(
+          "Payment verification error:",
+          error
+        );
 
         setMessage(
           error?.message ||
@@ -187,12 +290,14 @@ function PaymentCallbackContent() {
     }
 
     verifyPayment();
-  }, [router, searchParams]);
+  }, [
+    router,
+    searchParams,
+  ]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#fafafa] px-5 text-black">
       <div className="w-full max-w-md text-center">
-
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black text-white">
           <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
         </div>
@@ -208,7 +313,6 @@ function PaymentCallbackContent() {
         <p className="mt-3 text-sm leading-6 text-gray-500">
           {message}
         </p>
-
       </div>
     </main>
   );

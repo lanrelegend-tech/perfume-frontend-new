@@ -122,40 +122,13 @@ export default function CreateNewsletterCampaignPage() {
   const [selectedTemplate, setSelectedTemplate] =
     useState(null);
 
-  const getToken = () => {
-    if (typeof window === "undefined") {
-      return null;
-    }
-
-    return (
-      localStorage.getItem("access_token") ||
-      localStorage.getItem("accessToken")
-    );
-  };
-
-  const authHeaders = () => {
-    const token = getToken();
-
-    return {
-      "Content-Type": "application/json",
-      ...(token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {}),
-    };
-  };
-
+ 
+  const authHeaders = () => ({
+  "Content-Type": "application/json",
+});
   const handleUnauthorized = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("refreshToken");
-    }
-
-    router.push("/admin/login");
-  };
+  router.replace("/admin/login");
+};
 
   const showNotice = (
     type,
@@ -177,21 +150,17 @@ export default function CreateNewsletterCampaignPage() {
     try {
       setLoadingSubscribers(true);
 
-      const token = getToken();
+     
 
-      if (!token) {
-        handleUnauthorized();
-        return;
-      }
-
-      const response = await fetch(
-        `${API_URL}/newsletter/subscribers/`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+     const response = await fetch(
+  `${API_URL}/newsletter/subscribers/`,
+  {
+    method: "GET",
+    credentials: "include",
+    headers: authHeaders(),
+    cache: "no-store",
+  }
+);
 
       if (
         response.status === 401 ||
@@ -392,7 +361,6 @@ export default function CreateNewsletterCampaignPage() {
         )
     );
   };
-
   const getAudiencePayload = () => {
     let include = [
       recipientType,
@@ -423,23 +391,45 @@ export default function CreateNewsletterCampaignPage() {
     try {
       setAudienceLoading(true);
 
-      const token = getToken();
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
-      if (!token) {
-        handleUnauthorized();
-        return;
+      const csrfData =
+        await csrfResponse
+          .json()
+          .catch(() => ({}));
+
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        throw new Error(
+          "Unable to initialize secure request."
+        );
       }
 
       const response = await fetch(
         `${API_URL}/newsletter/audience/preview/`,
         {
           method: "POST",
-          headers: authHeaders(),
+          credentials: "include",
+          headers: {
+            ...authHeaders(),
+            "X-CSRFToken":
+              csrfData.csrfToken,
+          },
           body: JSON.stringify(
             getAudiencePayload()
           ),
         }
       );
+
 
       if (
         response.status === 401 ||
@@ -676,13 +666,6 @@ export default function CreateNewsletterCampaignPage() {
         localPreview
       );
 
-      const token = getToken();
-
-      if (!token) {
-        handleUnauthorized();
-        return;
-      }
-
       const formData =
         new FormData();
 
@@ -691,14 +674,38 @@ export default function CreateNewsletterCampaignPage() {
         file
       );
 
+      const csrfResponse = await fetch(
+  `${API_URL}/auth/csrf/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
+
+const csrfData = await csrfResponse
+  .json()
+  .catch(() => ({}));
+
+if (
+  !csrfResponse.ok ||
+  !csrfData?.csrfToken
+) {
+  throw new Error(
+    "Unable to initialize secure upload."
+  );
+}
+
       const response =
         await fetch(
           `${API_URL}/newsletter/upload-image/`,
           {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            credentials: "include",
+headers: {
+  "X-CSRFToken": csrfData.csrfToken,
+},
+           
             body: formData,
           }
         );
@@ -1129,48 +1136,70 @@ export default function CreateNewsletterCampaignPage() {
           audience,
       };
     };
+const createCampaign = async () => {
+  const csrfResponse = await fetch(
+    `${API_URL}/auth/csrf/`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
 
-  const createCampaign =
-    async () => {
-      const response =
-        await fetch(
-          `${API_URL}/newsletter/campaigns/`,
-          {
-            method: "POST",
-            headers: authHeaders(),
-            body: JSON.stringify(
-              buildCampaignPayload()
-            ),
-          }
-        );
+  const csrfData =
+    await csrfResponse
+      .json()
+      .catch(() => ({}));
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        handleUnauthorized();
-        return null;
-      }
+  if (
+    !csrfResponse.ok ||
+    !csrfData?.csrfToken
+  ) {
+    throw new Error(
+      "Unable to initialize secure request."
+    );
+  }
 
-      const data =
-        await response
-          .json()
-          .catch(
-            () => ({})
-          );
+  const response = await fetch(
+    `${API_URL}/newsletter/campaigns/`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        ...authHeaders(),
+        "X-CSRFToken":
+          csrfData.csrfToken,
+      },
+      body: JSON.stringify(
+        buildCampaignPayload()
+      ),
+    }
+  );
 
-      if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            data.error ||
-            data.message ||
-            "Unable to create newsletter campaign."
-        );
-      }
+  if (
+    response.status === 401 ||
+    response.status === 403
+  ) {
+    handleUnauthorized();
+    return null;
+  }
 
-      return data;
-    };
+  const data =
+    await response
+      .json()
+      .catch(() => ({}));
 
+  if (!response.ok) {
+    throw new Error(
+      data.detail ||
+        data.error ||
+        data.message ||
+        "Unable to create newsletter campaign."
+    );
+  }
+
+  return data;
+};
   const handleSaveDraft =
     async () => {
       if (!validateCampaign()) {
@@ -1243,15 +1272,39 @@ export default function CreateNewsletterCampaignPage() {
             "Campaign was created but no campaign ID was returned."
           );
         }
+        const csrfResponse = await fetch(
+  `${API_URL}/auth/csrf/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
-        const response =
-          await fetch(
-            `${API_URL}/newsletter/campaigns/${campaignId}/send/`,
-            {
-              method: "POST",
-              headers: authHeaders(),
-            }
-          );
+const csrfData = await csrfResponse
+  .json()
+  .catch(() => ({}));
+
+if (
+  !csrfResponse.ok ||
+  !csrfData?.csrfToken
+) {
+  throw new Error(
+    "Unable to initialize secure send."
+  );
+}
+
+       const response = await fetch(
+  `${API_URL}/newsletter/campaigns/${campaignId}/send/`,
+  {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      ...authHeaders(),
+      "X-CSRFToken": csrfData.csrfToken,
+    },
+  }
+);
 
         if (
           response.status === 401 ||
@@ -1371,24 +1424,39 @@ export default function CreateNewsletterCampaignPage() {
       try {
         setTestLoading(true);
 
-        const token =
-          getToken();
+       const csrfResponse = await fetch(
+  `${API_URL}/auth/csrf/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
-        if (!token) {
-          handleUnauthorized();
-          return;
-        }
+const csrfData = await csrfResponse
+  .json()
+  .catch(() => ({}));
+
+if (
+  !csrfResponse.ok ||
+  !csrfData?.csrfToken
+) {
+  throw new Error(
+    "Unable to initialize secure test request."
+  );
+}
 
         const response =
           await fetch(
             `${API_URL}/newsletter/campaigns/test/`,
             {
               method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type":
-                  "application/json",
-              },
+              credentials: "include",
+headers: {
+  "Content-Type": "application/json",
+  "X-CSRFToken": csrfData.csrfToken,
+},
+              
               body: JSON.stringify({
                 email,
 

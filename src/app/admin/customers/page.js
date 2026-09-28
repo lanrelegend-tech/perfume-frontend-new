@@ -45,25 +45,13 @@ export default function CustomersPage() {
     averageSpend: 0,
   });
 
-  const getToken = () => {
-    if (typeof window === "undefined") {
-      return null;
-    }
-
-    return localStorage.getItem("access_token");
-  };
 
   const fetchCustomers = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const token = getToken();
-
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
+      
 
       const params = new URLSearchParams();
 
@@ -94,37 +82,36 @@ export default function CustomersPage() {
       const [customerResponse, guestResponse] =
         await Promise.all([
           fetch(customerUrl, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }),
+  method: "GET",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  cache: "no-store",
+}),
+         
 
-          fetch(guestUrl, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }),
+         fetch(guestUrl, {
+  method: "GET",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  cache: "no-store",
+}),
         ]);
 
-      if (
-        customerResponse.status === 401 ||
-        guestResponse.status === 401
-      ) {
-        localStorage.removeItem(
-          "access_token"
-        );
 
-        localStorage.removeItem(
-          "refresh_token"
-        );
+        if (
+  customerResponse.status === 401 ||
+  customerResponse.status === 403 ||
+  guestResponse.status === 401 ||
+  guestResponse.status === 403
+) {
+  router.push("/admin/login");
+  return;
+}
 
-        router.push("/admin/login");
-        return;
-      }
 
       if (!customerResponse.ok) {
         throw new Error(
