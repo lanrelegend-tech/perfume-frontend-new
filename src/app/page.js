@@ -1145,7 +1145,7 @@ const isSoldOut =
 />
 
               {product.featured && (
-                <span className="absolute left-3 top-3 bg-black px-3 py-1.5 text-[9px] uppercase tracking-widest text-white">
+                <span className="absolute left-2.5 top-2.5 rounded-full bg-black px-3 py-1.5 text-[8px] uppercase tracking-[0.2em] text-white sm:left-3 sm:top-3">
                   Featured
                 </span>
               )}
@@ -1153,7 +1153,7 @@ const isSoldOut =
              {isPreorder && (
   <div className="absolute inset-0 flex items-center justify-center bg-black/30">
 
-    <span className="bg-white px-4 py-2 text-[10px] uppercase tracking-widest">
+    <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
       Pre-order Available
     </span>
 
@@ -1163,7 +1163,7 @@ const isSoldOut =
 {isSoldOut && (
   <div className="absolute inset-0 flex items-center justify-center bg-black/30">
 
-    <span className="bg-white px-4 py-2 text-[10px] uppercase tracking-widest">
+   <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
       Sold Out
     </span>
 
