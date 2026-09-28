@@ -110,13 +110,13 @@ export default function AboutPage() {
     getWhatsAppUrl(storePhone);
 
   return (
-    <main className="min-h-screen bg-[#fafafa] text-black">
+    <main className="min-h-screen bg-[#faf9f6] text-black">
 
       {/* ===================================================
           NAVBAR
       =================================================== */}
 
-      <header className="sticky top-0 z-50 border-b border-black/[0.07] bg-[#fafafa]/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-black/[0.07] bg-[#faf9f6] backdrop-blur-xl">
 
         <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-8 lg:px-10">
 

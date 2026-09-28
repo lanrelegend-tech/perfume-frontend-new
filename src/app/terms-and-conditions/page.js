@@ -11,7 +11,7 @@ export const metadata = {
 
 export default function TermsAndConditionsPage() {
   return (
-    <main className="min-h-screen bg-white text-black">
+    <main className="min-h-screen bg-[#faf9f6] text-black">
       {/* Header */}
       <header className="border-b border-black/10">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">

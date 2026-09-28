@@ -276,11 +276,11 @@ useEffect(() => {
 
 
   return (
-    <main className="min-h-screen bg-white pb-20 text-black md:pb-0">
+    <main className="min-h-screen bg-[#faf9f6] pb-20 text-black md:pb-0">
 
       {/* ================= NAVBAR ================= */}
 
-      <header className="sticky top-0 z-50 border-b border-black/10 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-black/10 bg-[#faf9f6] backdrop-blur">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-10">
 
           <Link
@@ -715,7 +715,7 @@ useEffect(() => {
       setNewsletterError("");
     }}
     placeholder="Your email address"
-    className="h-13 flex-1 border border-black/15 bg-white px-5 text-base outline-none transition focus:border-black sm:text-sm"
+    className="h-14 w-full flex-1 border border-black/15 bg-white px-5 text-base outline-none transition focus:border-black sm:h-13 sm:text-sm"
     disabled={newsletterLoading}
     required
   />

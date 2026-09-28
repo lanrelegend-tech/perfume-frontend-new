@@ -73,6 +73,7 @@ function formatPrice(price) {
 export default function CheckoutPage() {
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const [shippingRates, setShippingRates] =
     useState([]);
@@ -1028,9 +1029,139 @@ if (!authorizationUrl) {
   /*
    * EMPTY CART
    */
+
+  const privacyModal = privacyOpen ? (
+  <div
+    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="privacy-policy-title"
+  >
+    <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-[#faf9f6] shadow-2xl">
+
+      {/* HEADER */}
+      <div className="flex items-center justify-between border-b border-black/10 px-5 py-4 sm:px-7">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+            ORENTEMIST
+          </p>
+
+          <h2
+            id="privacy-policy-title"
+            className="mt-1 text-xl font-semibold"
+          >
+            Privacy Policy
+          </h2>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setPrivacyOpen(false)}
+          aria-label="Close privacy policy"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-xl leading-none transition hover:border-black/30"
+        >
+          ×
+        </button>
+      </div>
+
+      {/* SCROLLABLE CONTENT */}
+      <div className="overflow-y-auto px-5 py-6 text-sm leading-7 text-gray-600 sm:px-7 sm:py-7">
+
+        <p>
+          At ORENTEMIST, we respect your privacy and are committed to
+          protecting the personal information you provide when placing an
+          order or using our website.
+        </p>
+
+        <h3 className="mt-6 text-sm font-semibold text-black">
+          Information We Collect
+        </h3>
+
+        <p className="mt-2">
+          We may collect your name, email address, phone number, delivery
+          address, order details, and payment-related information needed to
+          process and deliver your order.
+        </p>
+
+        <h3 className="mt-6 text-sm font-semibold text-black">
+          How We Use Your Information
+        </h3>
+
+        <p className="mt-2">
+          Your information is used to process payments, fulfil orders,
+          arrange delivery or pickup, provide customer support, prevent
+          fraudulent transactions, and communicate important order updates.
+        </p>
+
+        <h3 className="mt-6 text-sm font-semibold text-black">
+          Payment Information
+        </h3>
+
+        <p className="mt-2">
+          Payments are processed securely through our payment provider.
+          ORENTEMIST does not store your full card details on our servers.
+        </p>
+
+        <h3 className="mt-6 text-sm font-semibold text-black">
+          Sharing Your Information
+        </h3>
+
+        <p className="mt-2">
+          We only share information with service providers where necessary
+          to operate the store, such as payment processing, delivery,
+          hosting, and customer communications.
+        </p>
+
+        <h3 className="mt-6 text-sm font-semibold text-black">
+          Data Security
+        </h3>
+
+        <p className="mt-2">
+          We take reasonable measures to protect your information against
+          unauthorized access, alteration, disclosure, or loss. However, no
+          online system can be guaranteed to be completely secure.
+        </p>
+
+        <h3 className="mt-6 text-sm font-semibold text-black">
+          Your Choices
+        </h3>
+
+        <p className="mt-2">
+          You may contact ORENTEMIST if you have questions about the personal
+          information associated with your orders or if you need assistance
+          with your privacy rights.
+        </p>
+
+        <h3 className="mt-6 text-sm font-semibold text-black">
+          Contact
+        </h3>
+
+        <p className="mt-2">
+          For privacy questions or requests, please contact ORENTEMIST
+          through the contact details provided on our website.
+        </p>
+      </div>
+
+      {/* FOOTER */}
+      <div className="border-t border-black/10 px-5 py-4 sm:px-7">
+        <button
+          type="button"
+          onClick={() => setPrivacyOpen(false)}
+          className="w-full rounded-full bg-black px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+) : null;
+
+
+
   if (items.length === 0) {
     return (
       <main className="min-h-screen bg-[#fafafa]">
+       
         <div className="flex min-h-screen items-center justify-center px-5">
           <div className="w-full max-w-md text-center">
             <div className="mx-auto mb-7 flex h-20 w-20 items-center justify-center rounded-full bg-black text-white">
@@ -1071,13 +1202,14 @@ if (!authorizationUrl) {
   }
 
   return (
-    <main className="min-h-screen bg-[#fafafa] text-black">
+    <main className="min-h-screen bg-[#faf9f6] text-black">
+       {privacyModal}
       <Script
         src="https://js.paystack.co/v2/inline.js"
         strategy="afterInteractive"
       />
 
-      <header className="border-b border-black/10 bg-white">
+      <header className="border-b border-black/10 bg-[#faf9f6]">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-12">
           <Link
             href="/"
@@ -1189,7 +1321,7 @@ if (!authorizationUrl) {
           <div className="space-y-8">
             {/* CONTACT */}
 
-            <section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
+            <section className="rounded-3xl border border-black/10 bg-[#faf9f6] p-5 sm:p-7">
               <div className="mb-7">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
                   01
@@ -2060,11 +2192,14 @@ if (!authorizationUrl) {
                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                   </svg>
 
-                  <span>
-                    Your information is
-                    securely handled during
-                    checkout.
-                  </span>
+                 <button
+  type="button"
+  onClick={() => setPrivacyOpen(true)}
+  className="text-left underline underline-offset-2 transition hover:text-black"
+>
+  Your information is securely handled during checkout.
+  View our Privacy Policy.
+</button>
                 </div>
 
                 {hasPreorderItems && (
