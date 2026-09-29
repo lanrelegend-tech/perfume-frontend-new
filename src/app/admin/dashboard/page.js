@@ -147,57 +147,212 @@ const logout = async () => {
 
   return response.json();
 };
-  // ==================================================
-  // LOAD DASHBOARD
-  // ==================================================
+  
 
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const [
-  productsData,
-  ordersData,
-  customersData,
-] = await Promise.all([
-  fetchApi(`${API_URL}/products/`),
-  fetchApi(`${API_URL}/orders/admin/`),
-  fetchApi(
-    `${API_URL}/users/admin/customers/`
-  ),
-]);
+// ==================================================
+// LOAD DASHBOARD
+// ==================================================
 
+const loadDashboard = async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-      // ----------------------------------------------
-      // STORE CURRENT API RESULTS
-      // ----------------------------------------------
+    /*
+      --------------------------------------------------
+      VERIFY ADMIN SESSION
+      --------------------------------------------------
+    */
 
-      setProducts(getResults(productsData));
-      setOrders(getResults(ordersData));
-      setCustomers(getResults(customersData));
+    const meResponse = await fetch(
+      `${API_URL}/users/me/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
 
-      // ----------------------------------------------
-      // STORE REAL API COUNTS
-      // ----------------------------------------------
+    if (
+      meResponse.status === 401 ||
+      meResponse.status === 403
+    ) {
+      router.replace("/admin/login");
+      return;
+    }
 
-      setProductCount(getCount(productsData));
-      setOrderCount(getCount(ordersData));
-      setCustomerCount(getCount(customersData));
-    } catch (err) {
-      console.error("Dashboard error:", err);
+    if (!meResponse.ok) {
+      throw new Error(
+        "Unable to verify your admin session."
+      );
+    }
 
-      if (err.message === "AUTH_ERROR") {
-        logout();
+    /*
+      --------------------------------------------------
+      LOAD PRODUCTS + CUSTOMERS
+      --------------------------------------------------
+    */
+
+    const [
+      productsData,
+      customersData,
+    ] = await Promise.all([
+      fetchApi(`${API_URL}/products/`),
+      fetchApi(
+        `${API_URL}/users/admin/customers/`
+      ),
+    ]);
+
+    /*
+      --------------------------------------------------
+      LOAD ALL ORDERS
+      --------------------------------------------------
+
+      /orders/admin/ is paginated.
+
+      Example:
+
+      {
+        "count": 150,
+        "next": "...?page=2",
+        "previous": null,
+        "results": [...]
+      }
+
+      Keep requesting the "next" URL until
+      Django returns null.
+    */
+
+    let allOrders = [];
+
+    let nextOrdersUrl =
+      `${API_URL}/orders/admin/`;
+
+    while (nextOrdersUrl) {
+      const ordersResponse = await fetch(
+        nextOrdersUrl,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        }
+      );
+
+      if (
+        ordersResponse.status === 401 ||
+        ordersResponse.status === 403
+      ) {
+        router.replace("/admin/login");
         return;
       }
 
-      setError(
-        "Unable to load dashboard data. Please check your connection and try again."
-      );
-    } finally {
-      setLoading(false);
+      if (!ordersResponse.ok) {
+        throw new Error(
+          `Orders request failed: ${ordersResponse.status}`
+        );
+      }
+
+      const ordersData =
+        await ordersResponse.json();
+
+      const pageOrders =
+        Array.isArray(ordersData?.results)
+          ? ordersData.results
+          : Array.isArray(ordersData)
+          ? ordersData
+          : [];
+
+      allOrders = [
+        ...allOrders,
+        ...pageOrders,
+      ];
+
+      /*
+        Django gives us the next page URL.
+
+        When there are no more pages:
+        next = null
+      */
+      nextOrdersUrl =
+        ordersData?.next || null;
     }
-  };
+
+    /*
+      --------------------------------------------------
+      STORE ORDERS
+      --------------------------------------------------
+    */
+
+    setOrders(allOrders);
+
+    /*
+      --------------------------------------------------
+      STORE PRODUCTS
+      --------------------------------------------------
+    */
+
+    setProducts(
+      getResults(productsData)
+    );
+
+    /*
+      --------------------------------------------------
+      STORE CUSTOMERS
+      --------------------------------------------------
+    */
+
+    setCustomers(
+      getResults(customersData)
+    );
+
+    /*
+      --------------------------------------------------
+      STORE REAL API COUNTS
+      --------------------------------------------------
+    */
+
+    setProductCount(
+      getCount(productsData)
+    );
+
+    /*
+      Use the full number of orders that we
+      actually loaded, rather than only page 1.
+    */
+    setOrderCount(
+      allOrders.length
+    );
+
+    setCustomerCount(
+      getCount(customersData)
+    );
+
+  } catch (err) {
+    console.error(
+      "Dashboard error:",
+      err
+    );
+
+    if (
+      err.message === "AUTH_ERROR"
+    ) {
+      logout();
+      return;
+    }
+
+    setError(
+      "Unable to load dashboard data. Please check your connection and try again."
+    );
+
+  } finally {
+    setLoading(false);
+  }
+};
+
+
   useEffect(() => {
   loadDashboard();
 }, [router]);
