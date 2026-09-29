@@ -76,7 +76,7 @@ export default function InventoryPage() {
    */
   const getCsrfToken = async () => {
     const response = await fetch(
-      `${API_URL}/users/auth/csrf/`,
+      `${API_URL}/auth/csrf/`,
       {
         method: "GET",
         credentials: "include",

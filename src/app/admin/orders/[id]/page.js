@@ -426,7 +426,7 @@ const getStatusLabel = (
       setError("");
 
       const csrfResponse = await fetch(
-  `${API_URL}/users/auth/csrf/`,
+  `${API_URL}/auth/csrf/`,
   {
     method: "GET",
     credentials: "include",
@@ -535,7 +535,7 @@ if (
         setError("");
 
         const csrfResponse = await fetch(
-  `${API_URL}/users/auth/csrf/`,
+  `${API_URL}/auth/csrf/`,
   {
     method: "GET",
     credentials: "include",

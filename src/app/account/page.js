@@ -108,14 +108,14 @@ export default function AccountPage() {
       profileResponse,
       ordersResponse,
     ] = await Promise.all([
-      fetch(`${API_URL}/auth/me/`, {
+      fetch(`${API_URL}/users/me/`, {
         method: "GET",
         credentials: "include",
         headers,
         cache: "no-store",
       }),
 
-      fetch(`${API_URL}/auth/profile/`, {
+      fetch(`${API_URL}/users/profile/`, {
         method: "GET",
         credentials: "include",
         headers,

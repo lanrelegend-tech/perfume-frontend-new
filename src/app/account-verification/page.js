@@ -57,7 +57,7 @@ function AccountVerificationContent() {
 
       try {
         const response = await fetch(
-          `${API_URL}/users/verify-email-link/`,
+          `${API_URL}/auth/verify-email-link/`,
           {
             method: "POST",
             headers: {
@@ -159,7 +159,7 @@ function AccountVerificationContent() {
 
     try {
       const response = await fetch(
-        `${API_URL}/users/verify-email/`,
+        `${API_URL}/auth/verify-email/`,
         {
           method: "POST",
           headers: {

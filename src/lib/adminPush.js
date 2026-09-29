@@ -28,7 +28,7 @@ function urlBase64ToUint8Array(base64String) {
 
 async function getCsrfToken() {
   const response = await fetch(
-    `${API_URL}/users/auth/csrf/`,
+    `${API_URL}/auth/csrf/`,
     {
       method: "GET",
       credentials: "include",

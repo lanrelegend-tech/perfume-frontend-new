@@ -706,6 +706,7 @@ export default function ProductDetailsPage() {
       } else {
         safeCart.push({
           product_id: product.id,
+          slug: product.slug,
           variant_id: variantId,
           name: product.name,
           brand:

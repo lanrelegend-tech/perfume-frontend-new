@@ -63,7 +63,7 @@ const formatCompactCurrency = (value) => {
 const getCsrfToken = async () => {
   try {
     const response = await fetch(
-      `${API_URL}/users/auth/csrf/`,
+      `${API_URL}/auth/csrf/`,
       {
         method: "GET",
         credentials: "include",

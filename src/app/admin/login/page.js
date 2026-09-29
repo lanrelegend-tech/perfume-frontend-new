@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://perfume-backend-sbvd.onrender.com/api"
+).replace(/\/$/, "");
+
 export default function AdminLogin() {
   const router = useRouter();
 
@@ -22,12 +27,25 @@ const [email, setEmail] = useState("");
     setLoading(true);
 
     try {
+      const csrfResponse = await fetch(`${API_URL}/auth/csrf/`, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+      const csrfData = await csrfResponse.json().catch(() => ({}));
+
+      if (!csrfResponse.ok || !csrfData.csrfToken) {
+        throw new Error("Unable to initialize secure login.");
+      }
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/login/`,
+        `${API_URL}/auth/login/`,
         {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
+            "X-CSRFToken": csrfData.csrfToken,
           },
           body: JSON.stringify({
   email,
@@ -47,15 +65,23 @@ const [email, setEmail] = useState("");
         return;
       }
 
-      if (!data.access) {
-        setError("Login failed. No access token was returned.");
+      const userResponse = await fetch(`${API_URL}/users/me/`, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+      const user = await userResponse.json().catch(() => ({}));
+
+      if (!userResponse.ok || !user.is_staff) {
+        await fetch(`${API_URL}/auth/logout/`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "X-CSRFToken": csrfData.csrfToken,
+          },
+        });
+        setError("This account does not have administrator access.");
         return;
-      }
-
-      localStorage.setItem("access_token", data.access);
-
-      if (data.refresh) {
-        localStorage.setItem("refresh_token", data.refresh);
       }
 
       router.push("/admin/dashboard");

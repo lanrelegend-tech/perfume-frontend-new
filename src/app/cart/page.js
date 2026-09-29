@@ -452,6 +452,9 @@ export default function CartPage() {
                 const itemId =
                   item.product_id || item.id;
 
+                const productPath =
+                  item.slug || item.product_slug || itemId;
+
                 const isPreorder =
                   item.is_preorder === true;
 
@@ -468,7 +471,7 @@ export default function CartPage() {
                       {/* IMAGE */}
 
                       <Link
-                        href={`/products/${itemId}`}
+                        href={`/products/${productPath}`}
                         className="relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f8f7f4] sm:h-36 sm:w-36"
                       >
                         <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#eeeae2] blur-2xl" />
@@ -490,7 +493,7 @@ export default function CartPage() {
                             </p>
 
                             <Link
-                              href={`/products/${itemId}`}
+                              href={`/products/${productPath}`}
                               className="mt-2 block truncate text-base font-semibold transition hover:opacity-60 sm:text-lg"
                             >
                               {item.name}
