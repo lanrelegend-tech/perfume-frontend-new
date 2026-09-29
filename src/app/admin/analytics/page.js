@@ -832,7 +832,7 @@ async function loadAnalytics() {
   ======================================================= */
 
   const totalOrders =
-    completedOrders.length;
+  periodOrders.length;
 
   /* =======================================================
      ITEMS SOLD
