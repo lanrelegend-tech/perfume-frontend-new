@@ -167,25 +167,30 @@ export default function OrdersPage() {
       orderStatus,
     };
   };
+/*
+ * Load ALL real orders from Django.
+ * The API is paginated, so keep following "next"
+ * until every order has been loaded.
+ */
+const fetchOrders = async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-  /*
-   * Load real orders from Django.
-   */
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      setError("");
+    const authenticated =
+      await checkAuthentication();
 
-      const authenticated =
-        await checkAuthentication();
+    if (!authenticated) {
+      router.push("/admin/login");
+      return;
+    }
 
-      if (!authenticated) {
-        router.push("/admin/login");
-        return;
-      }
+    let allOrders = [];
+    let nextUrl = `${API_URL}/orders/admin/`;
 
+    while (nextUrl) {
       const response = await fetch(
-        `${API_URL}/orders/admin/`,
+        nextUrl,
         {
           method: "GET",
           credentials: "include",
@@ -211,46 +216,54 @@ export default function OrdersPage() {
         await response.json();
 
       /*
-       * Django REST Framework can return:
-       *
-       * [
-       *   {...}
-       * ]
-       *
-       * or:
+       * DRF pagination returns:
        *
        * {
-       *   count: 10,
+       *   count: 150,
+       *   next: "...?page=2",
+       *   previous: null,
        *   results: [...]
        * }
        */
-      const orderList =
-        Array.isArray(data)
-          ? data
-          : Array.isArray(data.results)
+
+      const pageOrders =
+        Array.isArray(data.results)
           ? data.results
-          : Array.isArray(data.orders)
-          ? data.orders
+          : Array.isArray(data)
+          ? data
           : [];
 
-      const formattedOrders =
-        orderList.map(formatOrder);
+      allOrders = [
+        ...allOrders,
+        ...pageOrders,
+      ];
 
-      setOrders(formattedOrders);
-    } catch (err) {
-      console.error(
-        "ORDERS API ERROR:",
-        err
-      );
-
-      setError(
-        "Unable to load orders. Please try again."
-      );
-    } finally {
-      setLoading(false);
+      /*
+       * Continue to the next page until
+       * Django returns next: null.
+       */
+      nextUrl = data.next || null;
     }
-  };
 
+    const formattedOrders =
+      allOrders.map(formatOrder);
+
+    setOrders(formattedOrders);
+
+  } catch (err) {
+    console.error(
+      "ORDERS API ERROR:",
+      err
+    );
+
+    setError(
+      "Unable to load orders. Please try again."
+    );
+
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     fetchOrders();
   }, []);
