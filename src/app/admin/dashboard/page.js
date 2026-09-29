@@ -18,6 +18,7 @@ import {
   UserRound,
   Truck,
   Package,
+  PackageCheck,
   ChevronRight,
   RefreshCw,
 } from "lucide-react";
@@ -42,6 +43,8 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [pushLoading, setPushLoading] =
   useState(false);
+  const [markingPickupId, setMarkingPickupId] =
+  useState(null);
 
 const [pushMessage, setPushMessage] =
   useState("");
@@ -321,6 +324,80 @@ const logout = async () => {
     ).toLowerCase();
 
     return paymentStatus === "paid";
+  };
+
+  const canMarkPickupReady = (order) => {
+    return (
+      order?.delivery_method === "pickup" &&
+      getOrderStatus(order) === "processing" &&
+      isPaidOrder(order)
+    );
+  };
+
+  const markPickupReady = async (order) => {
+    if (!canMarkPickupReady(order)) return;
+
+    const confirmed = window.confirm(
+      "Mark this order as ready for pickup? The customer will receive the pickup-ready email."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setMarkingPickupId(order.id);
+      setError("");
+
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
+      const csrfData = await csrfResponse.json();
+
+      if (!csrfResponse.ok || !csrfData?.csrfToken) {
+        throw new Error("Unable to get security token.");
+      }
+
+      const response = await fetch(
+        `${API_URL}/orders/admin/${order.id}/`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfData.csrfToken,
+          },
+          body: JSON.stringify({ status: "shipped" }),
+        }
+      );
+
+      if (response.status === 401 || response.status === 403) {
+        logout();
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          data?.status?.[0] ||
+            data?.detail ||
+            "Unable to mark the order ready for pickup."
+        );
+      }
+
+      await loadDashboard();
+    } catch (err) {
+      console.error("PICKUP READY ERROR:", err);
+      setError(
+        err.message ||
+          "Unable to mark the order ready for pickup."
+      );
+    } finally {
+      setMarkingPickupId(null);
+    }
   };
 
   // ==================================================
@@ -1252,6 +1329,10 @@ const logout = async () => {
                       TOTAL
                     </th>
 
+                    <th className="pb-4 text-xs font-medium text-gray-400 text-right">
+                      ACTION
+                    </th>
+
                   </tr>
 
                 </thead>
@@ -1371,6 +1452,36 @@ const logout = async () => {
                               getOrderAmount(
                                 order
                               )
+                            )}
+                          </td>
+
+                          <td className="py-4 pl-4 text-right">
+                            {canMarkPickupReady(order) ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  markPickupReady(order)
+                                }
+                                disabled={
+                                  markingPickupId === order.id
+                                }
+                                className="inline-flex items-center gap-2 rounded-lg bg-black px-3 py-2 text-xs font-medium text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <PackageCheck size={15} />
+                                Ready for Pickup
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(
+                                    `/admin/orders/${order.id}`
+                                  )
+                                }
+                                className="text-xs font-medium text-black/60 hover:text-black hover:underline"
+                              >
+                                View order
+                              </button>
                             )}
                           </td>
 

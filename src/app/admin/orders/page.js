@@ -12,6 +12,7 @@ import {
   MoreHorizontal,
   Eye,
   Truck,
+  PackageCheck,
   X,
   ShoppingBag,
 } from "lucide-react";
@@ -29,6 +30,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openMenu, setOpenMenu] = useState(null);
+  const [markingPickupId, setMarkingPickupId] = useState(null);
 
   const getCsrfToken = async () => {
     const response = await fetch(
@@ -438,6 +440,70 @@ export default function OrdersPage() {
     );
   };
 
+  const canMarkPickupReady = (order) => {
+    return (
+      order.delivery_method === "pickup" &&
+      normalizeStatus(order.orderStatus) === "processing" &&
+      normalizeStatus(order.paymentStatus) === "paid"
+    );
+  };
+
+  const markPickupReady = async (order) => {
+    if (!canMarkPickupReady(order)) return;
+
+    const confirmed = window.confirm(
+      "Mark this order as ready for pickup? The customer will receive the pickup-ready email."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setMarkingPickupId(order.id);
+      setError("");
+
+      const csrfToken = await getCsrfToken();
+      const response = await fetch(
+        `${API_URL}/orders/admin/${order.id}/`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken,
+          },
+          body: JSON.stringify({ status: "shipped" }),
+        }
+      );
+
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        router.push("/admin/login");
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          data?.status?.[0] ||
+            data?.detail ||
+            "Unable to mark the order ready for pickup."
+        );
+      }
+
+      await fetchOrders();
+    } catch (err) {
+      console.error("PICKUP READY ERROR:", err);
+      setError(
+        err.message ||
+          "Unable to mark the order ready for pickup."
+      );
+    } finally {
+      setMarkingPickupId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-black">
       <AdminSidebar />
@@ -753,6 +819,26 @@ export default function OrdersPage() {
                               </td>
 
                               <td className="relative px-6 py-5 text-right">
+                                {canMarkPickupReady(order) && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      markPickupReady(order)
+                                    }
+                                    disabled={
+                                      markingPickupId === order.id
+                                    }
+                                    className="mr-2 inline-flex items-center gap-2 rounded-lg bg-black px-3 py-2 text-xs font-medium text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {markingPickupId === order.id ? (
+                                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                                    ) : (
+                                      <PackageCheck size={15} />
+                                    )}
+                                    Ready for Pickup
+                                  </button>
+                                )}
+
                                 <button
                                   onClick={() =>
                                     setOpenMenu(
@@ -908,6 +994,22 @@ export default function OrdersPage() {
                           {openMenu ===
                             order.id && (
                             <div className="mt-4 flex gap-2">
+                              {canMarkPickupReady(order) && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    markPickupReady(order)
+                                  }
+                                  disabled={
+                                    markingPickupId === order.id
+                                  }
+                                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <PackageCheck size={15} />
+                                  Ready for Pickup
+                                </button>
+                              )}
+
                               <button
                                 onClick={() =>
                                   handleViewOrder(
