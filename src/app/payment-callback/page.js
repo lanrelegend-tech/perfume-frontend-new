@@ -30,90 +30,6 @@ async function getCsrfToken() {
   return data.csrfToken;
 }
 
-function cartItemKey(item) {
-  const productId =
-    item.product_id ??
-    item.id ??
-    item.product;
-
-  const variantId =
-    item.variant_id ??
-    item.variantId ??
-    item.variant ??
-    "";
-
-  return `${productId}:${variantId}`;
-}
-
-function removePurchasedCartItems(orderItems) {
-  if (!Array.isArray(orderItems)) {
-    return;
-  }
-
-  try {
-    const storedCart = JSON.parse(
-      localStorage.getItem(
-        "orentemist_cart"
-      ) || "[]"
-    );
-
-    if (!Array.isArray(storedCart)) {
-      return;
-    }
-
-    const purchasedQuantities =
-      new Map();
-
-    for (const item of orderItems) {
-      const key = cartItemKey(item);
-
-      const quantity = Number(
-        item.quantity || 0
-      );
-
-      purchasedQuantities.set(
-        key,
-        (purchasedQuantities.get(key) || 0) +
-          quantity
-      );
-    }
-
-    const remainingCart =
-      storedCart.flatMap((item) => {
-        const key = cartItemKey(item);
-
-        const purchasedQuantity =
-          purchasedQuantities.get(key) || 0;
-
-        const remainingQuantity =
-          Number(item.quantity || 0) -
-          purchasedQuantity;
-
-        purchasedQuantities.delete(key);
-
-        return remainingQuantity > 0
-          ? [
-              {
-                ...item,
-                quantity:
-                  remainingQuantity,
-              },
-            ]
-          : [];
-      });
-
-    localStorage.setItem(
-      "orentemist_cart",
-      JSON.stringify(remainingCart)
-    );
-  } catch (error) {
-    console.error(
-      "Could not update the cart after payment:",
-      error
-    );
-  }
-}
-
 function PaymentCallbackContent() {
   const router = useRouter();
   const searchParams =
@@ -226,19 +142,8 @@ function PaymentCallbackContent() {
           );
         }
 
-        if (
-          Array.isArray(
-            data.order?.items
-          )
-        ) {
-          removePurchasedCartItems(
-            data.order.items
-          );
-        } else {
-          localStorage.removeItem(
-            "orentemist_cart"
-          );
-        }
+        // Checkout submits the complete cart, so a confirmed payment clears it.
+        localStorage.removeItem("orentemist_cart");
 
         localStorage.removeItem(
           "orentemist_pending_order_id"
