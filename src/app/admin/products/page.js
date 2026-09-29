@@ -92,50 +92,63 @@ export default function ProductsPage() {
   const [status, setStatus] = useState("All");
   const [preorderFilter, setPreorderFilter] = useState("All");
   const [openMenu, setOpenMenu] = useState(null);
+useEffect(() => {
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setLoading(true);
-        setError("");
+      let url = `${process.env.NEXT_PUBLIC_API_URL}/products/admin/`;
+      const allProducts = [];
 
-        
-       const response = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/products/admin/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
-if (response.status === 401 || response.status === 403) {
-  router.push("/admin/login");
-  return;
-}
+      while (url) {
+        const response = await fetch(url, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          router.push("/admin/login");
+          return;
+        }
+
         if (!response.ok) {
           throw new Error("Failed to load products");
         }
 
         const data = await response.json();
 
-        setProducts(
-          Array.isArray(data)
-            ? data
-            : Array.isArray(data.results)
-              ? data.results
-              : []
-        );
-      } catch (err) {
-        console.error("Products fetch error:", err);
-        setError("Unable to load products.");
-      } finally {
-        setLoading(false);
+        // Backend returned a plain array
+        if (Array.isArray(data)) {
+          allProducts.push(...data);
+          break;
+        }
+
+        // Backend returned a paginated response
+        if (Array.isArray(data.results)) {
+          allProducts.push(...data.results);
+        }
+
+        // Continue through every DRF page
+        url = data.next || null;
       }
-    };
 
-    fetchProducts();
-  }, [router]);
+      setProducts(allProducts);
+    } catch (err) {
+      console.error("Products fetch error:", err);
+      setError("Unable to load products.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  fetchProducts();
+}, [router]);
+   
   useEffect(() => {
     const fetchCategories = async () => {
       try {

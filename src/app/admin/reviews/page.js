@@ -81,21 +81,24 @@ export default function AdminReviewsPage() {
 
     return true;
   };
+const fetchReviews = async () => {
+  try {
+    setLoading(true);
 
-  const fetchReviews = async () => {
-    try {
-      setLoading(true);
+    const authenticated =
+      await checkAuthentication();
 
-      const authenticated =
-        await checkAuthentication();
+    if (!authenticated) {
+      router.push("/admin/login");
+      return;
+    }
 
-      if (!authenticated) {
-        router.push("/admin/login");
-        return;
-      }
+    let nextUrl = `${API_URL}/reviews/admin/`;
+    const allReviews = [];
 
+    while (nextUrl) {
       const response = await fetch(
-        `${API_URL}/reviews/admin/`,
+        nextUrl,
         {
           method: "GET",
           credentials: "include",
@@ -119,21 +122,33 @@ export default function AdminReviewsPage() {
 
       const data = await response.json();
 
-      setReviews(
-        Array.isArray(data)
-          ? data
-          : data.results || []
-      );
-    } catch (error) {
-      console.error(
-        "Error loading reviews:",
-        error
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+      // Non-paginated response
+      if (Array.isArray(data)) {
+        allReviews.push(...data);
+        break;
+      }
 
+      // Paginated response
+      if (Array.isArray(data?.results)) {
+        allReviews.push(
+          ...data.results
+        );
+      }
+
+      // Load next backend page
+      nextUrl = data?.next || null;
+    }
+
+    setReviews(allReviews);
+  } catch (error) {
+    console.error(
+      "Error loading reviews:",
+      error
+    );
+  } finally {
+    setLoading(false);
+  }
+};
   const handleDelete = async () => {
     if (!deleteReview) return;
 

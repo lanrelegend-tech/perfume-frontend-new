@@ -45,44 +45,69 @@ export default function AddProductPage() {
   // --------------------------------------------------
   useEffect(() => {
     const loadCategories = async () => {
-      setCategoriesLoading(true);
+  setCategoriesLoading(true);
 
-      try {
-        const response = await fetch(
-          `${API_URL}/products/categories/`
+  try {
+    let url = `${API_URL}/products/categories/`;
+    const allCategories = [];
+
+    while (url) {
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      const data = await response
+        .json()
+        .catch(() => []);
+
+      if (!response.ok) {
+        throw new Error(
+          "Failed to load categories."
         );
-
-        const data = await response.json().catch(() => []);
-
-        if (!response.ok) {
-          throw new Error("Failed to load categories.");
-        }
-
-        const categoryList = Array.isArray(data)
-          ? data
-          : Array.isArray(data.results)
-          ? data.results
-          : [];
-
-        setCategories(categoryList);
-
-        if (categoryList.length > 0) {
-          setProduct((prev) => ({
-            ...prev,
-            category_id:
-              prev.category_id || String(categoryList[0].id),
-          }));
-        }
-      } catch (err) {
-        console.error("Category loading error:", err);
-
-        setError(
-          "Unable to load product categories. Please check your backend connection."
-        );
-      } finally {
-        setCategoriesLoading(false);
       }
-    };
+
+      // Non-paginated response
+      if (Array.isArray(data)) {
+        allCategories.push(...data);
+        break;
+      }
+
+      // Paginated response
+      if (Array.isArray(data?.results)) {
+        allCategories.push(
+          ...data.results
+        );
+      }
+
+      // Load next page
+      url = data?.next || null;
+    }
+
+    setCategories(allCategories);
+
+    if (allCategories.length > 0) {
+      setProduct((prev) => ({
+        ...prev,
+        category_id:
+          prev.category_id ||
+          String(allCategories[0].id),
+      }));
+    }
+  } catch (err) {
+    console.error(
+      "Category loading error:",
+      err
+    );
+
+    setError(
+      "Unable to load product categories. Please check your backend connection."
+    );
+  } finally {
+    setCategoriesLoading(false);
+  }
+};
 
     if (API_URL) {
       loadCategories();

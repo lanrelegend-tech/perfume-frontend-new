@@ -252,63 +252,127 @@ useEffect(() => {
      LOAD PRODUCTS + CATEGORIES + SETTINGS
   ======================================================= */
 useEffect(() => {
-  async function loadStore() {
-    try {
-      // Load products first so the collection appears immediately
-      const productsResponse = await fetch(
-        `${API_URL}/products/`
-      );
+ async function loadStore() {
+  try {
+    // =====================================================
+    // LOAD ALL PRODUCTS
+    // =====================================================
 
-      if (productsResponse.ok) {
-        const productsData =
-          await productsResponse.json();
+    let productsNextUrl = `${API_URL}/products/`;
+    const allProducts = [];
 
-        setProducts(
-          getProductsFromResponse(productsData)
-        );
+    while (productsNextUrl) {
+      const productsResponse =
+        await fetch(productsNextUrl);
 
-        // Stop the main loading screen immediately
-        setLoading(false);
+      if (!productsResponse.ok) {
+        break;
       }
 
-      // Load categories and settings separately
-      // so they never block the product grid
-      const [categoriesResponse, settingsResponse] =
-        await Promise.all([
-          fetch(`${API_URL}/products/categories/`),
-          fetch(`${API_URL}/settings/`),
-        ]);
+      const productsData =
+        await productsResponse.json();
 
-      if (categoriesResponse.ok) {
+      if (Array.isArray(productsData)) {
+        allProducts.push(...productsData);
+        break;
+      }
+
+      if (Array.isArray(productsData?.results)) {
+        allProducts.push(
+          ...productsData.results
+        );
+      }
+
+      productsNextUrl =
+        productsData?.next || null;
+    }
+
+    setProducts(allProducts);
+
+    // Stop the main loading screen
+    // once all products have been loaded.
+    setLoading(false);
+
+    // =====================================================
+    // LOAD CATEGORIES + SETTINGS
+    // =====================================================
+
+    const [
+      categoriesResponse,
+      settingsResponse,
+    ] = await Promise.all([
+      fetch(`${API_URL}/products/categories/`),
+      fetch(`${API_URL}/settings/`),
+    ]);
+
+    // =====================================================
+    // LOAD ALL CATEGORIES
+    // =====================================================
+
+    if (categoriesResponse.ok) {
+      let categoriesNextUrl =
+        `${API_URL}/products/categories/`;
+
+      const allCategories = [];
+
+      while (categoriesNextUrl) {
+        const response =
+          await fetch(categoriesNextUrl);
+
+        if (!response.ok) {
+          break;
+        }
+
         const categoriesData =
-          await categoriesResponse.json();
+          await response.json();
 
         if (Array.isArray(categoriesData)) {
-          setCategories(categoriesData);
-        } else if (
-          Array.isArray(categoriesData?.results)
+          allCategories.push(
+            ...categoriesData
+          );
+          break;
+        }
+
+        if (
+          Array.isArray(
+            categoriesData?.results
+          )
         ) {
-          setCategories(categoriesData.results);
+          allCategories.push(
+            ...categoriesData.results
+          );
         }
+
+        categoriesNextUrl =
+          categoriesData?.next || null;
       }
 
-      if (settingsResponse.ok) {
-        const settingsData =
-          await settingsResponse.json();
-
-        if (settingsData?.currency) {
-          setCurrency(settingsData.currency);
-        }
-      }
-    } catch (error) {
-      console.error(
-        "Failed to load products:",
-        error
-      );
-
-      setLoading(false);
+      setCategories(allCategories);
     }
+
+    // =====================================================
+    // LOAD SETTINGS
+    // =====================================================
+
+    if (settingsResponse.ok) {
+      const settingsData =
+        await settingsResponse.json();
+
+      if (settingsData?.currency) {
+        setCurrency(
+          settingsData.currency
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Failed to load products:",
+      error
+    );
+
+    setLoading(false);
   }
+}
 
   loadStore();
 }, [])

@@ -203,14 +203,17 @@ export default function ProductDetailsPage() {
 
     return data.csrfToken;
   }
+async function loadReviews(productId) {
+  try {
+    setReviewsLoading(true);
 
-  async function loadReviews(productId) {
-    try {
-      setReviewsLoading(true);
+    let nextUrl =
+      `${API_URL}/reviews/product/${productId}/`;
 
-      const response = await fetch(
-        `${API_URL}/reviews/product/${productId}/`
-      );
+    const allReviews = [];
+
+    while (nextUrl) {
+      const response = await fetch(nextUrl);
 
       if (!response.ok) {
         throw new Error(
@@ -220,29 +223,42 @@ export default function ProductDetailsPage() {
 
       const data = await response.json();
 
-      setReviews(
-        Array.isArray(data)
-          ? data
-          : data.results || []
-      );
-    } catch (error) {
-      console.error(
-        "Reviews error:",
-        error
-      );
+      if (Array.isArray(data)) {
+        allReviews.push(...data);
+        break;
+      }
 
-      setReviews([]);
-    } finally {
-      setReviewsLoading(false);
+      if (Array.isArray(data?.results)) {
+        allReviews.push(...data.results);
+      }
+
+      nextUrl = data?.next || null;
     }
+
+    setReviews(allReviews);
+  } catch (error) {
+    console.error(
+      "Reviews error:",
+      error
+    );
+
+    setReviews([]);
+  } finally {
+    setReviewsLoading(false);
   }
+}
+async function checkPurchaseStatus(productId) {
+  try {
+    setPurchaseCheckLoading(true);
 
-  async function checkPurchaseStatus(productId) {
-    try {
-      setPurchaseCheckLoading(true);
+    let nextUrl =
+      `${API_URL}/orders/my-orders/`;
 
+    const allOrders = [];
+
+    while (nextUrl) {
       const response = await fetch(
-        `${API_URL}/orders/my-orders/`,
+        nextUrl,
         {
           method: "GET",
           credentials: "include",
@@ -267,11 +283,20 @@ export default function ProductDetailsPage() {
 
       const data = await response.json();
 
-      const orders = Array.isArray(data)
-        ? data
-        : data.results || [];
+      if (Array.isArray(data)) {
+        allOrders.push(...data);
+        break;
+      }
 
-      const purchased = orders.some((order) => {
+      if (Array.isArray(data?.results)) {
+        allOrders.push(...data.results);
+      }
+
+      nextUrl = data?.next || null;
+    }
+
+    const purchased = allOrders.some(
+      (order) => {
         if (
           order.payment_status !== "paid"
         ) {
@@ -289,40 +314,43 @@ export default function ProductDetailsPage() {
             Number(item.product) ===
             Number(productId)
         );
-      });
-
-      setHasPurchased(purchased);
-    } catch (error) {
-      console.error(
-        "Purchase verification error:",
-        error
-      );
-
-      setHasPurchased(false);
-    } finally {
-      setPurchaseCheckLoading(false);
-    }
-  }
-
-  async function loadRelatedProducts(
-    currentProduct
-  ) {
-    try {
-      const currentProductId =
-        Number(currentProduct.id);
-
-      const currentCategoryId =
-        currentProduct?.category?.id ||
-        currentProduct?.category_id;
-
-      let url = `${API_URL}/products/`;
-
-      if (currentCategoryId) {
-        url += `?category=${encodeURIComponent(
-          currentCategoryId
-        )}`;
       }
+    );
 
+    setHasPurchased(purchased);
+  } catch (error) {
+    console.error(
+      "Purchase verification error:",
+      error
+    );
+
+    setHasPurchased(false);
+  } finally {
+    setPurchaseCheckLoading(false);
+  }
+}
+async function loadRelatedProducts(
+  currentProduct
+) {
+  try {
+    const currentProductId =
+      Number(currentProduct.id);
+
+    const currentCategoryId =
+      currentProduct?.category?.id ||
+      currentProduct?.category_id;
+
+    let url = `${API_URL}/products/`;
+
+    if (currentCategoryId) {
+      url += `?category=${encodeURIComponent(
+        currentCategoryId
+      )}`;
+    }
+
+    const allProducts = [];
+
+    while (url) {
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -331,28 +359,38 @@ export default function ProductDetailsPage() {
 
       const data = await response.json();
 
-      const products = Array.isArray(data)
-        ? data
-        : data.results || [];
+      if (Array.isArray(data)) {
+        allProducts.push(...data);
+        break;
+      }
 
-      const related = products.filter(
-        (item) =>
-          Number(item.id) !==
-          currentProductId
-      );
+      if (Array.isArray(data?.results)) {
+        allProducts.push(
+          ...data.results
+        );
+      }
 
-      setRelatedProducts(
-        related.slice(0, 4)
-      );
-    } catch (error) {
-      console.error(
-        "Related products error:",
-        error
-      );
-
-      setRelatedProducts([]);
+      url = data?.next || null;
     }
+
+    const related = allProducts.filter(
+      (item) =>
+        Number(item.id) !==
+        currentProductId
+    );
+
+    setRelatedProducts(
+      related.slice(0, 4)
+    );
+  } catch (error) {
+    console.error(
+      "Related products error:",
+      error
+    );
+
+    setRelatedProducts([]);
   }
+}
 
   useEffect(() => {
     async function loadProduct() {

@@ -202,14 +202,32 @@ export default function OrderDetailsPage() {
 
   useEffect(() => {
     if (!orderId) return;
+async function fetchOrder() {
+  try {
+    setLoading(true);
+    setError("");
 
-    async function fetchOrder() {
-      try {
-        setLoading(true);
-        setError("");
+    let response = await fetch(
+      `${API_URL}/orders/${orderId}/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
 
-        let response = await fetch(
-          `${API_URL}/orders/${orderId}/`,
+    /*
+      If the direct order endpoint returns 404,
+      search through all of the user's paginated orders.
+    */
+    if (!response.ok && response.status === 404) {
+      let nextUrl = `${API_URL}/orders/my-orders/`;
+
+      const allOrders = [];
+
+      while (nextUrl) {
+        const listResponse = await fetch(
+          nextUrl,
           {
             method: "GET",
             credentials: "include",
@@ -217,77 +235,93 @@ export default function OrderDetailsPage() {
           }
         );
 
-        /*
-          If direct order endpoint returns 404,
-          use the user's orders endpoint.
-        */
-        if (!response.ok && response.status === 404) {
-          const listResponse = await fetch(
-            `${API_URL}/orders/my-orders/`,
-            {
-              method: "GET",
-              credentials: "include",
-              cache: "no-store",
-            }
-          );
-
-          if (
-            listResponse.status === 401 ||
-            listResponse.status === 403
-          ) {
-            router.push("/login");
-            return;
-          }
-
-          if (!listResponse.ok) {
-            throw new Error("Unable to load your orders.");
-          }
-
-          const listData = await listResponse.json();
-
-          const orders = Array.isArray(listData)
-            ? listData
-            : listData?.results || listData?.orders || [];
-
-          const foundOrder = orders.find(
-            (item) =>
-              String(item.id) === String(orderId) ||
-              String(item.order_number) === String(orderId)
-          );
-
-          if (!foundOrder) {
-            throw new Error("Order not found.");
-          }
-
-          setOrder(foundOrder);
-          return;
-        }
-
         if (
-          response.status === 401 ||
-          response.status === 403
+          listResponse.status === 401 ||
+          listResponse.status === 403
         ) {
           router.push("/login");
           return;
         }
 
-        if (!response.ok) {
-          throw new Error("Unable to load this order.");
+        if (!listResponse.ok) {
+          throw new Error(
+            "Unable to load your orders."
+          );
         }
 
-        const data = await response.json();
+        const listData = await listResponse.json();
 
-        setOrder(data);
-      } catch (err) {
-        console.error("Order details error:", err);
+        /*
+          Support both:
+          - normal array response
+          - DRF paginated response
+        */
+        if (Array.isArray(listData)) {
+          allOrders.push(...listData);
+          nextUrl = null;
+          break;
+        }
 
-        setError(
-          err.message || "Something went wrong."
-        );
-      } finally {
-        setLoading(false);
+        if (Array.isArray(listData?.results)) {
+          allOrders.push(...listData.results);
+        } else if (
+          Array.isArray(listData?.orders)
+        ) {
+          allOrders.push(...listData.orders);
+        }
+
+        /*
+          Follow DRF's next page until there are
+          no more pages.
+        */
+        nextUrl = listData?.next || null;
       }
+
+      const foundOrder = allOrders.find(
+        (item) =>
+          String(item.id) === String(orderId) ||
+          String(item.order_number) ===
+            String(orderId)
+      );
+
+      if (!foundOrder) {
+        throw new Error("Order not found.");
+      }
+
+      setOrder(foundOrder);
+      return;
     }
+
+    if (
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      router.push("/login");
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        "Unable to load this order."
+      );
+    }
+
+    const data = await response.json();
+
+    setOrder(data);
+  } catch (err) {
+    console.error(
+      "Order details error:",
+      err
+    );
+
+    setError(
+      err.message || "Something went wrong."
+    );
+  } finally {
+    setLoading(false);
+  }
+}
 
     fetchOrder();
   }, [orderId, router]);

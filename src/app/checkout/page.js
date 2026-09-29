@@ -191,49 +191,67 @@ export default function CheckoutPage() {
   /*
    * LOAD SHIPPING
    */
-  async function loadShippingRates() {
-    try {
-      setShippingLoading(true);
-      setShippingError("");
+ async function loadShippingRates() {
+  try {
+    setShippingLoading(true);
+    setShippingError("");
 
+    let nextUrl = `${API_URL}/shipping/`;
+    const allShippingRates = [];
+
+    while (nextUrl) {
       const response = await fetch(
-        `${API_URL}/shipping/`,
+        nextUrl,
         {
           method: "GET",
           cache: "no-store",
         }
       );
 
-      const data = await response.json();
+      const data =
+        await response.json().catch(() => null);
 
       if (!response.ok) {
         throw new Error(
-          data.error ||
+          data?.error ||
+            data?.detail ||
             "Failed to load shipping rates."
         );
       }
 
-      const rates = Array.isArray(data)
-        ? data
-        : data.results || [];
+      // Non-paginated response
+      if (Array.isArray(data)) {
+        allShippingRates.push(...data);
+        break;
+      }
 
-      setShippingRates(rates);
-    } catch (error) {
-      console.error(
-        "Shipping rates error:",
-        error
-      );
+      // Paginated response
+      if (Array.isArray(data?.results)) {
+        allShippingRates.push(
+          ...data.results
+        );
+      }
 
-      setShippingRates([]);
-
-      setShippingError(
-        "Unable to load delivery rates. Please try again."
-      );
-    } finally {
-      setShippingLoading(false);
+      // Continue through every backend page
+      nextUrl = data?.next || null;
     }
-  }
 
+    setShippingRates(allShippingRates);
+  } catch (error) {
+    console.error(
+      "Shipping rates error:",
+      error
+    );
+
+    setShippingRates([]);
+
+    setShippingError(
+      "Unable to load delivery rates. Please try again."
+    );
+  } finally {
+    setShippingLoading(false);
+  }
+}
   useEffect(() => {
     const initialLoad = window.setTimeout(() => {
       loadCart();

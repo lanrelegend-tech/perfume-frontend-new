@@ -105,208 +105,245 @@ export default function EditProductPage() {
 
   useEffect(() => {
     if (!productId || !API_URL) return;
+const loadData = async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        setError("");
+    /* =================================================
+       LOAD PRODUCT — ALL PAGINATED PAGES
+    ================================================= */
 
+    let productsUrl = `${API_URL}/products/`;
+    let foundProduct = null;
 
-        const productsResponse = await fetch(
-  `${API_URL}/products/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
-        if (!productsResponse.ok) {
-          throw new Error(
-            "Failed to load products"
-          );
+    while (productsUrl) {
+      const productsResponse = await fetch(
+        productsUrl,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
         }
+      );
 
-        const productsData =
-          await productsResponse.json();
-
-        const productList = Array.isArray(
-          productsData
-        )
-          ? productsData
-          : Array.isArray(
-              productsData.results
-            )
-          ? productsData.results
-          : [];
-
-        const foundProduct =
-          productList.find(
-            (item) =>
-              String(item.id) ===
-              String(productId)
-          );
-
-        if (!foundProduct) {
-          throw new Error(
-            "Product not found"
-          );
-        }
-
-        const stockQuantity =
-          Number(
-            foundProduct.stock_quantity
-          ) || 0;
-
-        const formattedProduct = {
-          ...foundProduct,
-
-          category_id:
-            foundProduct.category_id ??
-            foundProduct.category?.id ??
-            "",
-
-          price:
-            foundProduct.price !== null &&
-            foundProduct.price !== undefined
-              ? String(foundProduct.price)
-              : "",
-
-          stock_quantity:
-            foundProduct.stock_quantity !==
-              null &&
-            foundProduct.stock_quantity !==
-              undefined
-              ? String(
-                  foundProduct.stock_quantity
-                )
-              : "0",
-
-          /*
-           * Stock controls the real availability.
-           */
-          in_stock:
-            stockQuantity > 0,
-
-          /*
-           * Pre-orders are only active when
-           * stock is zero.
-           */
-          is_preorder:
-            stockQuantity === 0 &&
-            foundProduct.is_preorder === true,
-
-          featured:
-            Boolean(
-              foundProduct.featured
-            ),
-
-          preorder_release_date:
-            foundProduct.preorder_release_date ||
-            "",
-
-          preorder_message:
-            foundProduct.preorder_message ||
-            "",
-        };
-
-        setProduct(formattedProduct);
-
-        /* =================================================
-           PRODUCT IMAGES
-        ================================================= */
-
-        const galleryImages =
-          Array.isArray(
-            foundProduct.images
-          )
-            ? foundProduct.images
-            : [];
-
-        const mainImage = foundProduct.image
-          ? normalizeImage(
-              foundProduct.image,
-              0,
-              true
-            )
-          : null;
-
-        const galleryNormalizedImages =
-          galleryImages
-            .map((image, index) =>
-              normalizeImage(
-                image,
-                index + 1,
-                false
-              )
-            )
-            .filter(Boolean);
-
-        const allBackendImages = [
-          mainImage,
-          ...galleryNormalizedImages,
-        ].filter(Boolean);
-
-        const uniqueImages =
-          allBackendImages.filter(
-            (image, index, array) =>
-              index ===
-              array.findIndex(
-                (item) =>
-                  item.url === image.url
-              )
-          );
-
-        setImages(uniqueImages);
-
-        setDeletedImageIds([]);
-        setDeletedMainImage(false);
-        setPromotedMainImageId(null);
-
-        /* =================================================
-           CATEGORIES
-        ================================================= */
-
-        const categoriesResponse =
-  await fetch(
-    `${API_URL}/products/categories/`,
-    {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-    }
-  );
-
-        if (categoriesResponse.ok) {
-          const categoriesData =
-            await categoriesResponse.json();
-
-          const categoryList =
-            Array.isArray(
-              categoriesData
-            )
-              ? categoriesData
-              : Array.isArray(
-                  categoriesData.results
-                )
-              ? categoriesData.results
-              : [];
-
-          setCategories(categoryList);
-        }
-      } catch (err) {
-        console.error(
-          "Edit product load error:",
-          err
+      if (!productsResponse.ok) {
+        throw new Error(
+          "Failed to load products"
         );
-
-        setError(
-          err.message ||
-            "Unable to load product."
-        );
-      } finally {
-        setLoading(false);
       }
+
+      const productsData =
+        await productsResponse.json();
+
+      const productList = Array.isArray(
+        productsData
+      )
+        ? productsData
+        : Array.isArray(
+            productsData?.results
+          )
+        ? productsData.results
+        : [];
+
+      foundProduct = productList.find(
+        (item) =>
+          String(item.id) ===
+          String(productId)
+      );
+
+      if (foundProduct) {
+        break;
+      }
+
+      productsUrl =
+        productsData?.next || null;
+    }
+
+    if (!foundProduct) {
+      throw new Error(
+        "Product not found"
+      );
+    }
+
+    const stockQuantity =
+      Number(
+        foundProduct.stock_quantity
+      ) || 0;
+
+    const formattedProduct = {
+      ...foundProduct,
+
+      category_id:
+        foundProduct.category_id ??
+        foundProduct.category?.id ??
+        "",
+
+      price:
+        foundProduct.price !== null &&
+        foundProduct.price !== undefined
+          ? String(foundProduct.price)
+          : "",
+
+      stock_quantity:
+        foundProduct.stock_quantity !==
+          null &&
+        foundProduct.stock_quantity !==
+          undefined
+          ? String(
+              foundProduct.stock_quantity
+            )
+          : "0",
+
+      /*
+       * Stock controls the real availability.
+       */
+      in_stock:
+        stockQuantity > 0,
+
+      /*
+       * Pre-orders are only active when
+       * stock is zero.
+       */
+      is_preorder:
+        stockQuantity === 0 &&
+        foundProduct.is_preorder === true,
+
+      featured:
+        Boolean(
+          foundProduct.featured
+        ),
+
+      preorder_release_date:
+        foundProduct.preorder_release_date ||
+        "",
+
+      preorder_message:
+        foundProduct.preorder_message ||
+        "",
     };
+
+    setProduct(formattedProduct);
+
+    /* =================================================
+       PRODUCT IMAGES
+    ================================================= */
+
+    const galleryImages =
+      Array.isArray(
+        foundProduct.images
+      )
+        ? foundProduct.images
+        : [];
+
+    const mainImage = foundProduct.image
+      ? normalizeImage(
+          foundProduct.image,
+          0,
+          true
+        )
+      : null;
+
+    const galleryNormalizedImages =
+      galleryImages
+        .map((image, index) =>
+          normalizeImage(
+            image,
+            index + 1,
+            false
+          )
+        )
+        .filter(Boolean);
+
+    const allBackendImages = [
+      mainImage,
+      ...galleryNormalizedImages,
+    ].filter(Boolean);
+
+    const uniqueImages =
+      allBackendImages.filter(
+        (image, index, array) =>
+          index ===
+          array.findIndex(
+            (item) =>
+              item.url === image.url
+          )
+      );
+
+    setImages(uniqueImages);
+
+    setDeletedImageIds([]);
+    setDeletedMainImage(false);
+    setPromotedMainImageId(null);
+
+    /* =================================================
+       CATEGORIES — ALL PAGINATED PAGES
+    ================================================= */
+
+    let categoriesUrl =
+      `${API_URL}/products/categories/`;
+
+    const allCategories = [];
+
+    while (categoriesUrl) {
+      const categoriesResponse =
+        await fetch(
+          categoriesUrl,
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          }
+        );
+
+      if (!categoriesResponse.ok) {
+        break;
+      }
+
+      const categoriesData =
+        await categoriesResponse.json();
+
+      if (
+        Array.isArray(
+          categoriesData
+        )
+      ) {
+        allCategories.push(
+          ...categoriesData
+        );
+
+        break;
+      }
+
+      if (
+        Array.isArray(
+          categoriesData?.results
+        )
+      ) {
+        allCategories.push(
+          ...categoriesData.results
+        );
+      }
+
+      categoriesUrl =
+        categoriesData?.next || null;
+    }
+
+    setCategories(allCategories);
+  } catch (err) {
+    console.error(
+      "Edit product load error:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to load product."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
     loadData();
   }, [productId, router, API_URL]);

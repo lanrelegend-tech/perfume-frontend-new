@@ -379,14 +379,17 @@ export default function SettingsPage() {
   // ==================================================
   // LOAD SHIPPING
   // ==================================================
+const loadShippingRates = async () => {
+  try {
+    setShippingLoading(true);
+    setShippingError("");
 
-  const loadShippingRates = async () => {
-    try {
-      setShippingLoading(true);
-      setShippingError("");
+    let nextUrl = `${API_URL}/shipping/`;
+    const allShippingRates = [];
 
+    while (nextUrl) {
       const response = await fetch(
-        `${API_URL}/shipping/`,
+        nextUrl,
         {
           method: "GET",
           credentials: "include",
@@ -408,27 +411,38 @@ export default function SettingsPage() {
         );
       }
 
-      const results = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.results)
-        ? data.results
-        : [];
+      // Non-paginated response
+      if (Array.isArray(data)) {
+        allShippingRates.push(...data);
+        break;
+      }
 
-      setShippingRates(results);
-    } catch (error) {
-      console.error(
-        "Shipping load error:",
-        error
-      );
+      // Paginated response
+      if (Array.isArray(data?.results)) {
+        allShippingRates.push(
+          ...data.results
+        );
+      }
 
-      setShippingError(
-        error.message ||
-          "Failed to load shipping options."
-      );
-    } finally {
-      setShippingLoading(false);
+      // Continue to the next backend page
+      nextUrl = data?.next || null;
     }
-  };
+
+    setShippingRates(allShippingRates);
+  } catch (error) {
+    console.error(
+      "Shipping load error:",
+      error
+    );
+
+    setShippingError(
+      error.message ||
+        "Failed to load shipping options."
+    );
+  } finally {
+    setShippingLoading(false);
+  }
+};
 
   // ==================================================
   // INITIAL LOAD

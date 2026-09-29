@@ -45,144 +45,193 @@ export default function CustomersPage() {
     averageSpend: 0,
   });
 
+const fetchCustomers = async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-  const fetchCustomers = async () => {
-    try {
-      setLoading(true);
-      setError("");
+    const params = new URLSearchParams();
 
-      
+    if (search.trim()) {
+      params.append(
+        "search",
+        search.trim()
+      );
+    }
 
-      const params = new URLSearchParams();
+    if (statusFilter !== "All") {
+      params.append(
+        "status",
+        statusFilter.toLowerCase()
+      );
+    }
 
-      if (search.trim()) {
-        params.append(
-          "search",
-          search.trim()
+    const queryString =
+      params.toString();
+
+    const customerUrl =
+      `${API_URL}/users/admin/customers/` +
+      `${queryString ? `?${queryString}` : ""}`;
+
+    const guestUrl =
+      `${API_URL}/users/admin/guests/`;
+
+    // -------------------------------------------------
+    // FETCH ALL PAGINATED PAGES
+    // -------------------------------------------------
+
+    const fetchAllPages = async (
+      initialUrl
+    ) => {
+      const allResults = [];
+      let nextUrl = initialUrl;
+
+      while (nextUrl) {
+        const response = await fetch(
+          nextUrl,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            cache: "no-store",
+          }
         );
-      }
-
-      if (statusFilter !== "All") {
-        params.append(
-          "status",
-          statusFilter.toLowerCase()
-        );
-      }
-
-      const queryString =
-        params.toString();
-
-      const customerUrl =
-        `${API_URL}/users/admin/customers/` +
-        `${queryString ? `?${queryString}` : ""}`;
-
-      const guestUrl =
-        `${API_URL}/users/admin/guests/`;
-
-      const [customerResponse, guestResponse] =
-        await Promise.all([
-          fetch(customerUrl, {
-  method: "GET",
-  credentials: "include",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  cache: "no-store",
-}),
-         
-
-         fetch(guestUrl, {
-  method: "GET",
-  credentials: "include",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  cache: "no-store",
-}),
-        ]);
-
 
         if (
-  customerResponse.status === 401 ||
-  customerResponse.status === 403 ||
-  guestResponse.status === 401 ||
-  guestResponse.status === 403
-) {
-  router.push("/admin/login");
-  return;
-}
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          router.push(
+            "/admin/login"
+          );
+          return null;
+        }
 
+        if (!response.ok) {
+          throw new Error(
+            "Failed to load customers"
+          );
+        }
 
-      if (!customerResponse.ok) {
-        throw new Error(
-          "Failed to load customers"
-        );
+        const data =
+          await response.json();
+
+        // DRF paginated response
+        if (
+          Array.isArray(
+            data?.results
+          )
+        ) {
+          allResults.push(
+            ...data.results
+          );
+
+          nextUrl =
+            data.next || null;
+        }
+
+        // Non-paginated response
+        else if (
+          Array.isArray(data)
+        ) {
+          allResults.push(
+            ...data
+          );
+
+          nextUrl = null;
+        }
+
+        else {
+          nextUrl = null;
+        }
       }
 
-      if (!guestResponse.ok) {
-        throw new Error(
-          "Failed to load guests"
-        );
-      }
+      return allResults;
+    };
 
-      const customerData =
-        await customerResponse.json();
+    // -------------------------------------------------
+    // LOAD CUSTOMERS + GUESTS
+    // -------------------------------------------------
 
-      const guestData =
-        await guestResponse.json();
+    const [
+      registeredCustomers,
+      guestCustomers,
+    ] = await Promise.all([
+      fetchAllPages(
+        customerUrl
+      ),
+      fetchAllPages(
+        guestUrl
+      ),
+    ]);
 
-      const registeredCustomers =
-        Array.isArray(customerData)
-          ? customerData
-          : customerData.results || [];
-
-      const guestCustomers =
-        Array.isArray(guestData)
-          ? guestData
-          : guestData.results || [];
-
-      const formattedGuests =
-        guestCustomers.map(
-          (guest) => ({
-            ...guest,
-            customer_type: "guest",
-          })
-        );
-
-      const formattedCustomers =
-        registeredCustomers.map(
-          (customer) => ({
-            ...customer,
-            customer_type:
-              customer.customer_type ||
-              "registered",
-          })
-        );
-
-      const combined = [
-        ...formattedCustomers,
-        ...formattedGuests,
-      ];
-
-      setAllCustomers(combined);
-
-      calculateStats(
-        combined
-      );
-    } catch (err) {
-      console.error(
-        "CUSTOMERS ERROR:",
-        err
-      );
-
-      setError(
-        "Unable to load customers. Please try again."
-      );
-    } finally {
-      setLoading(false);
+    if (
+      registeredCustomers ===
+        null ||
+      guestCustomers === null
+    ) {
+      return;
     }
-  };
 
+    // -------------------------------------------------
+    // FORMAT GUESTS
+    // -------------------------------------------------
+
+    const formattedGuests =
+      guestCustomers.map(
+        (guest) => ({
+          ...guest,
+          customer_type:
+            "guest",
+        })
+      );
+
+    // -------------------------------------------------
+    // FORMAT REGISTERED CUSTOMERS
+    // -------------------------------------------------
+
+    const formattedCustomers =
+      registeredCustomers.map(
+        (customer) => ({
+          ...customer,
+          customer_type:
+            customer.customer_type ||
+            "registered",
+        })
+      );
+
+    // -------------------------------------------------
+    // COMBINE EVERYTHING
+    // -------------------------------------------------
+
+    const combined = [
+      ...formattedCustomers,
+      ...formattedGuests,
+    ];
+
+    setAllCustomers(
+      combined
+    );
+
+    calculateStats(
+      combined
+    );
+  } catch (err) {
+    console.error(
+      "CUSTOMERS ERROR:",
+      err
+    );
+
+    setError(
+      "Unable to load customers. Please try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
   const calculateStats = (
     customerList
   ) => {

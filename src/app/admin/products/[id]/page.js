@@ -364,74 +364,81 @@ export default function ProductDetailsPage() {
   /* =====================================================
      FETCH PRODUCT
   ===================================================== */
+useEffect(() => {
+  if (!params?.id || !API_URL) return;
 
-  useEffect(() => {
-    if (!params?.id || !API_URL) return;
+  const fetchProduct = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-    const fetchProduct = async () => {
-      try {
-        setLoading(true);
-        setError("");
+      let nextUrl = `${API_URL}/products/`;
+      let foundProduct = null;
 
-        const response = await fetch(
-          `${API_URL}/products/`
-        );
+      while (nextUrl) {
+        const response = await fetch(nextUrl);
 
         if (!response.ok) {
-          throw new Error(
-            "Failed to load products"
-          );
+          throw new Error("Failed to load products");
         }
 
         const data = await response.json();
 
         const productList = Array.isArray(data)
           ? data
-          : Array.isArray(data.results)
+          : Array.isArray(data?.results)
           ? data.results
           : [];
 
-        const foundProduct = productList.find(
+        foundProduct = productList.find(
           (item) =>
-            String(item.id) ===
-            String(params.id)
+            String(item.id) === String(params.id)
         );
 
-        if (!foundProduct) {
-          setError("Product not found.");
-          return;
+        if (foundProduct) {
+          break;
         }
 
-        setProduct(foundProduct);
-      } catch (err) {
-        console.error(
-          "Product fetch error:",
-          err
-        );
-
-        setError(
-          "Unable to load this product."
-        );
-      } finally {
-        setLoading(false);
+        nextUrl = data?.next || null;
       }
-    };
 
-    fetchProduct();
-  }, [params?.id, API_URL]);
+      if (!foundProduct) {
+        setError("Product not found.");
+        return;
+      }
+
+      setProduct(foundProduct);
+    } catch (err) {
+      console.error(
+        "Product fetch error:",
+        err
+      );
+
+      setError(
+        "Unable to load this product."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchProduct();
+}, [params?.id, API_URL]);
 
   /* =====================================================
      FETCH CATEGORIES
   ===================================================== */
+useEffect(() => {
+  if (!API_URL) return;
 
-  useEffect(() => {
-    if (!API_URL) return;
+  const fetchCategories = async () => {
+    try {
+      const allCategories = [];
+      let nextUrl =
+        `${API_URL}/products/categories/`;
 
-    const fetchCategories = async () => {
-      try {
-        const response = await fetch(
-          `${API_URL}/products/categories/`
-        );
+      while (nextUrl) {
+        const response = await fetch(nextUrl);
 
         if (!response.ok) {
           return;
@@ -439,139 +446,158 @@ export default function ProductDetailsPage() {
 
         const data = await response.json();
 
-        const categoryList = Array.isArray(data)
-          ? data
-          : Array.isArray(data.results)
-          ? data.results
-          : [];
+        if (Array.isArray(data)) {
+          allCategories.push(...data);
+          break;
+        }
 
-        setCategories(categoryList);
-      } catch (err) {
-        console.error(
-          "Categories fetch error:",
-          err
-        );
+        if (Array.isArray(data?.results)) {
+          allCategories.push(...data.results);
+        }
+
+        nextUrl = data?.next || null;
       }
-    };
 
-    fetchCategories();
-  }, [API_URL]);
+      setCategories(allCategories);
+    } catch (err) {
+      console.error(
+        "Categories fetch error:",
+        err
+      );
+    }
+  };
+
+  fetchCategories();
+}, [API_URL]);
 
   /* =====================================================
      FETCH REAL ORDERS
   ===================================================== */
-
-  useEffect(() => {
-    if (
-      !API_URL ||
-      !params?.id
-    ) {
-      return;
-    }
-
-    const fetchOrders = async () => {
-      try {
-        setOrdersLoading(true);
-
-       
-
-        /*
-          Try the admin orders endpoint first.
-          If your backend exposes the orders list
-          through /orders/ instead, the fallback
-          will use that.
-        */
-        const endpoints = [
-          `${API_URL}/orders/admin/`,
-          `${API_URL}/orders/`,
-        ];
-
-        let orderData = null;
-        let foundResponse = false;
-
-        for (const endpoint of endpoints) {
-          try {
-            const response = await fetch(
-  endpoint,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
+useEffect(() => {
+  if (
+    !API_URL ||
+    !params?.id
+  ) {
+    return;
   }
-);
+
+  const fetchOrders = async () => {
+    try {
+      setOrdersLoading(true);
+
+      const endpoints = [
+        `${API_URL}/orders/admin/`,
+        `${API_URL}/orders/`,
+      ];
+
+      let nextUrl = null;
+      let foundResponse = false;
+      const allOrders = [];
+
+      for (const endpoint of endpoints) {
+        try {
+          nextUrl = endpoint;
+
+          while (nextUrl) {
+            const response = await fetch(
+              nextUrl,
+              {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+              }
+            );
 
             if (
               response.status === 401 ||
               response.status === 403
             ) {
-              continue;
+              foundResponse = false;
+              break;
             }
 
             if (!response.ok) {
-              continue;
+              foundResponse = false;
+              break;
             }
 
-            orderData = await response.json();
+            const data = await response.json();
+
             foundResponse = true;
-            break;
-          } catch {
-            continue;
+
+            if (Array.isArray(data)) {
+              allOrders.push(...data);
+              nextUrl = null;
+              break;
+            }
+
+            if (Array.isArray(data?.results)) {
+              allOrders.push(...data.results);
+            }
+
+            nextUrl = data?.next || null;
           }
+
+          if (foundResponse) {
+            break;
+          }
+        } catch {
+          nextUrl = null;
+          foundResponse = false;
+          continue;
         }
-
-        if (!foundResponse) {
-          setOrders([]);
-          return;
-        }
-
-        const orderList =
-          getOrderList(orderData);
-
-        const productOrders =
-          orderList
-            .filter((order) =>
-              orderContainsProduct(
-                order,
-                params.id
-              )
-            )
-            .map((order) =>
-              buildProductOrder(
-                order,
-                params.id
-              )
-            )
-            .filter(
-              (order) =>
-                order.quantity > 0
-            )
-            .sort((a, b) => {
-              const dateA = new Date(
-                a.date || 0
-              ).getTime();
-
-              const dateB = new Date(
-                b.date || 0
-              ).getTime();
-
-              return dateB - dateA;
-            });
-
-        setOrders(productOrders);
-      } catch (err) {
-        console.error(
-          "Orders fetch error:",
-          err
-        );
-
-        setOrders([]);
-      } finally {
-        setOrdersLoading(false);
       }
-    };
 
-    fetchOrders();
-  }, [params?.id, API_URL]);
+      if (!foundResponse) {
+        setOrders([]);
+        return;
+      }
+
+      const productOrders =
+        allOrders
+          .filter((order) =>
+            orderContainsProduct(
+              order,
+              params.id
+            )
+          )
+          .map((order) =>
+            buildProductOrder(
+              order,
+              params.id
+            )
+          )
+          .filter(
+            (order) =>
+              order.quantity > 0
+          )
+          .sort((a, b) => {
+            const dateA = new Date(
+              a.date || 0
+            ).getTime();
+
+            const dateB = new Date(
+              b.date || 0
+            ).getTime();
+
+            return dateB - dateA;
+          });
+
+      setOrders(productOrders);
+    } catch (err) {
+      console.error(
+        "Orders fetch error:",
+        err
+      );
+
+      setOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  fetchOrders();
+}, [params?.id, API_URL]);
 
   /* =====================================================
      FORMAT PRICE

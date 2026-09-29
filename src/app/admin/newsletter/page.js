@@ -67,21 +67,20 @@ const authHeaders = () => ({
 };
 
   
+const fetchSubscribers = async () => {
+  try {
+    setLoadingSubscribers(true);
 
-  const fetchSubscribers = async () => {
-    try {
-      setLoadingSubscribers(true);
+    let url = `${API_URL}/newsletter/subscribers/`;
+    const allSubscribers = [];
 
-
-     const response = await fetch(
-  `${API_URL}/newsletter/subscribers/`,
-  {
-    method: "GET",
-    credentials: "include",
-    headers: authHeaders(),
-    cache: "no-store",
-  }
-);
+    while (url) {
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: "include",
+        headers: authHeaders(),
+        cache: "no-store",
+      });
 
       if (
         response.status === 401 ||
@@ -101,45 +100,49 @@ const authHeaders = () => ({
         );
       }
 
-      setSubscribers(
-        Array.isArray(data)
-          ? data
-          : data.results || []
-      );
-    } catch (error) {
-      console.error(
-        "Newsletter subscribers error:",
-        error
-      );
+      if (Array.isArray(data)) {
+        allSubscribers.push(...data);
+        break;
+      }
 
-      showNotice(
-        "error",
-        "Unable to load subscribers",
-        error.message ||
-          "Please try again."
-      );
-    } finally {
-      setLoadingSubscribers(false);
+      if (Array.isArray(data.results)) {
+        allSubscribers.push(...data.results);
+      }
+
+      url = data.next || null;
     }
-  };
 
-  const fetchCampaigns = async () => {
-    try {
-      setLoadingCampaigns(true);
+    setSubscribers(allSubscribers);
+  } catch (error) {
+    console.error(
+      "Newsletter subscribers error:",
+      error
+    );
 
-
-    const response = await fetch(
-  `${API_URL}/newsletter/campaigns/`,
-  {
-    method: "GET",
-    credentials: "include",
-    headers: authHeaders(),
-    cache: "no-store",
+    showNotice(
+      "error",
+      "Unable to load subscribers",
+      error.message ||
+        "Please try again."
+    );
+  } finally {
+    setLoadingSubscribers(false);
   }
-);  
+};
+const fetchCampaigns = async () => {
+  try {
+    setLoadingCampaigns(true);
 
-      
+    let url = `${API_URL}/newsletter/campaigns/`;
+    const allCampaigns = [];
 
+    while (url) {
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: "include",
+        headers: authHeaders(),
+        cache: "no-store",
+      });
 
       if (
         response.status === 401 ||
@@ -159,28 +162,37 @@ const authHeaders = () => ({
         );
       }
 
-      setCampaigns(
-        Array.isArray(data)
-          ? data
-          : data.campaigns || data.results || []
-      );
-    } catch (error) {
-      console.error(
-        "Newsletter campaigns error:",
-        error
-      );
+      if (Array.isArray(data)) {
+        allCampaigns.push(...data);
+        break;
+      }
 
-      showNotice(
-        "error",
-        "Unable to load campaigns",
-        error.message ||
-          "Please try again."
-      );
-    } finally {
-      setLoadingCampaigns(false);
+      if (Array.isArray(data.results)) {
+        allCampaigns.push(...data.results);
+      } else if (Array.isArray(data.campaigns)) {
+        allCampaigns.push(...data.campaigns);
+      }
+
+      url = data.next || null;
     }
-  };
 
+    setCampaigns(allCampaigns);
+  } catch (error) {
+    console.error(
+      "Newsletter campaigns error:",
+      error
+    );
+
+    showNotice(
+      "error",
+      "Unable to load campaigns",
+      error.message ||
+        "Please try again."
+    );
+  } finally {
+    setLoadingCampaigns(false);
+  }
+};
   useEffect(() => {
     fetchSubscribers();
   }, []);

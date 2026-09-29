@@ -105,16 +105,49 @@ export default function InventoryPage() {
    * LOAD PRODUCTS + CATEGORIES
    */
   useEffect(() => {
-    const loadInventory = async () => {
-      try {
-        setLoading(true);
-        setError("");
+   const loadInventory = async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-        /*
-         * VERIFY CURRENT COOKIE SESSION
-         */
-        const meResponse = await fetch(
-          `${API_URL}/users/me/`,
+    /*
+     * VERIFY CURRENT COOKIE SESSION
+     */
+    const meResponse = await fetch(
+      `${API_URL}/users/me/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    if (
+      meResponse.status === 401 ||
+      meResponse.status === 403
+    ) {
+      redirectToLogin();
+      return;
+    }
+
+    if (!meResponse.ok) {
+      throw new Error(
+        "Unable to verify your session."
+      );
+    }
+
+    /*
+     * FETCH ALL PAGINATED PAGES
+     */
+    const fetchAllPages = async (
+      initialUrl
+    ) => {
+      const allResults = [];
+      let nextUrl = initialUrl;
+
+      while (nextUrl) {
+        const response = await fetch(
+          nextUrl,
           {
             method: "GET",
             credentials: "include",
@@ -123,204 +156,250 @@ export default function InventoryPage() {
         );
 
         if (
-          meResponse.status === 401 ||
-          meResponse.status === 403
+          response.status === 401 ||
+          response.status === 403
         ) {
           redirectToLogin();
-          return;
+          return null;
         }
 
-        if (!meResponse.ok) {
-          throw new Error(
-            "Unable to verify your session."
-          );
-        }
-
-        /*
-         * LOAD PRODUCTS
-         */
-        const productsResponse =
-          await fetch(
-            `${API_URL}/products/admin/`,
-            {
-              method: "GET",
-              credentials: "include",
-              cache: "no-store",
-            }
-          );
-
-        if (
-          productsResponse.status === 401 ||
-          productsResponse.status === 403
-        ) {
-          redirectToLogin();
-          return;
-        }
-
-        if (!productsResponse.ok) {
+        if (!response.ok) {
           throw new Error(
             "Failed to load inventory"
           );
         }
 
-        const productsData =
-          await productsResponse.json();
-
-        const productList =
-          Array.isArray(productsData)
-            ? productsData
-            : Array.isArray(
-                  productsData.results
-                )
-              ? productsData.results
-              : [];
+        const data =
+          await response.json();
 
         /*
-         * LOAD CATEGORIES
+         * DRF PAGINATED RESPONSE
          */
-        let categoryList = [];
-
-        try {
-          const categoriesResponse =
-            await fetch(
-              `${API_URL}/products/categories/`,
-              {
-                method: "GET",
-                credentials: "include",
-                cache: "no-store",
-              }
-            );
-
-          if (
-            categoriesResponse.status === 401 ||
-            categoriesResponse.status === 403
-          ) {
-            redirectToLogin();
-            return;
-          }
-
-          if (categoriesResponse.ok) {
-            const categoriesData =
-              await categoriesResponse.json();
-
-            categoryList =
-              Array.isArray(categoriesData)
-                ? categoriesData
-                : Array.isArray(
-                      categoriesData.results
-                    )
-                  ? categoriesData.results
-                  : [];
-          }
-        } catch (categoryError) {
-          console.error(
-            "Categories fetch error:",
-            categoryError
+        if (
+          Array.isArray(
+            data?.results
+          )
+        ) {
+          allResults.push(
+            ...data.results
           );
+
+          nextUrl =
+            data.next || null;
         }
 
-        setCategories(categoryList);
+        /*
+         * NON-PAGINATED RESPONSE
+         */
+        else if (
+          Array.isArray(data)
+        ) {
+          allResults.push(
+            ...data
+          );
+
+          nextUrl = null;
+        }
 
         /*
-         * CATEGORY NAME
+         * UNKNOWN RESPONSE
          */
-        const getCategoryName = (
-          categoryId
-        ) => {
-          if (
-            categoryId === null ||
-            categoryId === undefined ||
-            categoryId === ""
+        else {
+          nextUrl = null;
+        }
+      }
+
+      return allResults;
+    };
+
+    /*
+     * LOAD ALL PRODUCTS
+     */
+    const productList =
+      await fetchAllPages(
+        `${API_URL}/products/admin/`
+      );
+
+    if (productList === null) {
+      return;
+    }
+
+    /*
+     * LOAD CATEGORIES
+     */
+    let categoryList = [];
+
+    try {
+      const categoriesResponse =
+        await fetch(
+          `${API_URL}/products/categories/`,
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          }
+        );
+
+      if (
+        categoriesResponse.status === 401 ||
+        categoriesResponse.status === 403
+      ) {
+        redirectToLogin();
+        return;
+      }
+
+      if (categoriesResponse.ok) {
+        const categoriesData =
+          await categoriesResponse.json();
+
+        /*
+         * SUPPORT PAGINATED CATEGORIES
+         */
+        if (
+          Array.isArray(
+            categoriesData?.results
+          )
+        ) {
+          categoryList =
+            categoriesData.results;
+        }
+
+        /*
+         * SUPPORT NORMAL ARRAY
+         */
+        else if (
+          Array.isArray(
+            categoriesData
+          )
+        ) {
+          categoryList =
+            categoriesData;
+        }
+      }
+    } catch (categoryError) {
+      console.error(
+        "Categories fetch error:",
+        categoryError
+      );
+    }
+
+    setCategories(
+      categoryList
+    );
+
+    /*
+     * CATEGORY NAME
+     */
+    const getCategoryName = (
+      categoryId
+    ) => {
+      if (
+        categoryId === null ||
+        categoryId === undefined ||
+        categoryId === ""
+      ) {
+        return "Uncategorized";
+      }
+
+      const category =
+        categoryList.find(
+          (item) =>
+            String(item.id) ===
+            String(categoryId)
+        );
+
+      return (
+        category?.name ||
+        "Uncategorized"
+      );
+    };
+
+    /*
+     * FORMAT PRODUCTS
+     */
+    const formattedProducts =
+      productList.map(
+        (product) => {
+          const stock =
+            Number(
+              product.stock_quantity
+            ) || 0;
+
+          let status = "In Stock";
+
+          if (stock === 0) {
+            status =
+              "Out of Stock";
+          } else if (
+            stock <= 10
           ) {
-            return "Uncategorized";
+            status =
+              "Low Stock";
           }
 
-          const category =
-            categoryList.find(
-              (item) =>
-                String(item.id) ===
-                String(categoryId)
-            );
+          return {
+            ...product,
 
-          return (
-            category?.name ||
-            "Uncategorized"
-          );
-        };
-
-        /*
-         * FORMAT PRODUCTS
-         */
-        const formattedProducts =
-          productList.map((product) => {
-            const stock =
-              Number(
-                product.stock_quantity
-              ) || 0;
-
-            let status = "In Stock";
-
-            if (stock === 0) {
-              status = "Out of Stock";
-            } else if (stock <= 10) {
-              status = "Low Stock";
-            }
-
-            return {
-              ...product,
-
-              category: getCategoryName(
+            category:
+              getCategoryName(
                 product.category_id
               ),
 
+            stock,
+
+            stock_quantity:
               stock,
 
-              stock_quantity: stock,
+            status,
 
-              status,
+            price:
+              Number(
+                product.price
+              ) || 0,
 
-              price:
-                Number(product.price) ||
-                0,
-
-              image: getImageUrl(
+            image:
+              getImageUrl(
                 product.image
               ),
 
-              sku:
-                product.sku ||
-                `VLR-${String(
-                  product.id
-                ).padStart(4, "0")}`,
-            };
-          });
-
-        setProducts(
-          formattedProducts
-        );
-      } catch (err) {
-        console.error(
-          "Inventory fetch error:",
-          err
-        );
-
-        if (
-          err?.message?.includes(
-            "session"
-          )
-        ) {
-          redirectToLogin();
-          return;
+            sku:
+              product.sku ||
+              `VLR-${String(
+                product.id
+              ).padStart(
+                4,
+                "0"
+              )}`,
+          };
         }
+      );
 
-        setError(
-          err.message ||
-            "Unable to load inventory."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+    setProducts(
+      formattedProducts
+    );
+  } catch (err) {
+    console.error(
+      "Inventory fetch error:",
+      err
+    );
+
+    if (
+      err?.message?.includes(
+        "session"
+      )
+    ) {
+      redirectToLogin();
+      return;
+    }
+
+    setError(
+      err.message ||
+        "Unable to load inventory."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
     loadInventory();
   }, [router]);

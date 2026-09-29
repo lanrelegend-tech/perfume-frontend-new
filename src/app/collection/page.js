@@ -27,105 +27,144 @@ export default function CollectionPage() {
 
   useEffect(() => {
     let cancelled = false;
+async function loadCollection() {
+  try {
+    /*
+    --------------------------------------------------------
+    STEP 1
+    Load ALL products across every backend page.
+    --------------------------------------------------------
+    */
 
-    async function loadCollection() {
-      try {
-        /*
-        --------------------------------------------------------
-        STEP 1
-        Load products first.
-        Featured products depend on this request.
-        --------------------------------------------------------
-        */
+    let productsUrl = `${API_URL}/products/`;
+    const allProducts = [];
 
-        const productsRes = await fetch(
-          `${API_URL}/products/`,
-          {
-            cache: "no-store",
-          }
+    while (productsUrl) {
+      const productsRes = await fetch(
+        productsUrl,
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!productsRes.ok) {
+        throw new Error(
+          `Products request failed: ${productsRes.status}`
         );
-
-        if (!productsRes.ok) {
-          throw new Error(
-            `Products request failed: ${productsRes.status}`
-          );
-        }
-
-        const productsData =
-          await productsRes.json();
-
-        if (cancelled) {
-          return;
-        }
-
-        const products = Array.isArray(productsData)
-          ? productsData
-          : productsData.results || [];
-
-        /*
-        --------------------------------------------------------
-        Give Featured Products the data immediately.
-        The main Collection grid remains loading.
-        --------------------------------------------------------
-        */
-
-        setProducts(products);
-        setFeaturedLoading(false);
-
-        /*
-        --------------------------------------------------------
-        STEP 2
-        Load categories AFTER products.
-        --------------------------------------------------------
-        */
-
-        const categoriesRes = await fetch(
-          `${API_URL}/products/categories/`,
-          {
-            cache: "no-store",
-          }
-        );
-
-        if (!categoriesRes.ok) {
-          throw new Error(
-            `Categories request failed: ${categoriesRes.status}`
-          );
-        }
-
-        const categoriesData =
-          await categoriesRes.json();
-
-        if (cancelled) {
-          return;
-        }
-
-        const categories = Array.isArray(
-          categoriesData
-        )
-          ? categoriesData
-          : categoriesData.results || [];
-
-        setCategories(categories);
-
-        /*
-        --------------------------------------------------------
-        Now allow the full Collection grid to render.
-        --------------------------------------------------------
-        */
-
-        setLoading(false);
-      } catch (error) {
-        if (!cancelled) {
-          console.error(
-            "Collection error:",
-            error
-          );
-
-          setFeaturedLoading(false);
-          setLoading(false);
-        }
       }
+
+      const productsData =
+        await productsRes.json();
+
+      // Non-paginated response
+      if (Array.isArray(productsData)) {
+        allProducts.push(...productsData);
+        break;
+      }
+
+      // Paginated response
+      if (Array.isArray(productsData?.results)) {
+        allProducts.push(
+          ...productsData.results
+        );
+      }
+
+      // Continue to the next page
+      productsUrl =
+        productsData?.next || null;
     }
+
+    if (cancelled) {
+      return;
+    }
+
+    /*
+    --------------------------------------------------------
+    Give Featured Products the data immediately.
+    --------------------------------------------------------
+    */
+
+    setProducts(allProducts);
+    setFeaturedLoading(false);
+
+    /*
+    --------------------------------------------------------
+    STEP 2
+    Load ALL categories across every backend page.
+    --------------------------------------------------------
+    */
+
+    let categoriesUrl =
+      `${API_URL}/products/categories/`;
+
+    const allCategories = [];
+
+    while (categoriesUrl) {
+      const categoriesRes = await fetch(
+        categoriesUrl,
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!categoriesRes.ok) {
+        throw new Error(
+          `Categories request failed: ${categoriesRes.status}`
+        );
+      }
+
+      const categoriesData =
+        await categoriesRes.json();
+
+      // Non-paginated response
+      if (Array.isArray(categoriesData)) {
+        allCategories.push(
+          ...categoriesData
+        );
+        break;
+      }
+
+      // Paginated response
+      if (
+        Array.isArray(
+          categoriesData?.results
+        )
+      ) {
+        allCategories.push(
+          ...categoriesData.results
+        );
+      }
+
+      // Continue to the next page
+      categoriesUrl =
+        categoriesData?.next || null;
+    }
+
+    if (cancelled) {
+      return;
+    }
+
+    setCategories(allCategories);
+
+    /*
+    --------------------------------------------------------
+    Now allow the full Collection grid to render.
+    --------------------------------------------------------
+    */
+
+    setLoading(false);
+  } catch (error) {
+    if (!cancelled) {
+      console.error(
+        "Collection error:",
+        error
+      );
+
+      setFeaturedLoading(false);
+      setLoading(false);
+    }
+  }
+}
 
     loadCollection();
 

@@ -145,22 +145,20 @@ export default function CreateNewsletterCampaignPage() {
       setNotice(null);
     }, 5000);
   };
+const fetchSubscribers = async () => {
+  try {
+    setLoadingSubscribers(true);
 
-  const fetchSubscribers = async () => {
-    try {
-      setLoadingSubscribers(true);
+    let url = `${API_URL}/newsletter/subscribers/`;
+    const allSubscribers = [];
 
-     
-
-     const response = await fetch(
-  `${API_URL}/newsletter/subscribers/`,
-  {
-    method: "GET",
-    credentials: "include",
-    headers: authHeaders(),
-    cache: "no-store",
-  }
-);
+    while (url) {
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: "include",
+        headers: authHeaders(),
+        cache: "no-store",
+      });
 
       if (
         response.status === 401 ||
@@ -170,8 +168,7 @@ export default function CreateNewsletterCampaignPage() {
         return;
       }
 
-      const data =
-        await response.json().catch(() => []);
+      const data = await response.json().catch(() => []);
 
       if (!response.ok) {
         throw new Error(
@@ -182,27 +179,38 @@ export default function CreateNewsletterCampaignPage() {
         );
       }
 
-      setSubscribers(
-        Array.isArray(data)
-          ? data
-          : data.results || []
-      );
-    } catch (error) {
-      console.error(
-        "Newsletter subscribers error:",
-        error
-      );
+      // Backend returned a plain array
+      if (Array.isArray(data)) {
+        allSubscribers.push(...data);
+        break;
+      }
 
-      showNotice(
-        "error",
-        "Unable to load subscribers",
-        error.message ||
-          "Please try again."
-      );
-    } finally {
-      setLoadingSubscribers(false);
+      // Backend returned a paginated response
+      if (Array.isArray(data.results)) {
+        allSubscribers.push(...data.results);
+      }
+
+      // Continue until DRF returns next: null
+      url = data.next || null;
     }
-  };
+
+    setSubscribers(allSubscribers);
+  } catch (error) {
+    console.error(
+      "Newsletter subscribers error:",
+      error
+    );
+
+    showNotice(
+      "error",
+      "Unable to load subscribers",
+      error.message ||
+        "Please try again."
+    );
+  } finally {
+    setLoadingSubscribers(false);
+  }
+};
 
   useEffect(() => {
     fetchSubscribers();
