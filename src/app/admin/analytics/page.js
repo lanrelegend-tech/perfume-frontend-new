@@ -934,63 +934,53 @@ async function loadAnalytics() {
       ? totalRevenue /
         totalOrders
       : 0;
+/* =======================================================
+   DELIVERY STATUS
+======================================================= */
 
-  /* =======================================================
-     DELIVERY STATUS
-  ======================================================= */
+const deliveryStats =
+  useMemo(() => {
+    const stats = {
+      pending: 0,
+      processing: 0,
+      shipped: 0,
+      delivered: 0,
+    };
 
-  const deliveryStats =
-    useMemo(() => {
-      const stats = {
-        pending: 0,
-        processing: 0,
-        shipped: 0,
-        delivered: 0,
-      };
+    periodOrders.forEach(
+      (order) => {
+        const status =
+          getOrderStatus(order);
 
-      periodOrders.forEach(
-        (order) => {
-          const status =
-            getOrderStatus(
-              order
-            );
-
-          if (
-            [
-              "pending",
-              "pending_payment",
-              "awaiting_payment",
-            ].includes(status)
-          ) {
-            stats.pending +=
-              1;
-          } else if (
-            [
-              "processing",
-              "confirmed",
-              "paid",
-            ].includes(status)
-          ) {
-            stats.processing +=
-              1;
-          } else if (
-            status ===
-            "shipped"
-          ) {
-            stats.shipped +=
-              1;
-          } else if (
-            status ===
-            "delivered"
-          ) {
-            stats.delivered +=
-              1;
-          }
+        if (
+          [
+            "pending",
+            "pending_payment",
+            "awaiting_payment",
+          ].includes(status)
+        ) {
+          stats.pending += 1;
+        } else if (
+          [
+            "confirmed",
+            "processing",
+          ].includes(status)
+        ) {
+          stats.processing += 1;
+        } else if (
+          status === "shipped"
+        ) {
+          stats.shipped += 1;
+        } else if (
+          status === "delivered"
+        ) {
+          stats.delivered += 1;
         }
-      );
+      }
+    );
 
-      return stats;
-    }, [periodOrders]);
+    return stats;
+  }, [periodOrders]);
 
   /* =======================================================
      REVENUE CHART
