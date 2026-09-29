@@ -394,7 +394,7 @@ export default function CouponsPage() {
       maximumDiscount:
         getMaximumDiscount(coupon) || "",
       usageLimit:
-        getUsageLimit(coupon) || "",
+        coupon.usage_limit ?? "",
       expires: getDateInputValue(
         coupon.expires_at
       ),
@@ -439,13 +439,19 @@ export default function CouponsPage() {
       form.minOrder || 0
     );
 
-    const maximumDiscount = Number(
-      form.maximumDiscount || 0
-    );
+    const hasMaximumDiscount =
+      form.maximumDiscount !== "";
 
-    const usageLimit = Number(
-      form.usageLimit || 0
-    );
+    const maximumDiscount = hasMaximumDiscount
+      ? Number(form.maximumDiscount)
+      : null;
+
+    const hasUsageLimit =
+      form.usageLimit !== "";
+
+    const usageLimit = hasUsageLimit
+      ? Number(form.usageLimit)
+      : null;
 
     if (!code) {
       setError(
@@ -478,16 +484,24 @@ export default function CouponsPage() {
       return;
     }
 
-    if (maximumDiscount < 0) {
+    if (
+      hasMaximumDiscount &&
+      (!Number.isFinite(maximumDiscount) ||
+        maximumDiscount <= 0)
+    ) {
       setError(
-        "Maximum discount cannot be negative."
+        "Enter a maximum discount greater than 0, or leave it blank for no maximum."
       );
       return;
     }
 
-    if (usageLimit < 0) {
+    if (
+      hasUsageLimit &&
+      (!Number.isInteger(usageLimit) ||
+        usageLimit <= 0)
+    ) {
       setError(
-        "Usage limit cannot be negative."
+        "Enter a usage limit greater than 0, or leave it blank for unlimited use."
       );
       return;
     }
@@ -537,10 +551,8 @@ export default function CouponsPage() {
         discount_type: form.type,
         discount_value: value,
         minimum_order_amount: minOrder,
-        maximum_discount:
-          maximumDiscount || 0,
-        usage_limit:
-          usageLimit || 0,
+        maximum_discount: maximumDiscount,
+        usage_limit: usageLimit,
         expires_at: expiresAt,
         is_active: form.isActive,
       };
@@ -1896,7 +1908,7 @@ export default function CouponsPage() {
 
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   step="1"
                   placeholder="50000"
                   value={
@@ -1914,7 +1926,7 @@ export default function CouponsPage() {
 
                 <p className="mt-1 text-xs text-black/35">
                   Mainly useful for percentage
-                  discounts. Leave 0 for no
+                  discounts. Leave blank for no
                   maximum.
                 </p>
               </div>
@@ -1928,7 +1940,7 @@ export default function CouponsPage() {
 
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   step="1"
                   placeholder="100"
                   value={form.usageLimit}
@@ -1943,7 +1955,7 @@ export default function CouponsPage() {
                 />
 
                 <p className="mt-1 text-xs text-black/35">
-                  Leave 0 for unlimited usage.
+                  Leave blank for unlimited usage.
                 </p>
               </div>
 
