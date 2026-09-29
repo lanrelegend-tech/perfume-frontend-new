@@ -1428,7 +1428,7 @@ export default function CheckoutPage() {
                     value={form.phone}
                     onChange={handleChange}
                     required
-                    placeholder="08012345678"
+                    placeholder="01000000000"
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                   />
                 </div>
@@ -1574,7 +1574,7 @@ export default function CheckoutPage() {
                           value={form.city}
                           onChange={handleChange}
                           required
-                          placeholder="Lagos"
+                          placeholder="City"
                           className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base sm:text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
                         />
 
