@@ -46,6 +46,7 @@ export default function OrderDetailsPage() {
     status: null,
     title: "",
     message: "",
+    requiresRefundChoice: false,
   });
 
   /*
@@ -380,7 +381,7 @@ const getStatusLabel = (
         order.payment_status === "paid"
       ) {
         message =
-          "Are you sure you want to cancel this order?\n\nThis order has been paid. Cancelling it will request a full refund, restore the purchased stock where applicable, and reverse the coupon usage if one was used.\n\nThis action cannot be undone.";
+          "This order has been paid. Would you like to refund the customer?\n\nA refund sends the full amount to Paystack and reverses inventory and coupon usage. Cancelling without a refund keeps the payment, inventory, and coupon usage unchanged.";
       } else {
         message =
           "Are you sure you want to cancel this order?\n\nThis order has not been paid, so no refund will be made.\n\nThis action cannot be undone.";
@@ -392,6 +393,9 @@ const getStatusLabel = (
       status: newStatus,
       title: `Change order to ${newStatusName}?`,
       message,
+      requiresRefundChoice:
+        newStatus === "cancelled" &&
+        order.payment_status === "paid",
     });
   };
 
@@ -399,7 +403,7 @@ const getStatusLabel = (
     CONFIRM STATUS CHANGE
   */
 
-  const confirmStatusUpdate = async () => {
+  const confirmStatusUpdate = async (refund) => {
     const newStatus =
       confirmModal.status;
 
@@ -409,6 +413,7 @@ const getStatusLabel = (
         status: null,
         title: "",
         message: "",
+        requiresRefundChoice: false,
       });
 
       return;
@@ -419,6 +424,7 @@ const getStatusLabel = (
       status: null,
       title: "",
       message: "",
+      requiresRefundChoice: false,
     });
 
     try {
@@ -460,6 +466,10 @@ const response = await fetch(
     },
     body: JSON.stringify({
       status: newStatus,
+      ...(newStatus === "cancelled" &&
+      order.payment_status === "paid"
+        ? { refund }
+        : {}),
     }),
   }
 );
@@ -2138,6 +2148,7 @@ if (
               status: null,
               title: "",
               message: "",
+              requiresRefundChoice: false,
             })
           }
         >
@@ -2181,6 +2192,7 @@ if (
                     status: null,
                     title: "",
                     message: "",
+                    requiresRefundChoice: false,
                   })
                 }
                 className="rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-black/5"
@@ -2188,15 +2200,39 @@ if (
                 No, Go Back
               </button>
 
-              <button
-                type="button"
-                onClick={
-                  confirmStatusUpdate
-                }
-                className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-black/90"
-              >
-                Yes, Continue
-              </button>
+              {confirmModal.requiresRefundChoice ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      confirmStatusUpdate(false)
+                    }
+                    className="rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-black/5"
+                  >
+                    No, Cancel Without Refund
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      confirmStatusUpdate(true)
+                    }
+                    className="rounded-xl bg-red-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-red-700"
+                  >
+                    Yes, Refund and Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    confirmStatusUpdate()
+                  }
+                  className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-black/90"
+                >
+                  Yes, Continue
+                </button>
+              )}
 
             </div>
 
