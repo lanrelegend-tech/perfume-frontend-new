@@ -934,7 +934,8 @@ async function loadAnalytics() {
       ? totalRevenue /
         totalOrders
       : 0;
-/* =======================================================
+
+ /* =======================================================
    DELIVERY STATUS
 ======================================================= */
 
@@ -947,37 +948,38 @@ const deliveryStats =
       delivered: 0,
     };
 
-    periodOrders.forEach(
-      (order) => {
-        const status =
-          getOrderStatus(order);
+    periodOrders.forEach((order) => {
+      const paymentStatus = String(
+        order?.payment_status || ""
+      ).toLowerCase();
 
-        if (
-          [
-            "pending",
-            "pending_payment",
-            "awaiting_payment",
-          ].includes(status)
-        ) {
-          stats.pending += 1;
-        } else if (
-          [
-            "confirmed",
-            "processing",
-          ].includes(status)
-        ) {
-          stats.processing += 1;
-        } else if (
-          status === "shipped"
-        ) {
-          stats.shipped += 1;
-        } else if (
-          status === "delivered"
-        ) {
-          stats.delivered += 1;
-        }
+      const status =
+        getOrderStatus(order);
+
+      // Unpaid / abandoned checkout orders
+      // are not part of delivery tracking.
+      if (paymentStatus !== "paid") {
+        return;
       }
-    );
+
+      // A paid order starts as "confirmed".
+      // This is the pending-fulfilment stage.
+      if (status === "confirmed") {
+        stats.pending += 1;
+      } else if (
+        status === "processing"
+      ) {
+        stats.processing += 1;
+      } else if (
+        status === "shipped"
+      ) {
+        stats.shipped += 1;
+      } else if (
+        status === "delivered"
+      ) {
+        stats.delivered += 1;
+      }
+    });
 
     return stats;
   }, [periodOrders]);
