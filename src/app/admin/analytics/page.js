@@ -512,202 +512,261 @@ export default function AnalyticsPage() {
   useEffect(() => {
     loadAnalytics();
   }, []);
+async function loadAnalytics() {
+  try {
+    setLoading(true);
+    setError("");
 
-  async function loadAnalytics() {
-    try {
-      setLoading(true);
-      setError("");
+    /*
+      First verify that the current session is still valid.
+      Authentication comes from the HttpOnly access cookie.
+    */
+    const meResponse = await fetch(
+      `${API_URL}/users/me/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
 
-      /*
-        First verify that the current session is still valid.
-        Authentication now comes from the HttpOnly access cookie.
-      */
-      const meResponse =
+    if (
+      meResponse.status === 401 ||
+      meResponse.status === 403
+    ) {
+      router.replace("/admin/login");
+      return;
+    }
+
+    if (!meResponse.ok) {
+      throw new Error(
+        "Unable to verify your admin session."
+      );
+    }
+
+    const headers =
+      getAuthenticatedHeaders();
+
+    /*
+      Load customers and dashboard normally.
+      Orders are handled separately below because
+      the orders endpoint is paginated.
+    */
+    const [
+      customersResponse,
+      dashboardResponse,
+    ] = await Promise.all([
+      fetch(
+        `${API_URL}/users/admin/customers/`,
+        {
+          method: "GET",
+          headers,
+          credentials: "include",
+          cache: "no-store",
+        }
+      ),
+
+      fetch(
+        `${API_URL}/orders/admin/dashboard/`,
+        {
+          method: "GET",
+          headers,
+          credentials: "include",
+          cache: "no-store",
+        }
+      ),
+    ]);
+
+    /*
+      If authentication expires, send the admin
+      back to the login page.
+    */
+    if (
+      customersResponse.status === 401 ||
+      customersResponse.status === 403 ||
+      dashboardResponse.status === 401 ||
+      dashboardResponse.status === 403
+    ) {
+      router.replace("/admin/login");
+      return;
+    }
+
+    /*
+      =====================================================
+      LOAD ALL ORDERS
+      =====================================================
+
+      /orders/admin/ is paginated by Django REST Framework.
+
+      Example:
+
+      {
+        "count": 150,
+        "next": "...?page=2",
+        "previous": null,
+        "results": [...]
+      }
+
+      We keep requesting "next" until Django returns null.
+    */
+    let loadedOrders = [];
+
+    let nextOrdersUrl =
+      `${API_URL}/orders/admin/`;
+
+    while (nextOrdersUrl) {
+      const ordersResponse =
         await fetch(
-          `${API_URL}/users/me/`,
+          nextOrdersUrl,
           {
             method: "GET",
+            headers,
             credentials: "include",
             cache: "no-store",
           }
         );
 
       if (
-        meResponse.status === 401 ||
-        meResponse.status === 403
+        ordersResponse.status === 401 ||
+        ordersResponse.status === 403
       ) {
-        router.replace(
-          "/admin/login"
-        );
+        router.replace("/admin/login");
         return;
       }
 
-      if (!meResponse.ok) {
+      if (!ordersResponse.ok) {
+        const data =
+          await ordersResponse
+            .json()
+            .catch(() => ({}));
+
         throw new Error(
-          "Unable to verify your admin session."
+          data?.detail ||
+            data?.error ||
+            `Orders API returned ${ordersResponse.status}.`
         );
       }
 
-      const headers =
-        getAuthenticatedHeaders();
-
-      const [
-        ordersResponse,
-        customersResponse,
-        dashboardResponse,
-      ] =
-        await Promise.allSettled([
-          fetch(
-            `${API_URL}/orders/admin/`,
-            {
-              method: "GET",
-              headers,
-              credentials: "include",
-              cache: "no-store",
-            }
-          ),
-
-          fetch(
-            `${API_URL}/users/admin/customers/`,
-            {
-              method: "GET",
-              headers,
-              credentials: "include",
-              cache: "no-store",
-            }
-          ),
-
-          fetch(
-            `${API_URL}/orders/admin/dashboard/`,
-            {
-              method: "GET",
-              headers,
-              credentials: "include",
-              cache: "no-store",
-            }
-          ),
-        ]);
+      const data =
+        await ordersResponse.json();
 
       /*
-        If any authenticated endpoint returns 401/403,
-        the cookie session is no longer valid.
+        Add this page's orders to the
+        complete orders array.
       */
-      const responses = [
-        ordersResponse,
-        customersResponse,
-        dashboardResponse,
+      const pageOrders =
+        Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data)
+          ? data
+          : [];
+
+      loadedOrders = [
+        ...loadedOrders,
+        ...pageOrders,
       ];
 
-      const hasUnauthorizedResponse =
-        responses.some(
-          (result) =>
-            result.status ===
-              "fulfilled" &&
-            (result.value.status ===
-              401 ||
-              result.value.status ===
-                403)
-        );
+      /*
+        Django gives us the URL of the
+        next page.
 
-      if (hasUnauthorizedResponse) {
-        router.replace(
-          "/admin/login"
-        );
-        return;
-      }
-
-      let loadedOrders = [];
-      let loadedCustomers = [];
-      let loadedDashboard = null;
-
-      if (
-        ordersResponse.status ===
-          "fulfilled" &&
-        ordersResponse.value.ok
-      ) {
-        const data =
-          await ordersResponse.value.json();
-
-        loadedOrders =
-          getResults(data);
-      }
-
-      if (
-        customersResponse.status ===
-          "fulfilled" &&
-        customersResponse.value.ok
-      ) {
-        const data =
-          await customersResponse.value.json();
-
-        loadedCustomers =
-          getResults(data);
-      }
-
-      if (
-        dashboardResponse.status ===
-          "fulfilled" &&
-        dashboardResponse.value.ok
-      ) {
-        loadedDashboard =
-          await dashboardResponse.value.json();
-      }
-
-      if (
-        loadedOrders.length === 0
-      ) {
-        if (
-          ordersResponse.status ===
-            "fulfilled" &&
-          !ordersResponse.value.ok
-        ) {
-          const data =
-            await ordersResponse.value
-              .json()
-              .catch(
-                () => ({})
-              );
-
-          throw new Error(
-            data?.detail ||
-              data?.error ||
-              "Unable to load admin orders."
-          );
-        }
-      }
-
-      setOrders(
-        loadedOrders
-      );
-
-      setCustomers(
-        loadedCustomers
-      );
-
-      setDashboard(
-        loadedDashboard
-      );
-    } catch (err) {
-      console.error(
-        "Analytics loading error:",
-        err
-      );
-
-      if (
-        err?.name ===
-        "AbortError"
-      ) {
-        return;
-      }
-
-      setError(
-        err?.message ||
-          "Unable to load analytics. Please try again."
-      );
-    } finally {
-      setLoading(false);
+        When there are no more pages:
+        next === null
+      */
+      nextOrdersUrl =
+        data?.next || null;
     }
+
+    /*
+      =====================================================
+      CUSTOMERS
+      =====================================================
+    */
+
+    let loadedCustomers = [];
+
+    if (customersResponse.ok) {
+      const data =
+        await customersResponse.json();
+
+      loadedCustomers =
+        getResults(data);
+    } else {
+      const data =
+        await customersResponse
+          .json()
+          .catch(() => ({}));
+
+      throw new Error(
+        data?.detail ||
+          data?.error ||
+          "Unable to load admin customers."
+      );
+    }
+
+    /*
+      =====================================================
+      DASHBOARD
+      =====================================================
+    */
+
+    let loadedDashboard = null;
+
+    if (dashboardResponse.ok) {
+      loadedDashboard =
+        await dashboardResponse.json();
+    } else {
+      const data =
+        await dashboardResponse
+          .json()
+          .catch(() => ({}));
+
+      throw new Error(
+        data?.detail ||
+          data?.error ||
+          "Unable to load dashboard analytics."
+      );
+    }
+
+    /*
+      =====================================================
+      SAVE DATA
+      =====================================================
+    */
+
+    setOrders(
+      loadedOrders
+    );
+
+    setCustomers(
+      loadedCustomers
+    );
+
+    setDashboard(
+      loadedDashboard
+    );
+
+  } catch (err) {
+    console.error(
+      "Analytics loading error:",
+      err
+    );
+
+    if (
+      err?.name === "AbortError"
+    ) {
+      return;
+    }
+
+    setError(
+      err?.message ||
+        "Unable to load analytics. Please try again."
+    );
+
+  } finally {
+    setLoading(false);
   }
+}
 
   /* =======================================================
      PERIOD ORDERS
