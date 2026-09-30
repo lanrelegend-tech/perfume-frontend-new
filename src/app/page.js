@@ -139,12 +139,23 @@ useEffect(() => {
         categoriesResponse,
         settingsResponse,
       ] = await Promise.all([
+
         fetch(`${API_URL}/products/`, {
-          signal: controller.signal,
-        }),
-        fetch(`${API_URL}/products/categories/`, {
-          signal: controller.signal,
-        }),
+
+  signal: controller.signal,
+
+  cache: "no-store",
+
+}),
+
+fetch(`${API_URL}/products/categories/`, {
+
+  signal: controller.signal,
+
+  cache: "no-store",
+
+}),
+       
         fetch(`${API_URL}/settings/`, {
           signal: controller.signal,
         }),

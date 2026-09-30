@@ -263,7 +263,12 @@ useEffect(() => {
 
     while (productsNextUrl) {
       const productsResponse =
-        await fetch(productsNextUrl);
+
+  await fetch(productsNextUrl, {
+
+    cache: "no-store",
+
+  });
 
       if (!productsResponse.ok) {
         break;
