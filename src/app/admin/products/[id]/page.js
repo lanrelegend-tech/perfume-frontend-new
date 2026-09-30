@@ -376,7 +376,9 @@ useEffect(() => {
       let foundProduct = null;
 
       while (nextUrl) {
-        const response = await fetch(nextUrl);
+        const response = await fetch(nextUrl, {
+  cache: "no-store",
+});
 
         if (!response.ok) {
           throw new Error("Failed to load products");
@@ -438,7 +440,9 @@ useEffect(() => {
         `${API_URL}/products/categories/`;
 
       while (nextUrl) {
-        const response = await fetch(nextUrl);
+        const response = await fetch(nextUrl, {
+  cache: "no-store",
+});
 
         if (!response.ok) {
           return;

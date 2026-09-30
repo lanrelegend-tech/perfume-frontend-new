@@ -54,7 +54,12 @@ export default function AboutPage() {
         const [settingsResponse, categoriesResponse] =
           await Promise.all([
             fetch(`${API_URL}/settings/`),
-            fetch(`${API_URL}/products/categories/`),
+            fetch(`${API_URL}/products/categories/`, {
+
+  cache: "no-store",
+
+}),
+            
           ]);
 
         if (settingsResponse.ok) {

@@ -213,7 +213,9 @@ async function loadReviews(productId) {
     const allReviews = [];
 
     while (nextUrl) {
-      const response = await fetch(nextUrl);
+      const response = await fetch(nextUrl, {
+  cache: "no-store",
+});
 
       if (!response.ok) {
         throw new Error(

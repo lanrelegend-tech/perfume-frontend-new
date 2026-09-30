@@ -179,56 +179,57 @@ export default function ProductsPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
 
-useEffect(() => {
-  function updateCartCount() {
-    try {
-      const savedCart = localStorage.getItem(
-        "orentemist_cart"
-      );
+  useEffect(() => {
+    function updateCartCount() {
+      try {
+        const savedCart = localStorage.getItem(
+          "orentemist_cart"
+        );
 
-      const cart = savedCart
-        ? JSON.parse(savedCart)
-        : [];
+        const cart = savedCart
+          ? JSON.parse(savedCart)
+          : [];
 
-      const count = Array.isArray(cart)
-        ? cart.reduce(
-            (total, item) =>
-              total + Number(item.quantity || 0),
-            0
-          )
-        : 0;
+        const count = Array.isArray(cart)
+          ? cart.reduce(
+              (total, item) =>
+                total + Number(item.quantity || 0),
+              0
+            )
+          : 0;
 
-      setTotalItems(count);
-    } catch (error) {
-      console.error("Cart count error:", error);
-      setTotalItems(0);
+        setTotalItems(count);
+      } catch (error) {
+        console.error("Cart count error:", error);
+        setTotalItems(0);
+      }
     }
-  }
 
-  updateCartCount();
+    updateCartCount();
 
-  window.addEventListener(
-    "orentemist-cart-updated",
-    updateCartCount
-  );
-
-  window.addEventListener(
-    "storage",
-    updateCartCount
-  );
-
-  return () => {
-    window.removeEventListener(
+    window.addEventListener(
       "orentemist-cart-updated",
       updateCartCount
     );
 
-    window.removeEventListener(
+    window.addEventListener(
       "storage",
       updateCartCount
     );
-  };
-}, []);
+
+    return () => {
+      window.removeEventListener(
+        "orentemist-cart-updated",
+        updateCartCount
+      );
+
+      window.removeEventListener(
+        "storage",
+        updateCartCount
+      );
+    };
+  }, []);
+
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -251,136 +252,146 @@ useEffect(() => {
   /* =======================================================
      LOAD PRODUCTS + CATEGORIES + SETTINGS
   ======================================================= */
-useEffect(() => {
- async function loadStore() {
-  try {
-    // =====================================================
-    // LOAD ALL PRODUCTS
-    // =====================================================
 
-    let productsNextUrl = `${API_URL}/products/`;
-    const allProducts = [];
+  useEffect(() => {
+    async function loadStore() {
+      try {
+        // =====================================================
+        // LOAD ALL PRODUCTS
+        // =====================================================
 
-    while (productsNextUrl) {
-      const productsResponse =
+        let productsNextUrl = `${API_URL}/products/`;
+        const allProducts = [];
 
-  await fetch(productsNextUrl, {
+        while (productsNextUrl) {
+          const productsResponse =
+            await fetch(productsNextUrl, {
+              cache: "no-store",
+            });
 
-    cache: "no-store",
+          if (!productsResponse.ok) {
+            break;
+          }
 
-  });
+          const productsData =
+            await productsResponse.json();
 
-      if (!productsResponse.ok) {
-        break;
-      }
+          if (Array.isArray(productsData)) {
+            allProducts.push(...productsData);
+            break;
+          }
 
-      const productsData =
-        await productsResponse.json();
+          if (Array.isArray(productsData?.results)) {
+            allProducts.push(
+              ...productsData.results
+            );
+          }
 
-      if (Array.isArray(productsData)) {
-        allProducts.push(...productsData);
-        break;
-      }
+          productsNextUrl =
+            productsData?.next || null;
+        }
 
-      if (Array.isArray(productsData?.results)) {
-        allProducts.push(
-          ...productsData.results
+        setProducts(allProducts);
+
+        // Stop the main loading screen
+        // once all products have been loaded.
+        setLoading(false);
+
+        // =====================================================
+        // LOAD CATEGORIES + SETTINGS
+        // =====================================================
+
+        const [
+          categoriesResponse,
+          settingsResponse,
+        ] = await Promise.all([
+          fetch(
+            `${API_URL}/products/categories/`,
+            {
+              cache: "no-store",
+            }
+          ),
+          fetch(
+            `${API_URL}/settings/`,
+            {
+              cache: "no-store",
+            }
+          ),
+        ]);
+
+        // =====================================================
+        // LOAD ALL CATEGORIES
+        // =====================================================
+
+        if (categoriesResponse.ok) {
+          let categoriesNextUrl =
+            `${API_URL}/products/categories/`;
+
+          const allCategories = [];
+
+          while (categoriesNextUrl) {
+            const response =
+              await fetch(categoriesNextUrl, {
+                cache: "no-store",
+              });
+
+            if (!response.ok) {
+              break;
+            }
+
+            const categoriesData =
+              await response.json();
+
+            if (Array.isArray(categoriesData)) {
+              allCategories.push(
+                ...categoriesData
+              );
+              break;
+            }
+
+            if (
+              Array.isArray(
+                categoriesData?.results
+              )
+            ) {
+              allCategories.push(
+                ...categoriesData.results
+              );
+            }
+
+            categoriesNextUrl =
+              categoriesData?.next || null;
+          }
+
+          setCategories(allCategories);
+        }
+
+        // =====================================================
+        // LOAD SETTINGS
+        // =====================================================
+
+        if (settingsResponse.ok) {
+          const settingsData =
+            await settingsResponse.json();
+
+          if (settingsData?.currency) {
+            setCurrency(
+              settingsData.currency
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Failed to load products:",
+          error
         );
-      }
 
-      productsNextUrl =
-        productsData?.next || null;
-    }
-
-    setProducts(allProducts);
-
-    // Stop the main loading screen
-    // once all products have been loaded.
-    setLoading(false);
-
-    // =====================================================
-    // LOAD CATEGORIES + SETTINGS
-    // =====================================================
-
-    const [
-      categoriesResponse,
-      settingsResponse,
-    ] = await Promise.all([
-      fetch(`${API_URL}/products/categories/`),
-      fetch(`${API_URL}/settings/`),
-    ]);
-
-    // =====================================================
-    // LOAD ALL CATEGORIES
-    // =====================================================
-
-    if (categoriesResponse.ok) {
-      let categoriesNextUrl =
-        `${API_URL}/products/categories/`;
-
-      const allCategories = [];
-
-      while (categoriesNextUrl) {
-        const response =
-          await fetch(categoriesNextUrl);
-
-        if (!response.ok) {
-          break;
-        }
-
-        const categoriesData =
-          await response.json();
-
-        if (Array.isArray(categoriesData)) {
-          allCategories.push(
-            ...categoriesData
-          );
-          break;
-        }
-
-        if (
-          Array.isArray(
-            categoriesData?.results
-          )
-        ) {
-          allCategories.push(
-            ...categoriesData.results
-          );
-        }
-
-        categoriesNextUrl =
-          categoriesData?.next || null;
-      }
-
-      setCategories(allCategories);
-    }
-
-    // =====================================================
-    // LOAD SETTINGS
-    // =====================================================
-
-    if (settingsResponse.ok) {
-      const settingsData =
-        await settingsResponse.json();
-
-      if (settingsData?.currency) {
-        setCurrency(
-          settingsData.currency
-        );
+        setLoading(false);
       }
     }
-  } catch (error) {
-    console.error(
-      "Failed to load products:",
-      error
-    );
 
-    setLoading(false);
-  }
-}
-
-  loadStore();
-}, [])
+    loadStore();
+  }, []);
 
   /* =======================================================
      FILTER PRODUCTS
@@ -546,42 +557,43 @@ useEffect(() => {
             >
               Account
             </Link>
-<Link
-  href="/cart"
-  aria-label="Shopping cart"
-  className="relative flex h-10 w-10 items-center justify-center rounded-full border border-black bg-black text-white"
->
-  <svg
-    width="17"
-    height="17"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.7"
-  >
-    <path d="M6 8h12l1 12H5L6 8Z" />
-    <path d="M9 8a3 3 0 0 1 6 0" />
-  </svg>
 
-  {totalItems > 0 && (
-    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[9px] font-bold text-black ring-1 ring-black/10">
-      {totalItems}
-    </span>
-  )}
-</Link>
+            <Link
+              href="/cart"
+              aria-label="Shopping cart"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full border border-black bg-black text-white"
+            >
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              >
+                <path d="M6 8h12l1 12H5L6 8Z" />
+                <path d="M9 8a3 3 0 0 1 6 0" />
+              </svg>
+
+              {totalItems > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[9px] font-bold text-black ring-1 ring-black/10">
+                  {totalItems}
+                </span>
+              )}
+            </Link>
+
             <button
-  type="button"
-  onClick={() => setMobileMenuOpen(true)}
-  aria-label="Open menu"
-  className="flex h-10 w-10 items-center justify-center rounded-full transition active:scale-95 md:hidden"
->
-  <span className="flex flex-col gap-1.5">
-    <span className="h-1 w-1 rounded-full bg-black" />
-    <span className="h-1 w-1 rounded-full bg-black" />
-    <span className="h-1 w-1 rounded-full bg-black" />
-  </span>
-</button>
-
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open menu"
+              className="flex h-10 w-10 items-center justify-center rounded-full transition active:scale-95 md:hidden"
+            >
+              <span className="flex flex-col gap-1.5">
+                <span className="h-1 w-1 rounded-full bg-black" />
+                <span className="h-1 w-1 rounded-full bg-black" />
+                <span className="h-1 w-1 rounded-full bg-black" />
+              </span>
+            </button>
 
           </div>
 
@@ -703,15 +715,15 @@ useEffect(() => {
 
               </div>
 
-             <input
-  type="text"
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  onFocus={() => setSearchFocused(true)}
-  onBlur={() => setSearchFocused(false)}
-  placeholder="Search perfume, oud, vanilla, rose, musk..."
-  className="h-12 w-full rounded-full border border-black/10 bg-white pl-11 pr-10 text-base sm:text-sm outline-none transition placeholder:text-black/35 focus:border-black/30 focus:shadow-lg focus:shadow-black/[0.03]"
-/>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                placeholder="Search perfume, oud, vanilla, rose, musk..."
+                className="h-12 w-full rounded-full border border-black/10 bg-white pl-11 pr-10 text-base sm:text-sm outline-none transition placeholder:text-black/35 focus:border-black/30 focus:shadow-lg focus:shadow-black/[0.03]"
+              />
 
               {search && (
                 <button
@@ -901,13 +913,12 @@ useEffect(() => {
 
               <div className="mt-4 grid grid-cols-2 gap-2">
 
-               {[
-  ["all", "All"],
-  ["In Stock", "In Stock"],
-  ["Low Stock", "Low Stock"],
-  ["Pre-order Available", "Pre-order Available"],
-  ["Sold Out", "Sold Out"],
-
+                {[
+                  ["all", "All"],
+                  ["In Stock", "In Stock"],
+                  ["Low Stock", "Low Stock"],
+                  ["Pre-order Available", "Pre-order Available"],
+                  ["Sold Out", "Sold Out"],
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -942,7 +953,7 @@ useEffect(() => {
                 onChange={(e) =>
                   setSortBy(e.target.value)
                 }
-              className="mt-4 h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none"
+                className="mt-4 h-12 w-full rounded-xl border border-black/10 bg-white px-4 text-base sm:text-sm outline-none"
               >
                 <option value="featured">
                   Featured
@@ -1070,13 +1081,11 @@ useEffect(() => {
               <div className="mt-5 space-y-3">
 
                 {[
-  ["all", "All"],
-  ["In Stock", "In Stock"],
-  ["Low Stock", "Low Stock"],
-  ["Pre-order Available", "Pre-order Available"],
-  ["Sold Out", "Sold Out"],
-
-                
+                  ["all", "All"],
+                  ["In Stock", "In Stock"],
+                  ["Low Stock", "Low Stock"],
+                  ["Pre-order Available", "Pre-order Available"],
+                  ["Sold Out", "Sold Out"],
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -1242,7 +1251,8 @@ useEffect(() => {
               </h3>
 
               <div className="space-y-3 text-sm text-white/60">
-               <Link
+
+                <Link
                   href="/terms-and-conditions"
                   className="block transition hover:text-white"
                 >
@@ -1263,8 +1273,6 @@ useEffect(() => {
                   Contact
                 </Link>
 
-                
-
               </div>
 
             </div>
@@ -1278,138 +1286,144 @@ useEffect(() => {
         </div>
 
       </footer>
-{/* ================= MOBILE SIDE MENU ================= */}
 
-{mobileMenuOpen && (
-  <div className="fixed inset-0 z-[200] md:hidden">
+      {/* ================= MOBILE SIDE MENU ================= */}
 
-    {/* BACKDROP */}
-    <button
-      type="button"
-      aria-label="Close menu"
-      onClick={() => setMobileMenuOpen(false)}
-      className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
-    />
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-[200] md:hidden">
 
-    {/* SIDE DRAWER */}
-    <aside className="absolute right-0 top-0 flex h-full w-[85%] max-w-sm flex-col bg-white shadow-2xl">
+          {/* BACKDROP */}
 
-      {/* HEADER */}
-      <div className="flex items-center justify-between border-b border-black/10 px-6 py-6">
-
-        <Link
-          href="/"
-          onClick={() => setMobileMenuOpen(false)}
-          className="text-lg font-semibold tracking-[0.3em]"
-        >
-          ORENTEMIST
-        </Link>
-
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen(false)}
-          aria-label="Close menu"
-          className="flex h-10 w-10 items-center justify-center text-2xl text-black/60"
-        >
-          ×
-        </button>
-
-      </div>
-
-      {/* MENU */}
-      <div className="flex flex-1 flex-col px-6 py-8">
-
-        <p className="mb-6 text-[10px] uppercase tracking-[0.35em] text-black/40">
-          Menu
-        </p>
-
-        <nav className="space-y-1">
-
-          <Link
-            href="/"
+          <button
+            type="button"
+            aria-label="Close menu"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
-          >
-            Home
-            <span className="text-black/30">→</span>
-          </Link>
+            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+          />
 
-          
+          {/* SIDE DRAWER */}
 
-          <Link
-            href="/collection"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
-          >
-            Collection
-            <span className="text-black/30">→</span>
-          </Link>
+          <aside className="absolute right-0 top-0 flex h-full w-[85%] max-w-sm flex-col bg-white shadow-2xl">
 
-          <Link
-            href="/about"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
-          >
-            About
-            <span className="text-black/30">→</span>
-          </Link>
+            {/* HEADER */}
 
-          <Link
-            href="/account"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
-          >
-            Account
-            <span className="text-black/30">→</span>
-          </Link>
-          <Link
-  href="/cart"
-  onClick={() => setMobileMenuOpen(false)}
-  className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
->
-  <span className="flex items-center gap-3">
-    Cart
+            <div className="flex items-center justify-between border-b border-black/10 px-6 py-6">
 
-    {totalItems > 0 && (
-      <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-black px-1.5 text-[10px] font-semibold text-white">
-        {totalItems}
-      </span>
-    )}
-  </span>
+              <Link
+                href="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-lg font-semibold tracking-[0.3em]"
+              >
+                ORENTEMIST
+              </Link>
 
-  <span className="text-black/30">→</span>
-</Link>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close menu"
+                className="flex h-10 w-10 items-center justify-center text-2xl text-black/60"
+              >
+                ×
+              </button>
 
-          <Link
-            href="/contact"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
-          >
-            Contact
-            <span className="text-black/30">→</span>
-          </Link>
+            </div>
 
-        </nav>
+            {/* MENU */}
 
-      </div>
+            <div className="flex flex-1 flex-col px-6 py-8">
 
-      {/* FOOTER */}
-      <div className="border-t border-black/10 px-6 py-6">
+              <p className="mb-6 text-[10px] uppercase tracking-[0.35em] text-black/40">
+                Menu
+              </p>
 
-        <p className="text-[10px] uppercase tracking-[0.3em] text-black/30">
-       ORENTEMIST
-        </p>
+              <nav className="space-y-1">
 
-        <p className="mt-2 text-xs text-black/40">
-          Luxury fragrances. Signature presence.
-        </p>
+                <Link
+                  href="/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+                >
+                  Home
+                  <span className="text-black/30">→</span>
+                </Link>
 
-      </div>
+                <Link
+                  href="/collection"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+                >
+                  Collection
+                  <span className="text-black/30">→</span>
+                </Link>
 
-    </aside>
+                <Link
+                  href="/about"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+                >
+                  About
+                  <span className="text-black/30">→</span>
+                </Link>
 
-  </div>
-)}
+                <Link
+                  href="/account"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+                >
+                  Account
+                  <span className="text-black/30">→</span>
+                </Link>
+
+                <Link
+                  href="/cart"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+                >
+                  <span className="flex items-center gap-3">
+                    Cart
+
+                    {totalItems > 0 && (
+                      <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-black px-1.5 text-[10px] font-semibold text-white">
+                        {totalItems}
+                      </span>
+                    )}
+                  </span>
+
+                  <span className="text-black/30">→</span>
+                </Link>
+
+                <Link
+                  href="/contact"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between border-b border-black/10 py-5 text-lg"
+                >
+                  Contact
+                  <span className="text-black/30">→</span>
+                </Link>
+
+              </nav>
+
+            </div>
+
+            {/* FOOTER */}
+
+            <div className="border-t border-black/10 px-6 py-6">
+
+              <p className="text-[10px] uppercase tracking-[0.3em] text-black/30">
+                ORENTEMIST
+              </p>
+
+              <p className="mt-2 text-xs text-black/40">
+                Luxury fragrances. Signature presence.
+              </p>
+
+            </div>
+
+          </aside>
+
+        </div>
+      )}
+
     </main>
   );
 }
@@ -1430,15 +1444,12 @@ function ProductGrid({
 
         const status =
           getProductStatus(product);
-         
-          
+
         const isPreorder =
-           status === "Pre-order Available";
+          status === "Pre-order Available";
 
         const isSoldOut =
-           status === "Sold Out";  
-
-       
+          status === "Sold Out";
 
         const notes =
           getFragranceNotes(product);
@@ -1460,14 +1471,14 @@ function ProductGrid({
 
             <div className="relative aspect-[4/5] overflow-hidden rounded-[2px] bg-[#f0f0ee]">
 
-             <Image
-  src={getImageUrl(product.image)}
-  alt={product.name}
-  fill
-  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 360px"
-  className="object-cover transition duration-700 ease-out group-hover:scale-[1.045]"
-  loading={index < 4 ? "eager" : "lazy"}
-/>
+              <Image
+                src={getImageUrl(product.image)}
+                alt={product.name}
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 360px"
+                className="object-cover transition duration-700 ease-out group-hover:scale-[1.045]"
+                loading={index < 4 ? "eager" : "lazy"}
+              />
 
               {/* IMAGE GRADIENT */}
 
@@ -1489,29 +1500,29 @@ function ProductGrid({
                 </span>
               )}
 
-             {/* PRE-ORDER */}
+              {/* PRE-ORDER */}
 
-{isPreorder && (
-  <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+              {isPreorder && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/25">
 
-    <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
-      Pre-order Available
-    </span>
+                  <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
+                    Pre-order Available
+                  </span>
 
-  </div>
-)}
+                </div>
+              )}
 
-{/* SOLD OUT */}
+              {/* SOLD OUT */}
 
-{isSoldOut && (
-  <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+              {isSoldOut && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/25">
 
-    <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
-      Sold Out
-    </span>
+                  <span className="rounded-full bg-white px-4 py-2 text-[8px] uppercase tracking-[0.2em]">
+                    Sold Out
+                  </span>
 
-  </div>
-)}
+                </div>
+              )}
 
             </div>
 
@@ -1660,7 +1671,7 @@ function EmptyState({
 
       {search && (
         <p className="mt-3 max-w-md text-sm leading-6 text-black/45">
-          We couldnapos;t find a product matching{" "}
+          We couldn't find a product matching{" "}
           <span className="font-medium text-black">
             "{search}"
           </span>
