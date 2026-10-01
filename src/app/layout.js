@@ -3,6 +3,7 @@ import "./globals.css";
 import PWARegister from "@/components/PWARegister";
 import NewsletterPopup from "@/components/NewsletterPopup";
 import CookieConsent from "@/components/CookieConsent";
+import WhatsAppButton from "@/components/WhatsAppButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -132,6 +133,7 @@ export default function RootLayout({ children }) {
         {children}
          <NewsletterPopup />
            <CookieConsent />
+             <WhatsAppButton />
       </body>
     </html>
   );
