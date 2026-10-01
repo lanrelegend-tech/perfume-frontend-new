@@ -1,84 +1,170 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.orentemist.online/api";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.orentemist.online/api";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
-const DRAFT_DB_NAME = "orentemist-bulk-import";
-const DRAFT_STORE_NAME = "drafts";
-const DRAFT_KEY = "current";
+// ============================================================
+// BULK IMPORT DRAFT PERSISTENCE
+// ============================================================
+
+const BULK_DRAFT_DB_NAME = "orentemist-bulk-import";
+const BULK_DRAFT_STORE_NAME = "drafts";
+const BULK_DRAFT_KEY = "current";
+
+function openBulkDraftDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      reject(new Error("IndexedDB is not available in this browser."));
+      return;
+    }
+
+    const request = window.indexedDB.open(BULK_DRAFT_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains(BULK_DRAFT_STORE_NAME)) {
+        db.createObjectStore(BULK_DRAFT_STORE_NAME);
+      }
+    };
+
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+
+    request.onerror = () => {
+      reject(
+        request.error ||
+          new Error("Unable to open draft storage.")
+      );
+    };
+  });
+}
+
+async function saveBulkDraft(draft) {
+  const db = await openBulkDraftDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      BULK_DRAFT_STORE_NAME,
+      "readwrite"
+    );
+
+    const store = transaction.objectStore(
+      BULK_DRAFT_STORE_NAME
+    );
+
+    store.put(draft, BULK_DRAFT_KEY);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error ||
+          new Error("Unable to save bulk import draft.")
+      );
+    };
+  });
+}
+
+async function loadBulkDraft() {
+  const db = await openBulkDraftDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      BULK_DRAFT_STORE_NAME,
+      "readonly"
+    );
+
+    const store = transaction.objectStore(
+      BULK_DRAFT_STORE_NAME
+    );
+
+    const request = store.get(BULK_DRAFT_KEY);
+
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result || null);
+    };
+
+    request.onerror = () => {
+      db.close();
+      reject(
+        request.error ||
+          new Error("Unable to load bulk import draft.")
+      );
+    };
+  });
+}
+
+async function clearBulkDraft() {
+  const db = await openBulkDraftDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      BULK_DRAFT_STORE_NAME,
+      "readwrite"
+    );
+
+    const store = transaction.objectStore(
+      BULK_DRAFT_STORE_NAME
+    );
+
+    store.delete(BULK_DRAFT_KEY);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error ||
+          new Error("Unable to clear bulk import draft.")
+      );
+    };
+  });
+}
 
 const COLUMNS = [
-  {
-    key: "image",
-    label: "Image",
-    width: 90,
-    type: "image",
-  },
-  {
-    key: "name",
-    label: "Name *",
-    width: 220,
-    required: true,
-  },
-  {
-    key: "brand",
-    label: "Brand",
-    width: 150,
-  },
-  {
-    key: "price",
-    label: "Price *",
-    width: 120,
-    required: true,
-    type: "number",
-  },
-  {
-    key: "size",
-    label: "Size",
-    width: 110,
-  },
-  {
-    key: "category",
-    label: "Category",
-    width: 150,
-  },
-  {
-    key: "gender",
-    label: "Gender",
-    width: 120,
-  },
+  { key: "image", label: "Image", width: 120, type: "image" },
+  { key: "name", label: "Name", width: 220, type: "text", required: true },
+  { key: "brand", label: "Brand", width: 160, type: "text" },
+  { key: "price", label: "Price", width: 120, type: "number", required: true },
+  { key: "size", label: "Size", width: 110, type: "text" },
+  { key: "category", label: "Category", width: 150, type: "text" },
+  { key: "gender", label: "Gender", width: 120, type: "text" },
   {
     key: "concentration",
     label: "Concentration",
     width: 150,
+    type: "text",
   },
   {
     key: "description",
     label: "Description",
     width: 280,
-    multiline: true,
+    type: "textarea",
   },
   {
     key: "fragrance_notes",
     label: "Fragrance Notes",
     width: 250,
-    multiline: true,
+    type: "textarea",
   },
   {
     key: "stock_quantity",
     label: "Stock",
-    width: 110,
+    width: 100,
     type: "number",
   },
   {
@@ -95,14 +181,15 @@ const COLUMNS = [
   },
   {
     key: "is_preorder",
-    label: "Preorder",
-    width: 100,
+    label: "Pre-order",
+    width: 110,
     type: "boolean",
   },
   {
     key: "preorder_message",
-    label: "Preorder Message",
-    width: 220,
+    label: "Pre-order Message",
+    width: 230,
+    type: "text",
   },
   {
     key: "preorder_release_date",
@@ -132,17 +219,17 @@ const CSV_HEADERS = [
 ];
 
 function makeId() {
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 10)}`;
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function createEmptyRow() {
+function createBlankRow() {
   return {
     id: makeId(),
+
     imageFile: null,
     imageUrl: "",
     imageName: "",
+
     name: "",
     brand: "",
     price: "",
@@ -162,167 +249,19 @@ function createEmptyRow() {
 }
 
 function createRows(count = 10) {
-  return Array.from({ length: count }, () =>
-    createEmptyRow()
-  );
+  return Array.from({ length: count }, () => createBlankRow());
 }
 
-function openBulkDraftDB() {
-  return new Promise((resolve, reject) => {
-    if (typeof window === "undefined" || !window.indexedDB) {
-      reject(
-        new Error(
-          "IndexedDB is not available in this browser."
-        )
-      );
-      return;
-    }
-
-    const request = window.indexedDB.open(
-      DRAFT_DB_NAME,
-      1
-    );
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-
-      if (!db.objectStoreNames.contains(DRAFT_STORE_NAME)) {
-        db.createObjectStore(DRAFT_STORE_NAME);
-      }
-    };
-
-    request.onsuccess = () => {
-      resolve(request.result);
-    };
-
-    request.onerror = () => {
-      reject(request.error);
-    };
-  });
-}
-
-async function saveBulkDraft(draft) {
-  const db = await openBulkDraftDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      DRAFT_STORE_NAME,
-      "readwrite"
-    );
-
-    const store = transaction.objectStore(
-      DRAFT_STORE_NAME
-    );
-
-    const request = store.put(draft, DRAFT_KEY);
-
-    request.onsuccess = () => {
-      resolve(true);
-    };
-
-    request.onerror = () => {
-      reject(request.error);
-    };
-
-    transaction.oncomplete = () => {
-      db.close();
-    };
-
-    transaction.onerror = () => {
-      reject(transaction.error);
-      db.close();
-    };
-  });
-}
-
-async function loadBulkDraft() {
-  const db = await openBulkDraftDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      DRAFT_STORE_NAME,
-      "readonly"
-    );
-
-    const store = transaction.objectStore(
-      DRAFT_STORE_NAME
-    );
-
-    const request = store.get(DRAFT_KEY);
-
-    request.onsuccess = () => {
-      resolve(request.result || null);
-    };
-
-    request.onerror = () => {
-      reject(request.error);
-    };
-
-    transaction.oncomplete = () => {
-      db.close();
-    };
-
-    transaction.onerror = () => {
-      reject(transaction.error);
-      db.close();
-    };
-  });
-}
-
-async function clearBulkDraft() {
-  const db = await openBulkDraftDB();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      DRAFT_STORE_NAME,
-      "readwrite"
-    );
-
-    const store = transaction.objectStore(
-      DRAFT_STORE_NAME
-    );
-
-    const request = store.delete(DRAFT_KEY);
-
-    request.onsuccess = () => {
-      resolve(true);
-    };
-
-    request.onerror = () => {
-      reject(request.error);
-    };
-
-    transaction.oncomplete = () => {
-      db.close();
-    };
-
-    transaction.onerror = () => {
-      reject(transaction.error);
-      db.close();
-    };
-  });
-}
-
-function escapeCSV(value) {
-  if (value === null || value === undefined) {
-    return "";
-  }
-
-  const stringValue = String(value);
-
-  if (
-    stringValue.includes(",") ||
-    stringValue.includes('"') ||
-    stringValue.includes("\n")
-  ) {
-    return `"${stringValue.replaceAll('"', '""')}"`;
-  }
-
-  return stringValue;
+function normalizeHeader(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\-]+/g, "_")
+    .replace(/[^\w]/g, "");
 }
 
 function parseCSVLine(line) {
-  const result = [];
+  const values = [];
   let current = "";
   let insideQuotes = false;
 
@@ -342,7 +281,7 @@ function parseCSVLine(line) {
     }
 
     if (char === "," && !insideQuotes) {
-      result.push(current);
+      values.push(current);
       current = "";
       continue;
     }
@@ -350,109 +289,151 @@ function parseCSVLine(line) {
     current += char;
   }
 
-  result.push(current);
+  values.push(current);
 
-  return result;
+  return values;
 }
 
 function parseCSV(text) {
-  const lines = text
-    .replace(/^\uFEFF/, "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim() !== "");
+  const lines = [];
+  let current = "";
+  let insideQuotes = false;
 
-  if (!lines.length) {
-    return [];
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"' && insideQuotes && next === '"') {
+      current += '""';
+      i += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      insideQuotes = !insideQuotes;
+      current += char;
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !insideQuotes) {
+      if (char === "\r" && next === "\n") {
+        i += 1;
+      }
+
+      lines.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
   }
 
-  const headers = parseCSVLine(lines[0]).map((header) =>
-    header.trim()
-  );
+  if (current.length > 0) {
+    lines.push(current);
+  }
 
-  return lines.slice(1).map((line) => {
-    const values = parseCSVLine(line);
+  return lines
+    .filter((line) => line.trim() !== "")
+    .map(parseCSVLine);
+}
 
-    const row = {};
+function csvEscape(value) {
+  const stringValue = String(value ?? "");
 
-    headers.forEach((header, index) => {
-      row[header] = values[index] ?? "";
-    });
+  if (
+    stringValue.includes(",") ||
+    stringValue.includes('"') ||
+    stringValue.includes("\n")
+  ) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
 
-    return row;
-  });
+  return stringValue;
+}
+
+function booleanFromValue(value, fallback = false) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) return fallback;
+
+  return [
+    "true",
+    "1",
+    "yes",
+    "y",
+    "on",
+    "checked",
+    "x",
+  ].includes(normalized);
+}
+
+function safeFileName(name) {
+  return String(name || "file")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .trim();
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 export default function BulkImportPage() {
-  const [rows, setRows] = useState(() =>
-    createRows(10)
-  );
-
+  const [rows, setRows] = useState(() => createRows(10));
   const [selectedRows, setSelectedRows] = useState([]);
-
   const [imageLibrary, setImageLibrary] = useState([]);
-
   const [zipFile, setZipFile] = useState(null);
 
-  const [search, setSearch] = useState("");
-
-  const [showAssets, setShowAssets] = useState(false);
-
-  const [message, setMessage] = useState("");
-
-  const [error, setError] = useState("");
-
-  const [loading, setLoading] = useState(false);
-
-  const [importProgress, setImportProgress] = useState(0);
-
   const [draftReady, setDraftReady] = useState(false);
-
-  const [draftRestored, setDraftRestored] =
-    useState(false);
-
   const [draftSaving, setDraftSaving] = useState(false);
-
-  const [lastSavedAt, setLastSavedAt] =
-    useState(null);
-
-  const [activeCell, setActiveCell] = useState(null);
-
-  const [dragging, setDragging] = useState(false);
-
-  const [showHelp, setShowHelp] = useState(false);
-
-  const fileInputRef = useRef(null);
-
-  const csvInputRef = useRef(null);
-
-  const zipInputRef = useRef(null);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const draftSaveTimerRef = useRef(null);
 
-  const rowsRef = useRef(rows);
+  // Prevent a cleared draft from being recreated by auto-save.
+  const skipNextDraftSaveRef = useRef(false);
 
-  const imageLibraryRef =
-    useRef(imageLibrary);
+  // Prevent an older async save from recreating a draft after
+  // Clear Saved Draft / Clear All / successful import.
+  const draftSaveVersionRef = useRef(0);
 
-  useEffect(() => {
-    rowsRef.current = rows;
-  }, [rows]);
+  const [search, setSearch] = useState("");
+  const [showAssets, setShowAssets] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
 
-  useEffect(() => {
-    imageLibraryRef.current = imageLibrary;
-  }, [imageLibrary]);
+  const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  const populatedRows = useMemo(() => {
-    return rows.filter(
-      (row) =>
-        String(row.name || "").trim() ||
-        String(row.brand || "").trim() ||
-        String(row.price || "").trim() ||
-        row.imageFile
-    );
-  }, [rows]);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const filteredRows = useMemo(() => {
+  const [draggingImages, setDraggingImages] = useState(false);
+  const [draggingZip, setDraggingZip] = useState(false);
+
+  const [activeCell, setActiveCell] = useState(null);
+
+  const imageInputRef = useRef(null);
+  const zipInputRef = useRef(null);
+  const csvInputRef = useRef(null);
+  const singleImageInputRef = useRef(null);
+
+  const cellRefs = useRef({});
+  const pendingImageRow = useRef(null);
+
+  const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     if (!query) {
@@ -465,10 +446,10 @@ export default function BulkImportPage() {
         row.brand,
         row.category,
         row.gender,
-        row.size,
         row.concentration,
         row.description,
         row.fragrance_notes,
+        row.imageName,
       ]
         .join(" ")
         .toLowerCase()
@@ -476,148 +457,141 @@ export default function BulkImportPage() {
     );
   }, [rows, search]);
 
-  const validation = useMemo(() => {
-    const errors = [];
+  const populatedRows = useMemo(
+    () => rows.filter((row) => row.name.trim()),
+    [rows]
+  );
 
-    populatedRows.forEach((row, index) => {
-      const rowNumber = index + 1;
+  const validationErrors = useMemo(() => {
+    const errors = {};
 
-      if (!String(row.name || "").trim()) {
-        errors.push(
-          `Row ${rowNumber}: product name is required.`
-        );
+    rows.forEach((row) => {
+      if (!row.name.trim()) {
+        return;
       }
 
-      if (
-        row.price === "" ||
-        row.price === null ||
-        row.price === undefined
-      ) {
-        errors.push(
-          `Row ${rowNumber}: price is required.`
-        );
-      } else if (
-        Number.isNaN(Number(row.price))
-      ) {
-        errors.push(
-          `Row ${rowNumber}: price must be a number.`
-        );
+      const rowErrors = [];
+
+      if (!row.price || Number.isNaN(Number(row.price))) {
+        rowErrors.push("Price is required");
       }
 
       if (
         row.stock_quantity !== "" &&
-        row.stock_quantity !== null &&
-        row.stock_quantity !== undefined &&
         Number.isNaN(Number(row.stock_quantity))
       ) {
-        errors.push(
-          `Row ${rowNumber}: stock quantity must be a number.`
-        );
+        rowErrors.push("Stock must be a number");
       }
+
+      errors[row.id] = rowErrors;
     });
 
     return errors;
-  }, [populatedRows]);
+  }, [rows]);
 
-  const draftRowsForStorage = useCallback(
-    (sourceRows) =>
-      sourceRows.map((row) => ({
-        ...row,
-        imageUrl: "",
-      })),
-    []
+  const invalidRows = useMemo(
+    () =>
+      populatedRows.filter(
+        (row) => validationErrors[row.id]?.length > 0
+      ).length,
+    [populatedRows, validationErrors]
   );
 
-  const draftLibraryForStorage =
-    useCallback(
-      (sourceLibrary) =>
-        sourceLibrary.map((item) => ({
-          ...item,
-          url: "",
-        })),
-      []
+  const allVisibleSelected =
+    visibleRows.length > 0 &&
+    visibleRows.every((row) => selectedRows.includes(row.id));
+
+  // ============================================================
+  // CLEAN UP PREVIEW URLS WHEN PAGE UNMOUNTS
+  // ============================================================
+
+  const rowsRef = useRef(rows);
+  const imageLibraryRef = useRef(imageLibrary);
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  useEffect(() => {
+    imageLibraryRef.current = imageLibrary;
+  }, [imageLibrary]);
+
+  useEffect(() => {
+    return () => {
+      imageLibraryRef.current.forEach((item) => {
+        if (item.url) {
+          URL.revokeObjectURL(item.url);
+        }
+      });
+
+      rowsRef.current.forEach((row) => {
+        if (row.imageUrl && row.imageFile) {
+          URL.revokeObjectURL(row.imageUrl);
+        }
+      });
+    };
+  }, []);
+
+  function updateCell(rowId, key, value) {
+    setRows((current) =>
+      current.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              [key]: value,
+            }
+          : row
+      )
     );
+  }
 
-  const saveDraftNow = useCallback(
-    async ({
-      silent = false,
-      rowsToSave = rowsRef.current,
-      libraryToSave = imageLibraryRef.current,
-      zipToSave = zipFile,
-      searchToSave = search,
-      showAssetsToSave = showAssets,
-    } = {}) => {
-      if (!silent) {
-        setDraftSaving(true);
-        setMessage("");
-        setError("");
+  function addRows(count = 1) {
+    setRows((current) => [...current, ...createRows(count)]);
+  }
+
+  function deleteRow(rowId) {
+    setRows((current) => {
+      const row = current.find((item) => item.id === rowId);
+
+      if (row?.imageUrl && row.imageFile) {
+        URL.revokeObjectURL(row.imageUrl);
       }
 
-      try {
-        await saveBulkDraft({
-          rows: draftRowsForStorage(rowsToSave),
-          imageLibrary:
-            draftLibraryForStorage(
-              libraryToSave
-            ),
-          zipFile: zipToSave || null,
-          search: searchToSave,
-          showAssets: showAssetsToSave,
-          savedAt: Date.now(),
-        });
+      return current.filter((item) => item.id !== rowId);
+    });
 
-        setDraftReady(true);
-        setLastSavedAt(Date.now());
+    setSelectedRows((current) =>
+      current.filter((id) => id !== rowId)
+    );
+  }
 
-        if (!silent) {
-          setMessage(
-            "Draft saved successfully. Your products and uploaded files are stored in this browser."
-          );
-        }
-      } catch (saveError) {
-        console.error(
-          "Bulk draft save failed:",
-          saveError
-        );
+  function duplicateRow(rowId) {
+    setRows((current) => {
+      const index = current.findIndex((row) => row.id === rowId);
 
-        if (!silent) {
-          setError(
-            "Could not save the draft in this browser. Please check browser storage permissions."
-          );
-        }
-      } finally {
-        if (!silent) {
-          setDraftSaving(false);
-        }
+      if (index === -1) {
+        return current;
       }
-    },
-    [
-      draftLibraryForStorage,
-      draftRowsForStorage,
-      search,
-      showAssets,
-      zipFile,
-    ]
-  );
 
-  const scheduleDraftSave = useCallback(() => {
-    if (!draftReady) {
-      return;
-    }
+      const original = current[index];
 
-    if (draftSaveTimerRef.current) {
-      window.clearTimeout(
-        draftSaveTimerRef.current
-      );
-    }
+      const copy = {
+        ...original,
+        id: makeId(),
+        imageFile: original.imageFile,
+        imageUrl: original.imageUrl,
+      };
 
-    draftSaveTimerRef.current =
-      window.setTimeout(() => {
-        void saveDraftNow({
-          silent: true,
-        });
-      }, 700);
-  }, [draftReady, saveDraftNow]);
+      const next = [...current];
+      next.splice(index + 1, 0, copy);
+
+      return next;
+    });
+  }
+
+  // ============================================================
+  // RESTORE BULK IMPORT DRAFT ON PAGE LOAD
+  // ============================================================
 
   useEffect(() => {
     let cancelled = false;
@@ -626,19 +600,14 @@ export default function BulkImportPage() {
       try {
         const draft = await loadBulkDraft();
 
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         if (!draft) {
           setDraftReady(true);
-          setDraftRestored(false);
           return;
         }
 
-        const restoredRows = Array.isArray(
-          draft.rows
-        )
+        const restoredRows = Array.isArray(draft.rows)
           ? draft.rows.map((row) => {
               const restoredRow = {
                 ...row,
@@ -656,63 +625,135 @@ export default function BulkImportPage() {
             })
           : createRows(10);
 
-        const restoredLibrary =
-          Array.isArray(
-            draft.imageLibrary
-          )
-            ? draft.imageLibrary.map((item) => ({
-                ...item,
-                url: item.file
-                  ? URL.createObjectURL(
-                      item.file
-                    )
-                  : "",
-              }))
-            : [];
+        const restoredImageLibrary = Array.isArray(
+          draft.imageLibrary
+        )
+          ? draft.imageLibrary.map((item) => ({
+              ...item,
+              url: item.file
+                ? URL.createObjectURL(item.file)
+                : "",
+            }))
+          : [];
 
         setRows(restoredRows);
-        setImageLibrary(restoredLibrary);
+        setImageLibrary(restoredImageLibrary);
         setZipFile(draft.zipFile || null);
-        setSearch(draft.search || "");
-        setShowAssets(
-          Boolean(draft.showAssets)
-        );
-        setDraftReady(true);
+
+        if (typeof draft.search === "string") {
+          setSearch(draft.search);
+        }
+
+        if (typeof draft.showAssets === "boolean") {
+          setShowAssets(draft.showAssets);
+        }
+
         setDraftRestored(true);
-        setLastSavedAt(
-          draft.savedAt || null
-        );
-        setMessage(
-          "Your saved bulk-import draft has been restored."
-        );
-      } catch (restoreError) {
+        setDraftReady(true);
+      } catch (error) {
         console.error(
-          "Bulk draft restore failed:",
-          restoreError
+          "Unable to restore bulk import draft:",
+          error
         );
 
-        if (!cancelled) {
-          setDraftReady(true);
-          setError(
-            "The saved draft could not be restored. You can continue with a new draft."
-          );
-        }
+        setDraftReady(true);
       }
     }
 
-    void restoreDraft();
+    restoreDraft();
 
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // ============================================================
+  // AUTO-SAVE BULK IMPORT DRAFT
+  // ============================================================
+
   useEffect(() => {
-    if (!draftReady) {
+    if (!draftReady) return;
+
+    // Prevent the draft from being recreated immediately after
+    // Clear Saved Draft, Clear All, or successful import.
+    if (skipNextDraftSaveRef.current) {
+      skipNextDraftSaveRef.current = false;
+
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+
       return;
     }
 
-    scheduleDraftSave();
+    if (draftSaveTimerRef.current) {
+      clearTimeout(draftSaveTimerRef.current);
+    }
+
+    const saveVersion = draftSaveVersionRef.current;
+
+    draftSaveTimerRef.current = setTimeout(async () => {
+      try {
+        setDraftSaving(true);
+
+        const rowsToSave = rows.map((row) => ({
+          ...row,
+
+          // Blob URLs only work for the current browser session.
+          // We recreate them after refresh.
+          imageUrl: "",
+        }));
+
+        const imageLibraryToSave = imageLibrary.map(
+          (item) => ({
+            ...item,
+
+            // Blob URLs only work for the current browser session.
+            // We recreate them after refresh.
+            url: "",
+          })
+        );
+
+        // If the draft was cleared while this save was waiting,
+        // do not write the old draft back.
+        if (saveVersion !== draftSaveVersionRef.current) {
+          setDraftSaving(false);
+          return;
+        }
+
+        await saveBulkDraft({
+          rows: rowsToSave,
+          imageLibrary: imageLibraryToSave,
+          zipFile: zipFile || null,
+          search,
+          showAssets,
+          savedAt: Date.now(),
+        });
+
+        // If the draft was cleared while IndexedDB was writing,
+        // remove the newly-written stale draft again.
+        if (saveVersion !== draftSaveVersionRef.current) {
+          await clearBulkDraft();
+        }
+
+        setDraftSaving(false);
+      } catch (error) {
+        console.error(
+          "Unable to save bulk import draft:",
+          error
+        );
+
+        setDraftSaving(false);
+      }
+    }, 700);
+
+    return () => {
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+    };
   }, [
     rows,
     imageLibrary,
@@ -720,166 +761,492 @@ export default function BulkImportPage() {
     search,
     showAssets,
     draftReady,
-    scheduleDraftSave,
   ]);
 
-  useEffect(() => {
-    return () => {
-      if (draftSaveTimerRef.current) {
-        window.clearTimeout(
-          draftSaveTimerRef.current
-        );
-      }
-
-      imageLibraryRef.current.forEach(
-        (item) => {
-          if (item.url) {
-            URL.revokeObjectURL(item.url);
-          }
-        }
-      );
-
-      rowsRef.current.forEach((row) => {
-        if (
-          row.imageUrl &&
-          row.imageFile
-        ) {
-          URL.revokeObjectURL(
-            row.imageUrl
-          );
-        }
-      });
-    };
-  }, []);
-
-  function revokeRowImage(row) {
-    if (row?.imageUrl && row?.imageFile) {
-      URL.revokeObjectURL(row.imageUrl);
-    }
-  }
-
-  function revokeLibraryImage(item) {
-    if (item?.url) {
-      URL.revokeObjectURL(item.url);
-    }
-  }
-
-  function updateRow(rowId, key, value) {
+  function clearEmptyRows() {
     setRows((current) =>
-      current.map((row) =>
-        row.id === rowId
-          ? {
-              ...row,
-              [key]: value,
-            }
-          : row
-      )
+      current.filter((row) => row.name.trim())
     );
+    setSelectedRows([]);
   }
 
-  function addRows(count = 1) {
-    setRows((current) => [
-      ...current,
-      ...createRows(count),
-    ]);
-  }
-
-  function deleteRow(rowId) {
-    setRows((current) => {
-      const row = current.find(
-        (item) => item.id === rowId
-      );
-
-      if (row) {
-        revokeRowImage(row);
+  async function clearSavedDraft({
+    clearCurrent = false,
+    message = "Saved bulk import draft cleared.",
+  } = {}) {
+    try {
+      // Cancel any scheduled auto-save.
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
       }
 
-      return current.filter(
-        (item) => item.id !== rowId
-      );
-    });
+      // Invalidate any auto-save that may already be running.
+      draftSaveVersionRef.current += 1;
 
-    setSelectedRows((current) =>
-      current.filter((id) => id !== rowId)
-    );
-  }
+      // Stop the next auto-save cycle.
+      skipNextDraftSaveRef.current = true;
 
-  function duplicateRow(rowId) {
-    setRows((current) => {
-      const index = current.findIndex(
-        (row) => row.id === rowId
-      );
+      await clearBulkDraft();
 
-      if (index === -1) {
-        return current;
+      setDraftRestored(false);
+      setDraftSaving(false);
+
+      if (clearCurrent) {
+        setRows(createRows(10));
+        setImageLibrary([]);
+        setZipFile(null);
+        setSelectedRows([]);
+        setSearch("");
+        setActiveCell(null);
       }
 
-      const original = current[index];
+      setMessage(message);
+      setError("");
+    } catch (error) {
+      skipNextDraftSaveRef.current = false;
 
-      const copy = {
-        ...original,
-        id: makeId(),
-        imageFile: original.imageFile,
-        imageUrl: original.imageFile
-          ? URL.createObjectURL(
-              original.imageFile
-            )
-          : "",
-      };
+      console.error(
+        "Unable to clear saved bulk import draft:",
+        error
+      );
 
-      const next = [...current];
-
-      next.splice(index + 1, 0, copy);
-
-      return next;
-    });
+      setError(
+        "Unable to clear the saved draft. Please try again."
+      );
+    }
   }
 
-  function toggleRowSelected(rowId) {
+  async function clearAll() {
+    const confirmed = window.confirm(
+      "Clear the entire spreadsheet? This cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    await clearSavedDraft({
+      clearCurrent: true,
+      message: "Spreadsheet and saved draft cleared.",
+    });
+
+    setMessage("Spreadsheet and saved draft cleared.");
+    setError("");
+  }
+
+  function toggleRowSelection(rowId) {
     setSelectedRows((current) =>
       current.includes(rowId)
-        ? current.filter(
-            (id) => id !== rowId
-          )
+        ? current.filter((id) => id !== rowId)
         : [...current, rowId]
     );
   }
 
-  function toggleAllRows() {
-    if (
-      selectedRows.length === rows.length
-    ) {
-      setSelectedRows([]);
+  function toggleSelectAll() {
+    if (allVisibleSelected) {
+      setSelectedRows((current) =>
+        current.filter(
+          (id) => !visibleRows.some((row) => row.id === id)
+        )
+      );
       return;
     }
 
-    setSelectedRows(
-      rows.map((row) => row.id)
-    );
+    setSelectedRows((current) => [
+      ...new Set([
+        ...current,
+        ...visibleRows.map((row) => row.id),
+      ]),
+    ]);
   }
 
   function deleteSelectedRows() {
-    if (!selectedRows.length) {
+    if (!selectedRows.length) return;
+
+    const confirmed = window.confirm(
+      `Delete ${selectedRows.length} selected row${
+        selectedRows.length === 1 ? "" : "s"
+      }?`
+    );
+
+    if (!confirmed) return;
+
+    setRows((current) =>
+      current.filter((row) => !selectedRows.includes(row.id))
+    );
+
+    setSelectedRows([]);
+  }
+
+  function focusCell(rowId, columnKey) {
+    const element = cellRefs.current[`${rowId}:${columnKey}`];
+
+    if (element) {
+      element.focus();
+
+      if (
+        typeof element.select === "function" &&
+        element.tagName !== "TEXTAREA"
+      ) {
+        element.select();
+      }
+    }
+  }
+
+  function handleCellKeyDown(
+    event,
+    rowIndex,
+    columnIndex,
+    row,
+    column
+  ) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+
+      const nextRow = rows[rowIndex + 1];
+
+      if (nextRow) {
+        focusCell(nextRow.id, column.key);
+      } else {
+        addRows(1);
+
+        setTimeout(() => {
+          const latestRow = rows[rowIndex];
+
+          if (latestRow) {
+            const newRowId = null;
+
+            setRows((current) => {
+              const created = current[current.length - 1];
+
+              if (created) {
+                setTimeout(() => {
+                  focusCell(created.id, column.key);
+                }, 20);
+              }
+
+              return current;
+            });
+
+            void newRowId;
+          }
+        }, 20);
+      }
+
       return;
     }
 
-    const selectedSet = new Set(
-      selectedRows
-    );
+    if (event.key === "ArrowDown" && !event.shiftKey) {
+      const nextRow = rows[rowIndex + 1];
+
+      if (nextRow) {
+        event.preventDefault();
+        focusCell(nextRow.id, column.key);
+      }
+
+      return;
+    }
+
+    if (event.key === "ArrowUp" && !event.shiftKey) {
+      const previousRow = rows[rowIndex - 1];
+
+      if (previousRow) {
+        event.preventDefault();
+        focusCell(previousRow.id, column.key);
+      }
+
+      return;
+    }
+
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      columnIndex === COLUMNS.length - 1 &&
+      rowIndex === rows.length - 1
+    ) {
+      event.preventDefault();
+
+      addRows(1);
+
+      setTimeout(() => {
+        setRows((current) => {
+          const newRow = current[current.length - 1];
+
+          if (newRow) {
+            setTimeout(() => {
+              focusCell(newRow.id, COLUMNS[0].key);
+            }, 20);
+          }
+
+          return current;
+        });
+      }, 20);
+    }
+  }
+
+  function parsePastedTable(text) {
+    return text
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => line.split("\t"));
+  }
+
+  function convertPastedValue(column, value) {
+    if (column.type === "boolean") {
+      return booleanFromValue(value);
+    }
+
+    return value;
+  }
+
+  function handleCellPaste(event, rowIndex, columnIndex) {
+    const text = event.clipboardData.getData("text/plain");
+
+    if (!text) return;
+
+    const hasTableStructure =
+      text.includes("\t") || text.includes("\n");
+
+    if (!hasTableStructure) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const matrix = parsePastedTable(text);
+
+    if (!matrix.length) return;
 
     setRows((current) => {
-      current.forEach((row) => {
-        if (selectedSet.has(row.id)) {
-          revokeRowImage(row);
-        }
+      const updated = [...current];
+
+      while (
+        updated.length <
+        rowIndex + matrix.length
+      ) {
+        updated.push(createBlankRow());
+      }
+
+      matrix.forEach((pasteRow, pastedRowIndex) => {
+        const targetIndex = rowIndex + pastedRowIndex;
+
+        pasteRow.forEach((value, pastedColumnIndex) => {
+          const targetColumnIndex =
+            columnIndex + pastedColumnIndex;
+
+          if (targetColumnIndex >= COLUMNS.length) {
+            return;
+          }
+
+          const column = COLUMNS[targetColumnIndex];
+
+          if (column.type === "image") {
+            updated[targetIndex].imageName =
+              String(value || "").trim();
+
+            return;
+          }
+
+          updated[targetIndex][column.key] =
+            convertPastedValue(column, value);
+        });
       });
 
-      return current.filter(
-        (row) => !selectedSet.has(row.id)
-      );
+      return updated;
     });
 
-    setSelectedRows([]);
+    setMessage(
+      `Pasted ${matrix.length} row${
+        matrix.length === 1 ? "" : "s"
+      } into the spreadsheet.`
+    );
+  }
+
+  function validateImageFile(file) {
+    if (!file) {
+      return false;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError(`${file.name} is not an image file.`);
+      return false;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`${file.name} is larger than 20MB.`);
+      return false;
+    }
+
+    return true;
+  }
+
+  function assignImageToRow(rowId, file) {
+    if (!validateImageFile(file)) return;
+
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== rowId) {
+          return row;
+        }
+
+        if (row.imageUrl && row.imageFile) {
+          URL.revokeObjectURL(row.imageUrl);
+        }
+
+        return {
+          ...row,
+          imageFile: file,
+          imageUrl: URL.createObjectURL(file),
+          imageName: file.name,
+        };
+      })
+    );
+
+    setError("");
+  }
+
+  function handleSingleImageSelect(event) {
+    const file = event.target.files?.[0];
+    const rowId = pendingImageRow.current;
+
+    if (file && rowId) {
+      assignImageToRow(rowId, file);
+    }
+
+    event.target.value = "";
+    pendingImageRow.current = null;
+  }
+
+  function openImagePicker(rowId) {
+    pendingImageRow.current = rowId;
+    singleImageInputRef.current?.click();
+  }
+
+  function handleImageFiles(files) {
+    const validFiles = Array.from(files || []).filter(
+      validateImageFile
+    );
+
+    if (!validFiles.length) {
+      return;
+    }
+
+    const newImages = validFiles.map((file) => ({
+      id: makeId(),
+      file,
+      name: file.name,
+      url: URL.createObjectURL(file),
+    }));
+
+    setImageLibrary((current) => [
+      ...current,
+      ...newImages,
+    ]);
+
+    setError("");
+    setMessage(
+      `${validFiles.length} image${
+        validFiles.length === 1 ? "" : "s"
+      } added to the image library.`
+    );
+  }
+
+  function handleImageInput(event) {
+    handleImageFiles(event.target.files);
+    event.target.value = "";
+  }
+
+  function handleImageDrop(event) {
+    event.preventDefault();
+    setDraggingImages(false);
+
+    handleImageFiles(event.dataTransfer.files);
+  }
+
+  function handleImageCellDrop(event, rowId) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const files = Array.from(event.dataTransfer.files || []);
+
+    const image = files.find((file) =>
+      file.type.startsWith("image/")
+    );
+
+    if (image) {
+      assignImageToRow(rowId, image);
+    }
+  }
+
+  function removeLibraryImage(imageId) {
+    setImageLibrary((current) => {
+      const item = current.find(
+        (image) => image.id === imageId
+      );
+
+      if (item?.url) {
+        URL.revokeObjectURL(item.url);
+      }
+
+      return current.filter(
+        (image) => image.id !== imageId
+      );
+    });
+  }
+
+  function matchImagesToRows() {
+    if (!imageLibrary.length) {
+      setError("Upload images first.");
+      return;
+    }
+
+    let matched = 0;
+
+    setRows((current) =>
+      current.map((row) => {
+        const target = String(row.imageName || "")
+          .trim()
+          .toLowerCase();
+
+        if (!target) {
+          return row;
+        }
+
+        const found = imageLibrary.find((image) => {
+          const imageName = image.name
+            .trim()
+            .toLowerCase();
+
+          return (
+            imageName === target ||
+            imageName.split(".")[0] ===
+              target.split(".")[0]
+          );
+        });
+
+        if (!found) {
+          return row;
+        }
+
+        matched += 1;
+
+        return {
+          ...row,
+          imageFile: found.file,
+          imageUrl: found.url,
+          imageName: found.name,
+        };
+      })
+    );
+
+    setMessage(
+      matched
+        ? `Matched ${matched} image${
+            matched === 1 ? "" : "s"
+          } to products.`
+        : "No image filenames matched your Image column."
+    );
   }
 
   function removeRowImage(rowId) {
@@ -889,7 +1256,9 @@ export default function BulkImportPage() {
           return row;
         }
 
-        revokeRowImage(row);
+        if (row.imageUrl && row.imageFile) {
+          URL.revokeObjectURL(row.imageUrl);
+        }
 
         return {
           ...row,
@@ -901,352 +1270,254 @@ export default function BulkImportPage() {
     );
   }
 
-  function addImageFiles(files) {
-    const validFiles = Array.from(files).filter(
-      (file) => {
-        if (!file.type.startsWith("image/")) {
-          return false;
-        }
+  function validateZip(file) {
+    if (!file) return false;
 
-        if (file.size > MAX_FILE_SIZE) {
-          return false;
-        }
+    const isZip =
+      file.type === "application/zip" ||
+      file.name.toLowerCase().endsWith(".zip");
 
-        return true;
-      }
-    );
-
-    if (!validFiles.length) {
-      setError(
-        "No valid image files were selected. Images must be under 20MB."
-      );
-      return;
-    }
-
-    const items = validFiles.map((file) => ({
-      id: makeId(),
-      file,
-      name: file.name,
-      url: URL.createObjectURL(file),
-    }));
-
-    setImageLibrary((current) => [
-      ...current,
-      ...items,
-    ]);
-
-    setShowAssets(true);
-    setError("");
-    setMessage(
-      `${items.length} image${
-        items.length === 1 ? "" : "s"
-      } added to the image library.`
-    );
-  }
-
-  function handleImageInput(event) {
-    const files = event.target.files;
-
-    if (files?.length) {
-      addImageFiles(files);
-    }
-
-    event.target.value = "";
-  }
-
-  function removeLibraryImage(imageId) {
-    setImageLibrary((current) => {
-      const item = current.find(
-        (image) => image.id === imageId
-      );
-
-      if (item) {
-        revokeLibraryImage(item);
-      }
-
-      return current.filter(
-        (image) => image.id !== imageId
-      );
-    });
-  }
-
-  function assignImageToRow(rowId, imageItem) {
-    setRows((current) =>
-      current.map((row) => {
-        if (row.id !== rowId) {
-          return row;
-        }
-
-        revokeRowImage(row);
-
-        return {
-          ...row,
-          imageFile: imageItem.file,
-          imageUrl:
-            imageItem.file
-              ? URL.createObjectURL(
-                  imageItem.file
-                )
-              : "",
-          imageName: imageItem.name,
-        };
-      })
-    );
-  }
-
-  function matchImagesToRows() {
-    const lookup = new Map();
-
-    imageLibrary.forEach((item) => {
-      const baseName = item.name
-        .replace(/\.[^/.]+$/, "")
-        .trim()
-        .toLowerCase();
-
-      lookup.set(baseName, item);
-      lookup.set(
-        item.name.trim().toLowerCase(),
-        item
-      );
-    });
-
-    let matched = 0;
-
-    setRows((current) =>
-      current.map((row) => {
-        const name = String(
-          row.name || ""
-        )
-          .trim()
-          .toLowerCase();
-
-        if (!name) {
-          return row;
-        }
-
-        const found =
-          lookup.get(name) ||
-          lookup.get(
-            `${name}.jpg`
-          ) ||
-          lookup.get(
-            `${name}.jpeg`
-          ) ||
-          lookup.get(
-            `${name}.png`
-          ) ||
-          lookup.get(
-            `${name}.webp`
-          );
-
-        if (!found) {
-          return row;
-        }
-
-        revokeRowImage(row);
-
-        matched += 1;
-
-        return {
-          ...row,
-          imageFile: found.file,
-          imageUrl:
-            found.file
-              ? URL.createObjectURL(
-                  found.file
-                )
-              : "",
-          imageName: found.name,
-        };
-      })
-    );
-
-    setMessage(
-      matched
-        ? `${matched} image${
-            matched === 1 ? "" : "s"
-          } matched to product names.`
-        : "No image names matched product names."
-    );
-  }
-
-  function handleDragOver(event) {
-    event.preventDefault();
-    setDragging(true);
-  }
-
-  function handleDragLeave(event) {
-    event.preventDefault();
-    setDragging(false);
-  }
-
-  function handleDrop(event) {
-    event.preventDefault();
-    setDragging(false);
-
-    const files = event.dataTransfer.files;
-
-    if (files?.length) {
-      addImageFiles(files);
-    }
-  }
-
-  async function handleZipFile(file) {
-    if (!file) {
-      return;
-    }
-
-    if (
-      !file.name.toLowerCase().endsWith(".zip")
-    ) {
+    if (!isZip) {
       setError("Please select a ZIP file.");
-      return;
+      return false;
     }
 
-    if (file.size > 100 * 1024 * 1024) {
-      setError(
-        "ZIP files must be under 100MB."
-      );
+    if (file.size > 200 * 1024 * 1024) {
+      setError("ZIP file cannot be larger than 200MB.");
+      return false;
+    }
+
+    return true;
+  }
+
+  function handleZip(file) {
+    if (!validateZip(file)) {
       return;
     }
 
     setZipFile(file);
     setError("");
-    setMessage(
-      `ZIP file "${file.name}" attached to this draft.`
-    );
+    setMessage(`ZIP selected: ${file.name}`);
   }
 
   function handleZipInput(event) {
     const file = event.target.files?.[0];
 
     if (file) {
-      void handleZipFile(file);
+      handleZip(file);
     }
 
     event.target.value = "";
   }
 
-  function removeZipFile() {
-    setZipFile(null);
+  function handleZipDrop(event) {
+    event.preventDefault();
+    setDraggingZip(false);
+
+    const file = event.dataTransfer.files?.[0];
+
+    if (file) {
+      handleZip(file);
+    }
   }
 
-  function downloadCSVTemplate() {
-    const header = CSV_HEADERS.join(",");
+  async function handleCSVFile(file) {
+    if (!file) return;
 
-    const sample = [
-      "",
-      "Example Perfume",
-      "Brand Name",
-      "50000",
-      "100ML",
-      "Perfume",
-      "Unisex",
-      "Eau de Parfum",
-      "Example product description",
-      "Top: Bergamot; Heart: Rose; Base: Musk",
-      "10",
-      "true",
-      "false",
-      "false",
-      "",
-      "",
-    ]
-      .map(escapeCSV)
-      .join(",");
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setError("Please upload a CSV file.");
+      return;
+    }
 
-    const csv = `${header}\n${sample}\n`;
+    setLoading(true);
+    setError("");
+    setMessage("");
 
-    const blob = new Blob([csv], {
+    try {
+      const text = await file.text();
+      const matrix = parseCSV(text);
+
+      if (!matrix.length) {
+        throw new Error("The CSV file is empty.");
+      }
+
+      const headers = matrix[0].map(normalizeHeader);
+
+      const headerMap = {};
+
+      headers.forEach((header, index) => {
+        headerMap[header] = index;
+      });
+
+      const importedRows = matrix
+        .slice(1)
+        .map((values) => {
+          const row = createBlankRow();
+
+          COLUMNS.forEach((column) => {
+            if (column.key === "image") {
+              const index =
+                headerMap.image ??
+                headerMap.image_name ??
+                headerMap.image_filename;
+
+              if (index !== undefined) {
+                row.imageName =
+                  String(values[index] || "").trim();
+              }
+
+              return;
+            }
+
+            const index = headerMap[column.key];
+
+            if (index === undefined) {
+              return;
+            }
+
+            const value = values[index] ?? "";
+
+            if (column.type === "boolean") {
+              row[column.key] = booleanFromValue(
+                value,
+                column.key === "in_stock"
+              );
+            } else {
+              row[column.key] = value;
+            }
+          });
+
+          return row;
+        })
+        .filter((row) => {
+          return (
+            row.name.trim() ||
+            row.brand.trim() ||
+            row.price !== ""
+          );
+        });
+
+      if (!importedRows.length) {
+        throw new Error(
+          "No product rows were found in this CSV."
+        );
+      }
+
+      setRows(importedRows);
+      setSelectedRows([]);
+      setMessage(
+        `Loaded ${importedRows.length} product${
+          importedRows.length === 1 ? "" : "s"
+        } from ${file.name}.`
+      );
+    } catch (err) {
+      setError(
+        err.message || "Could not read the CSV file."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleCSVInput(event) {
+    const file = event.target.files?.[0];
+
+    if (file) {
+      handleCSVFile(file);
+    }
+
+    event.target.value = "";
+  }
+
+  function handleCSVDrop(event) {
+    event.preventDefault();
+
+    const file = event.dataTransfer.files?.[0];
+
+    if (file) {
+      handleCSVFile(file);
+    }
+  }
+
+  function buildExportRows() {
+    return populatedRows.map((row) => ({
+      image: row.imageName || "",
+      name: row.name,
+      brand: row.brand,
+      price: row.price,
+      size: row.size,
+      category: row.category,
+      gender: row.gender,
+      concentration: row.concentration,
+      description: row.description,
+      fragrance_notes: row.fragrance_notes,
+      stock_quantity: row.stock_quantity,
+      in_stock: row.in_stock,
+      featured: row.featured,
+      is_preorder: row.is_preorder,
+      preorder_message: row.preorder_message,
+      preorder_release_date: row.preorder_release_date,
+    }));
+  }
+
+  function buildCSVContent() {
+    const exportRows = buildExportRows();
+
+    const lines = [
+      CSV_HEADERS.map(csvEscape).join(","),
+    ];
+
+    exportRows.forEach((row) => {
+      lines.push(
+        CSV_HEADERS.map((header) =>
+          csvEscape(row[header])
+        ).join(",")
+      );
+    });
+
+    return lines.join("\n");
+  }
+
+  function downloadCSV() {
+    if (!populatedRows.length) {
+      setError("Add at least one product before exporting.");
+      return;
+    }
+
+    const blob = new Blob([buildCSVContent()], {
       type: "text/csv;charset=utf-8;",
     });
 
-    const url = URL.createObjectURL(blob);
+    downloadBlob(blob, "products-import.csv");
 
-    const anchor =
-      document.createElement("a");
-
-    anchor.href = url;
-    anchor.download =
-      "orentemist-product-import-template.csv";
-
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-
-    URL.revokeObjectURL(url);
+    setMessage("CSV downloaded.");
   }
 
-  function exportCSV() {
-    const csvRows = [
-      CSV_HEADERS.join(","),
-      ...rows
-        .filter(
-          (row) =>
-            String(row.name || "").trim()
-        )
-        .map((row) =>
-          CSV_HEADERS.map((header) =>
-            escapeCSV(
-              header === "image"
-                ? row.imageName || ""
-                : row[header]
-            )
-          ).join(",")
-        ),
-    ];
+  async function downloadExcel() {
+    if (!populatedRows.length) {
+      setError("Add at least one product before exporting.");
+      return;
+    }
 
-    const blob = new Blob(
-      [csvRows.join("\n")],
-      {
-        type: "text/csv;charset=utf-8;",
-      }
-    );
-
-    const url = URL.createObjectURL(blob);
-
-    const anchor =
-      document.createElement("a");
-
-    anchor.href = url;
-    anchor.download =
-      "orentemist-products.csv";
-
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-
-    URL.revokeObjectURL(url);
-
-    setMessage("CSV exported successfully.");
-  }
-
-  async function exportExcel() {
     try {
       const XLSX = await import("xlsx");
 
-      const data = rows
-        .filter((row) =>
-          String(row.name || "").trim()
-        )
-        .map((row) => {
-          const output = {};
+      const worksheet = XLSX.utils.json_to_sheet(
+        buildExportRows(),
+        {
+          header: CSV_HEADERS,
+        }
+      );
 
-          CSV_HEADERS.forEach((header) => {
-            output[header] =
-              header === "image"
-                ? row.imageName || ""
-                : row[header];
-          });
+      worksheet["!cols"] = CSV_HEADERS.map((header) => ({
+        wch:
+          header === "description" ||
+          header === "fragrance_notes"
+            ? 35
+            : 18,
+      }));
 
-          return output;
-        });
-
-      const worksheet =
-        XLSX.utils.json_to_sheet(data);
-
-      const workbook =
-        XLSX.utils.book_new();
+      const workbook = XLSX.utils.book_new();
 
       XLSX.utils.book_append_sheet(
         workbook,
@@ -1256,774 +1527,215 @@ export default function BulkImportPage() {
 
       XLSX.writeFile(
         workbook,
-        "orentemist-products.xlsx"
+        "products-import.xlsx"
       );
 
-      setMessage(
-        "Excel file exported successfully."
-      );
-    } catch (excelError) {
-      console.error(
-        "Excel export failed:",
-        excelError
-      );
-
+      setMessage("Excel file downloaded.");
+    } catch (err) {
       setError(
-        "Excel export requires the xlsx package. Install it with: npm install xlsx"
+        "Excel export needs the xlsx package. Run: npm install xlsx"
       );
     }
   }
 
-  async function exportZIP() {
-    try {
-      const JSZip = (await import("jszip"))
-        .default;
+  async function downloadZIP() {
+    if (!populatedRows.length) {
+      setError("Add at least one product before exporting.");
+      return;
+    }
 
-      const XLSX = await import("xlsx");
+    try {
+      const JSZip = (await import("jszip")).default;
 
       const zip = new JSZip();
 
-      const data = rows
-        .filter((row) =>
-          String(row.name || "").trim()
-        )
-        .map((row) => {
-          const output = {};
-
-          CSV_HEADERS.forEach((header) => {
-            output[header] =
-              header === "image"
-                ? row.imageName || ""
-                : row[header];
-          });
-
-          return output;
-        });
-
-      const worksheet =
-        XLSX.utils.json_to_sheet(data);
-
-      const workbook =
-        XLSX.utils.book_new();
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "Products"
+      zip.file(
+        "products.csv",
+        buildCSVContent()
       );
 
-      const workbookArray =
-        XLSX.write(workbook, {
+      const exportData = buildExportRows();
+
+      try {
+        const XLSX = await import("xlsx");
+
+        const worksheet =
+          XLSX.utils.json_to_sheet(exportData, {
+            header: CSV_HEADERS,
+          });
+
+        const workbook = XLSX.utils.book_new();
+
+        XLSX.utils.book_append_sheet(
+          workbook,
+          worksheet,
+          "Products"
+        );
+
+        const excelBuffer = XLSX.write(workbook, {
           bookType: "xlsx",
           type: "array",
         });
 
-      zip.file(
-        "products.xlsx",
-        workbookArray
-      );
+        zip.file(
+          "products.xlsx",
+          excelBuffer
+        );
+      } catch {
+        // CSV will still be included if xlsx isn't installed.
+      }
 
-      const csv = [
-        CSV_HEADERS.join(","),
-        ...data.map((row) =>
-          CSV_HEADERS.map((header) =>
-            escapeCSV(row[header])
-          ).join(",")
-        ),
-      ].join("\n");
-
-      zip.file("products.csv", csv);
-
-      const imagesFolder =
-        zip.folder("images");
+      const imagesFolder = zip.folder("images");
 
       rows.forEach((row) => {
-        if (
-          row.imageFile &&
-          row.imageName
-        ) {
+        if (row.imageFile) {
           imagesFolder.file(
-            row.imageName,
+            safeFileName(row.imageFile.name),
             row.imageFile
           );
         }
       });
 
-      const content = await zip.generateAsync({
+      if (zipFile) {
+        zip.file(
+          `source-${safeFileName(zipFile.name)}`,
+          zipFile
+        );
+      }
+
+      const blob = await zip.generateAsync({
         type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: {
+          level: 6,
+        },
       });
 
-      const url = URL.createObjectURL(content);
-
-      const anchor =
-        document.createElement("a");
-
-      anchor.href = url;
-      anchor.download =
-        "orentemist-bulk-import.zip";
-
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-
-      URL.revokeObjectURL(url);
-
-      setMessage(
-        "ZIP package exported successfully."
-      );
-    } catch (zipError) {
-      console.error(
-        "ZIP export failed:",
-        zipError
-      );
-
-      setError(
-        "ZIP export requires xlsx and jszip. Install them with: npm install xlsx jszip"
-      );
-    }
-  }
-
-  async function importCSVFile(file) {
-    if (!file) {
-      return;
-    }
-
-    try {
-      const text = await file.text();
-
-      const imported = parseCSV(text);
-
-      if (!imported.length) {
-        setError(
-          "The CSV file does not contain any product rows."
-        );
-        return;
-      }
-
-      const newRows = imported.map(
-        (item) => ({
-          ...createEmptyRow(),
-          imageName: item.image || "",
-          name: item.name || "",
-          brand: item.brand || "",
-          price: item.price || "",
-          size: item.size || "",
-          category: item.category || "",
-          gender: item.gender || "",
-          concentration:
-            item.concentration || "",
-          description:
-            item.description || "",
-          fragrance_notes:
-            item.fragrance_notes || "",
-          stock_quantity:
-            item.stock_quantity || "",
-          in_stock:
-            item.in_stock === ""
-              ? true
-              : String(
-                  item.in_stock
-                ).toLowerCase() === "true",
-          featured:
-            String(
-              item.featured
-            ).toLowerCase() === "true",
-          is_preorder:
-            String(
-              item.is_preorder
-            ).toLowerCase() === "true",
-          preorder_message:
-            item.preorder_message || "",
-          preorder_release_date:
-            item.preorder_release_date ||
-            "",
-        })
-      );
-
-      setRows(newRows);
-      setSelectedRows([]);
-      setError("");
-      setMessage(
-        `${newRows.length} product rows imported from CSV.`
-      );
-    } catch (csvError) {
-      console.error(
-        "CSV import failed:",
-        csvError
-      );
-
-      setError(
-        "Could not read the CSV file."
-      );
-    }
-  }
-
-  function handleCSVInput(event) {
-    const file = event.target.files?.[0];
-
-    if (file) {
-      void importCSVFile(file);
-    }
-
-    event.target.value = "";
-  }
-
-  function handlePaste(event, rowIndex) {
-    const text =
-      event.clipboardData?.getData(
-        "text/plain"
-      );
-
-    if (!text || !text.includes("\t")) {
-      return;
-    }
-
-    event.preventDefault();
-
-    const pastedRows = text
-      .split(/\r?\n/)
-      .filter((line) => line.trim() !== "")
-      .map((line) =>
-        line.split("\t")
-      );
-
-    if (!pastedRows.length) {
-      return;
-    }
-
-    const firstRow =
-      rows[rowIndex];
-
-    if (!firstRow) {
-      return;
-    }
-
-    const startColumnIndex =
-      Math.max(
-        0,
-        COLUMNS.findIndex(
-          (column) =>
-            column.key ===
-            activeCell?.columnKey
-        )
-      );
-
-    setRows((current) => {
-      const next = [...current];
-
-      pastedRows.forEach(
-        (values, pastedRowIndex) => {
-          const targetRowIndex =
-            rowIndex + pastedRowIndex;
-
-          while (
-            targetRowIndex >=
-            next.length
-          ) {
-            next.push(createEmptyRow());
-          }
-
-          const targetRow = {
-            ...next[targetRowIndex],
-          };
-
-          values.forEach(
-            (value, valueIndex) => {
-              const column =
-                COLUMNS[
-                  startColumnIndex +
-                    valueIndex
-                ];
-
-              if (!column) {
-                return;
-              }
-
-              if (
-                column.type ===
-                "boolean"
-              ) {
-                const normalized =
-                  String(
-                    value
-                  )
-                    .trim()
-                    .toLowerCase();
-
-                targetRow[column.key] =
-                  normalized ===
-                  "true";
-              } else {
-                targetRow[column.key] =
-                  value;
-              }
-            }
-          );
-
-          next[targetRowIndex] =
-            targetRow;
-        }
-      );
-
-      return next;
-    });
-
-    setMessage(
-      `${pastedRows.length} spreadsheet row${
-        pastedRows.length === 1
-          ? ""
-          : "s"
-      } pasted successfully.`
-    );
-  }
-
-  function focusCell(
-    rowId,
-    columnKey
-  ) {
-    window.setTimeout(() => {
-      const element =
-        document.querySelector(
-          `[data-cell="${rowId}-${columnKey}"]`
-        );
-
-      if (element) {
-        element.focus();
-      }
-    }, 30);
-  }
-
-  function handleCellKeyDown(
-    event,
-    rowIndex,
-    column
-  ) {
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey
-    ) {
-      event.preventDefault();
-
-      if (
-        rowIndex ===
-        rows.length - 1
-      ) {
-        addRows(1);
-
-        window.setTimeout(() => {
-          setRows((current) => {
-            const created =
-              current[
-                current.length - 1
-              ];
-
-            if (created) {
-              focusCell(
-                created.id,
-                column.key
-              );
-            }
-
-            return current;
-          });
-        }, 50);
-
-        return;
-      }
-
-      const nextRow =
-        rows[rowIndex + 1];
-
-      if (nextRow) {
-        focusCell(
-          nextRow.id,
-          column.key
-        );
-      }
-
-      return;
-    }
-
-    if (
-      event.key === "Tab" &&
-      !event.shiftKey
-    ) {
-      const currentColumnIndex =
-        COLUMNS.findIndex(
-          (item) =>
-            item.key ===
-            column.key
-        );
-
-      const nextColumn =
-        COLUMNS[
-          currentColumnIndex + 1
-        ];
-
-      if (nextColumn) {
-        event.preventDefault();
-
-        focusCell(
-          rows[rowIndex].id,
-          nextColumn.key
-        );
-      }
-    }
-  }
-
-  function handleCellFocus(
-    rowId,
-    columnKey
-  ) {
-    setActiveCell({
-      rowId,
-      columnKey,
-    });
-  }
-
-  async function saveDraftButton() {
-    if (draftSaveTimerRef.current) {
-      window.clearTimeout(
-        draftSaveTimerRef.current
-      );
-      draftSaveTimerRef.current = null;
-    }
-
-    await saveDraftNow({
-      silent: false,
-    });
-  }
-
-  async function restoreDraftButton() {
-    if (draftSaveTimerRef.current) {
-      window.clearTimeout(
-        draftSaveTimerRef.current
-      );
-      draftSaveTimerRef.current = null;
-    }
-
-    try {
-      setError("");
-      setMessage("");
-
-      const draft =
-        await loadBulkDraft();
-
-      if (!draft) {
-        setMessage(
-          "There is no saved bulk-import draft in this browser."
-        );
-        return;
-      }
-
-      rowsRef.current.forEach((row) => {
-        revokeRowImage(row);
-      });
-
-      imageLibraryRef.current.forEach(
-        (item) => {
-          revokeLibraryImage(item);
-        }
-      );
-
-      const restoredRows =
-        Array.isArray(draft.rows)
-          ? draft.rows.map((row) => ({
-              ...row,
-              imageUrl:
-                row.imageFile
-                  ? URL.createObjectURL(
-                      row.imageFile
-                    )
-                  : "",
-            }))
-          : createRows(10);
-
-      const restoredLibrary =
-        Array.isArray(
-          draft.imageLibrary
-        )
-          ? draft.imageLibrary.map(
-              (item) => ({
-                ...item,
-                url: item.file
-                  ? URL.createObjectURL(
-                      item.file
-                    )
-                  : "",
-              })
-            )
-          : [];
-
-      setRows(restoredRows);
-      setImageLibrary(
-        restoredLibrary
-      );
-      setZipFile(
-        draft.zipFile || null
-      );
-      setSearch(draft.search || "");
-      setShowAssets(
-        Boolean(draft.showAssets)
-      );
-      setSelectedRows([]);
-      setDraftRestored(true);
-      setDraftReady(true);
-      setLastSavedAt(
-        draft.savedAt || null
+      downloadBlob(
+        blob,
+        "bulk-product-import.zip"
       );
 
       setMessage(
-        "Saved draft restored successfully."
+        "ZIP downloaded with CSV, Excel and product images."
       );
-    } catch (restoreError) {
-      console.error(
-        "Manual draft restore failed:",
-        restoreError
-      );
-
+    } catch (err) {
       setError(
-        "Could not restore the saved draft."
+        "ZIP export needs the jszip package. Run: npm install jszip xlsx"
       );
     }
   }
 
-  async function clearDraftButton() {
-    if (draftSaveTimerRef.current) {
-      window.clearTimeout(
-        draftSaveTimerRef.current
-      );
-      draftSaveTimerRef.current = null;
-    }
+  function downloadTemplate() {
+    const headers = CSV_HEADERS.join(",");
 
-    const confirmed = window.confirm(
-      "Clear the saved draft from this browser? This will not delete your current spreadsheet until you choose Clear All."
-    );
+    const example = [
+      "vintage-radio.jpg",
+      "VINTAGE RADIO",
+      "LATTAFA",
+      "30000",
+      "100ML",
+      "Perfume",
+      "Unisex",
+      "EDP",
+      "A beautiful fragrance",
+      "Top: Bergamot; Heart: Rose; Base: Musk",
+      "10",
+      "true",
+      "false",
+      "false",
+      "",
+      "",
+    ]
+      .map(csvEscape)
+      .join(",");
 
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await clearBulkDraft();
-
-      setDraftRestored(false);
-      setLastSavedAt(null);
-      setMessage(
-        "Saved draft cleared successfully."
-      );
-      setError("");
-    } catch (clearError) {
-      console.error(
-        "Draft clear failed:",
-        clearError
-      );
-
-      setError(
-        "Could not clear the saved draft."
-      );
-    }
-  }
-
-  function clearAll() {
-    const confirmed = window.confirm(
-      "Clear the entire spreadsheet, uploaded images, ZIP file, and saved draft? This cannot be undone."
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    if (draftSaveTimerRef.current) {
-      window.clearTimeout(
-        draftSaveTimerRef.current
-      );
-      draftSaveTimerRef.current = null;
-    }
-
-    rowsRef.current.forEach((row) => {
-      revokeRowImage(row);
-    });
-
-    imageLibraryRef.current.forEach(
-      (item) => {
-        revokeLibraryImage(item);
+    const blob = new Blob(
+      [`${headers}\n${example}\n`],
+      {
+        type: "text/csv;charset=utf-8;",
       }
     );
 
-    setRows(createRows(10));
-    setImageLibrary([]);
-    setZipFile(null);
-    setSelectedRows([]);
-    setSearch("");
-    setShowAssets(false);
-    setMessage("");
-    setError("");
-    setDraftRestored(false);
-    setLastSavedAt(null);
-
-    void clearBulkDraft()
-      .then(() => {
-        setMessage(
-          "Spreadsheet and saved draft cleared."
-        );
-      })
-      .catch((clearError) => {
-        console.error(
-          "Could not clear draft:",
-          clearError
-        );
-
-        setError(
-          "Spreadsheet cleared, but the saved draft could not be removed."
-        );
-      });
+    downloadBlob(
+      blob,
+      "bulk-product-template.csv"
+    );
   }
 
-  async function handleImport() {
+  async function importProducts() {
     setError("");
     setMessage("");
 
     if (!populatedRows.length) {
+      setError("Add at least one product first.");
+      return;
+    }
+
+    if (invalidRows > 0) {
       setError(
-        "Add at least one product before importing."
+        `Fix the ${invalidRows} invalid row${
+          invalidRows === 1 ? "" : "s"
+        } before importing.`
       );
       return;
     }
 
-    if (validation.length) {
-      setError(
-        validation
-          .slice(0, 5)
-          .join(" ")
-      );
+    const confirmed = window.confirm(
+      `Import ${populatedRows.length} product${
+        populatedRows.length === 1 ? "" : "s"
+      } into your store?`
+    );
+
+    if (!confirmed) {
       return;
     }
 
-    if (draftSaveTimerRef.current) {
-      window.clearTimeout(
-        draftSaveTimerRef.current
-      );
-      draftSaveTimerRef.current = null;
-    }
-
-    setLoading(true);
-    setImportProgress(10);
+    setImporting(true);
+    setProgress(10);
 
     try {
-      const csrfResponse =
-        await fetch(
-          `${API_URL}/auth/csrf/`,
-          {
-            method: "GET",
-            credentials: "include",
-            cache: "no-store",
-          }
-        );
+      const formData = new FormData();
 
-      const csrfData =
-        await csrfResponse
-          .json()
-          .catch(() => ({}));
-
-      if (
-        !csrfResponse.ok ||
-        !csrfData?.csrfToken
-      ) {
-        throw new Error(
-          "Unable to initialize secure request. Please refresh and try again."
-        );
-      }
-
-      setImportProgress(25);
-
-      const formData =
-        new FormData();
-
-      const products =
-        populatedRows.map(
-          (row) => ({
-            name:
-              String(
-                row.name || ""
-              ).trim(),
-            brand:
-              String(
-                row.brand || ""
-              ).trim(),
-            price:
-              row.price === ""
-                ? null
-                : Number(row.price),
-            size:
-              String(
-                row.size || ""
-              ).trim(),
-            category:
-              String(
-                row.category || ""
-              ).trim(),
-            gender:
-              String(
-                row.gender || ""
-              ).trim(),
-            concentration:
-              String(
-                row.concentration ||
-                  ""
-              ).trim(),
-            description:
-              String(
-                row.description ||
-                  ""
-              ).trim(),
-            fragrance_notes:
-              String(
-                row.fragrance_notes ||
-                  ""
-              ).trim(),
-            stock_quantity:
-              row.stock_quantity ===
-              ""
-                ? 0
-                : Number(
-                    row.stock_quantity
-                  ),
-            in_stock:
-              Boolean(row.in_stock),
-            featured:
-              Boolean(row.featured),
-            is_preorder:
-              Boolean(
-                row.is_preorder
-              ),
-            preorder_message:
-              String(
-                row.preorder_message ||
-                  ""
-              ).trim(),
-            preorder_release_date:
-              row.preorder_release_date ||
-              null,
-            image:
-              row.imageName || "",
-          })
-        );
+      const payload = populatedRows.map((row) => ({
+        name: row.name.trim(),
+        brand: row.brand.trim(),
+        price: row.price,
+        size: row.size.trim(),
+        category: row.category.trim(),
+        gender: row.gender.trim(),
+        concentration: row.concentration.trim(),
+        description: row.description.trim(),
+        fragrance_notes: row.fragrance_notes.trim(),
+        stock_quantity:
+          row.stock_quantity === ""
+            ? 0
+            : Number(row.stock_quantity),
+        in_stock: Boolean(row.in_stock),
+        featured: Boolean(row.featured),
+        is_preorder: Boolean(row.is_preorder),
+        preorder_message:
+          row.preorder_message.trim(),
+        preorder_release_date:
+          row.preorder_release_date || null,
+        image: row.imageName || "",
+      }));
 
       formData.append(
         "products",
-        JSON.stringify(products)
+        JSON.stringify(payload)
       );
 
-      populatedRows.forEach((row) => {
-        if (row.imageFile) {
-          formData.append(
-            "images",
-            row.imageFile,
-            row.imageName ||
-              row.imageFile.name
-          );
-        }
+      const imageRows = populatedRows.filter(
+        (row) => row.imageFile
+      );
+
+      imageRows.forEach((row) => {
+        formData.append(
+          "images",
+          row.imageFile,
+          row.imageFile.name
+        );
       });
 
       if (zipFile) {
@@ -2034,102 +1746,124 @@ export default function BulkImportPage() {
         );
       }
 
-      setImportProgress(45);
+      setProgress(30);
 
-      const response =
-        await fetch(
-          `${API_URL}/products/admin/bulk-import/`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: {
-              "X-CSRFToken":
-                csrfData.csrfToken,
-            },
-            body: formData,
-          }
+      const csrfResponse = await fetch(
+        `${API_URL}/auth/csrf/`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
+
+      const csrfData = await csrfResponse
+        .json()
+        .catch(() => ({}));
+
+      if (
+        !csrfResponse.ok ||
+        !csrfData?.csrfToken
+      ) {
+        setError(
+          "Unable to initialize secure request. Please refresh and try again."
         );
+        return;
+      }
 
-      setImportProgress(75);
+      const response = await fetch(
+        `${API_URL}/products/admin/bulk-import/`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "X-CSRFToken": csrfData.csrfToken,
+          },
+          body: formData,
+        }
+      );
 
-      const data =
-        await response
-          .json()
-          .catch(() => ({}));
+      setProgress(80);
+
+      let data = null;
+
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
       if (!response.ok) {
         throw new Error(
           data?.detail ||
             data?.error ||
-            "Bulk product import failed."
+            "Bulk import failed."
         );
       }
 
-      setImportProgress(100);
+      setProgress(100);
+
+      setMessage(
+        data?.message ||
+          `Successfully imported ${populatedRows.length} product${
+            populatedRows.length === 1 ? "" : "s"
+          }.`
+      );
+
+      // ========================================================
+      // IMPORTANT:
+      // Clear the saved draft and invalidate any pending save.
+      // This prevents the imported products from returning
+      // as a draft after the import succeeds.
+      // ========================================================
+
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+
+      draftSaveVersionRef.current += 1;
+      skipNextDraftSaveRef.current = true;
 
       await clearBulkDraft();
 
       setDraftRestored(false);
-      setLastSavedAt(null);
-
-      setMessage(
-        `Import completed successfully. ${
-          data?.created ??
-          populatedRows.length
-        } product${
-          (data?.created ??
-            populatedRows.length) ===
-          1
-            ? ""
-            : "s"
-        } processed.`
-      );
-
-      /*
-       * We intentionally keep the spreadsheet
-       * visible after import so you can review
-       * what was submitted.
-       */
-    } catch (importError) {
-      console.error(
-        "Bulk import failed:",
-        importError
-      );
-
+      setDraftSaving(false);
+    } catch (err) {
       setError(
-        importError?.message ||
-          "Bulk product import failed."
+        err.message ||
+          "Something went wrong while importing."
       );
+      setProgress(0);
     } finally {
-      setLoading(false);
-
-      window.setTimeout(() => {
-        setImportProgress(0);
-      }, 1000);
+      setImporting(false);
     }
   }
 
   function renderImageCell(row) {
     return (
-      <div className="flex h-full min-h-[74px] items-center justify-center">
+      <div
+        className="relative flex h-[68px] w-full items-center justify-center"
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onDrop={(event) =>
+          handleImageCellDrop(event, row.id)
+        }
+      >
         {row.imageUrl ? (
           <div className="group relative">
             <img
               src={row.imageUrl}
-              alt={
-                row.name ||
-                row.imageName ||
-                "Product"
-              }
-              className="h-14 w-14 rounded-xl border border-black/10 object-cover bg-white"
+              alt={row.name || "Product"}
+              className="h-12 w-12 rounded-lg border border-black/10 object-cover"
             />
 
             <button
               type="button"
-              onClick={() =>
-                removeRowImage(row.id)
-              }
-              className="absolute -right-2 -top-2 hidden h-6 w-6 items-center justify-center rounded-full bg-black text-xs text-white shadow group-hover:flex"
+              onClick={() => removeRowImage(row.id)}
+              className="absolute -right-2 -top-2 hidden h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] text-white group-hover:flex"
               title="Remove image"
             >
               ×
@@ -2138,13 +1872,11 @@ export default function BulkImportPage() {
         ) : (
           <button
             type="button"
-            onClick={() =>
-              fileInputRef.current?.click()
-            }
-            className="flex h-14 w-14 items-center justify-center rounded-xl border border-dashed border-black/20 bg-white text-xl text-black/40 transition hover:border-black/40 hover:text-black"
-            title="Add image"
+            onClick={() => openImagePicker(row.id)}
+            className="flex h-12 w-full max-w-[96px] flex-col items-center justify-center rounded-lg border border-dashed border-black/20 bg-[#faf8f4] text-[10px] text-black/45 transition hover:border-black/50 hover:text-black"
           >
-            +
+            <span className="text-lg">＋</span>
+            <span>Drop / Add</span>
           </button>
         )}
       </div>
@@ -2154,6 +1886,7 @@ export default function BulkImportPage() {
   function renderCell(
     row,
     rowIndex,
+    columnIndex,
     column
   ) {
     if (column.type === "image") {
@@ -2162,71 +1895,86 @@ export default function BulkImportPage() {
 
     if (column.type === "boolean") {
       return (
-        <div className="flex min-h-[74px] items-center justify-center">
-          <input
-            type="checkbox"
-            checked={Boolean(
-              row[column.key]
-            )}
-            onChange={(event) =>
-              updateRow(
+        <div className="flex h-[68px] items-center justify-center">
+          <button
+            type="button"
+            onClick={() =>
+              updateCell(
                 row.id,
                 column.key,
-                event.target.checked
+                !row[column.key]
               )
             }
-            className="h-4 w-4 rounded border-black/20 accent-black"
-            data-cell={`${row.id}-${column.key}`}
-            onFocus={() =>
-              handleCellFocus(
-                row.id,
-                column.key
-              )
+            className={`relative h-6 w-11 rounded-full transition ${
+              row[column.key]
+                ? "bg-black"
+                : "bg-black/15"
+            }`}
+            title={
+              row[column.key]
+                ? "Enabled"
+                : "Disabled"
             }
-          />
+          >
+            <span
+              className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition ${
+                row[column.key]
+                  ? "left-6"
+                  : "left-1"
+              }`}
+            />
+          </button>
         </div>
       );
     }
 
-    if (column.multiline) {
-      return (
-        <textarea
-          value={row[column.key] ?? ""}
-          onChange={(event) =>
-            updateRow(
-              row.id,
-              column.key,
-              event.target.value
-            )
-          }
-          onFocus={() =>
-            handleCellFocus(
-              row.id,
-              column.key
-            )
-          }
-          onKeyDown={(event) =>
-            handleCellKeyDown(
-              event,
-              rowIndex,
-              column
-            )
-          }
-          onPaste={(event) =>
-            handlePaste(
-              event,
-              rowIndex
-            )
-          }
-          data-cell={`${row.id}-${column.key}`}
-          className="min-h-[68px] w-full resize-none border-0 bg-transparent px-3 py-3 text-sm outline-none placeholder:text-black/25"
-          placeholder="—"
-        />
-      );
+    const commonProps = {
+      ref: (element) => {
+        if (element) {
+          cellRefs.current[
+            `${row.id}:${column.key}`
+          ] = element;
+        }
+      },
+      value: row[column.key] ?? "",
+      onChange: (event) =>
+        updateCell(
+          row.id,
+          column.key,
+          event.target.value
+        ),
+      onFocus: () =>
+        setActiveCell(
+          `${row.id}:${column.key}`
+        ),
+      onPaste: (event) =>
+        handleCellPaste(
+          event,
+          rowIndex,
+          columnIndex
+        ),
+      onKeyDown: (event) =>
+        handleCellKeyDown(
+          event,
+          rowIndex,
+          columnIndex,
+          row,
+          column
+        ),
+      className:
+        "h-[66px] w-full resize-none border-0 bg-transparent px-3 py-2 text-[13px] text-black outline-none placeholder:text-black/25 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-black/10",
+      placeholder: column.required
+        ? "Required"
+        : "",
+    };
+
+    if (column.type === "textarea") {
+      return <textarea {...commonProps} />;
     }
 
     return (
       <input
+        {...commonProps}
         type={
           column.type === "number"
             ? "number"
@@ -2234,49 +1982,26 @@ export default function BulkImportPage() {
             ? "date"
             : "text"
         }
-        value={row[column.key] ?? ""}
-        onChange={(event) =>
-          updateRow(
-            row.id,
-            column.key,
-            event.target.value
-          )
-        }
-        onFocus={() =>
-          handleCellFocus(
-            row.id,
-            column.key
-          )
-        }
-        onKeyDown={(event) =>
-          handleCellKeyDown(
-            event,
-            rowIndex,
-            column
-          )
-        }
-        onPaste={(event) =>
-          handlePaste(
-            event,
-            rowIndex
-          )
-        }
-        data-cell={`${row.id}-${column.key}`}
         min={
           column.type === "number"
-            ? "0"
+            ? column.key === "price"
+              ? "0"
+              : "0"
             : undefined
         }
-        className="h-[74px] w-full border-0 bg-transparent px-3 text-sm outline-none placeholder:text-black/25"
-        placeholder="—"
+        step={
+          column.key === "price"
+            ? "0.01"
+            : undefined
+        }
       />
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f3ed] text-[#171512]">
+    <div className="min-h-screen bg-[#f7f3ed] text-black">
       <input
-        ref={fileInputRef}
+        ref={imageInputRef}
         type="file"
         accept="image/*"
         multiple
@@ -2285,11 +2010,11 @@ export default function BulkImportPage() {
       />
 
       <input
-        ref={csvInputRef}
+        ref={singleImageInputRef}
         type="file"
-        accept=".csv,text/csv"
+        accept="image/*"
         className="hidden"
-        onChange={handleCSVInput}
+        onChange={handleSingleImageSelect}
       />
 
       <input
@@ -2300,34 +2025,69 @@ export default function BulkImportPage() {
         onChange={handleZipInput}
       />
 
-      <div className="mx-auto max-w-[1800px] px-4 py-5 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  window.history.back()
-                }
-                className="rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-medium transition hover:border-black/25 hover:bg-black/[0.03]"
-              >
-                ← Back
-              </button>
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={handleCSVInput}
+      />
 
-              <span className="rounded-full bg-black px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+      <div className="mx-auto max-w-[1900px] px-4 py-6 md:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="mb-3 inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30 hover:bg-black/[0.02]"
+            >
+              <span className="text-base leading-none">
+                ←
+              </span>
+              Back
+            </button>
+
+            <div className="mb-2 flex items-center gap-2">
+              <span className="rounded-full bg-black px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
                 Admin
               </span>
+
+              <span className="text-xs text-black/40">
+                Products / Bulk Import
+              </span>
+
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    draftSaving
+                      ? "bg-amber-400 animate-pulse"
+                      : draftRestored
+                      ? "bg-green-500"
+                      : "bg-gray-300"
+                  }`}
+                />
+
+                <span>
+                  {draftSaving
+                    ? "Saving draft..."
+                    : draftRestored
+                    ? "Draft restored"
+                    : draftReady
+                    ? "Draft saved"
+                    : "Loading draft..."}
+                </span>
+              </div>
             </div>
 
-            <h1 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
               Bulk Product Importer
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">
-              Add products like a spreadsheet,
-              attach images or a ZIP, save your
-              work, and import everything into
-              Orentemist in one operation.
+            <p className="mt-1 max-w-2xl text-sm text-black/50">
+              Add products row by row like Excel, paste
+              directly from spreadsheets, attach images, and
+              import everything in one go.
             </p>
           </div>
 
@@ -2335,698 +2095,795 @@ export default function BulkImportPage() {
             <button
               type="button"
               onClick={() =>
-                setShowHelp((current) => !current)
+                setShowHelp((value) => !value)
               }
-              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium transition hover:border-black/25"
+              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
             >
-              {showHelp ? "Hide Help" : "Help"}
+              {showHelp ? "Hide Help" : "How it works"}
             </button>
 
             <button
               type="button"
-              onClick={downloadCSVTemplate}
-              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium transition hover:border-black/25"
+              onClick={downloadTemplate}
+              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
             >
               CSV Template
+            </button>
+
+            <button
+              type="button"
+              onClick={downloadCSV}
+              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
+            >
+              ↓ CSV
+            </button>
+
+            <button
+              type="button"
+              onClick={downloadExcel}
+              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
+            >
+              ↓ Excel
+            </button>
+
+            <button
+              type="button"
+              onClick={downloadZIP}
+              className="rounded-xl bg-black px-4 py-2.5 text-xs font-medium text-white transition hover:bg-black/80"
+            >
+              ↓ Download ZIP
             </button>
           </div>
         </div>
 
+        {/* Help */}
         {showHelp && (
           <div className="mb-5 rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
-            <div className="grid gap-5 md:grid-cols-3">
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/45">
-                  Spreadsheet
-                </p>
-                <p className="mt-2 text-sm leading-6 text-black/65">
-                  Type products directly into the
-                  table. You can also paste multiple
-                  Excel/Google Sheets rows at once.
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider">
+                  01 — Spreadsheet
+                </div>
+                <p className="text-xs leading-5 text-black/55">
+                  Click any cell and type. Press Enter to
+                  move down. Tab moves across like Excel.
                 </p>
               </div>
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/45">
-                  Images
-                </p>
-                <p className="mt-2 text-sm leading-6 text-black/65">
-                  Drag images into the image library
-                  and match them to product names, or
-                  attach images directly to rows.
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider">
+                  02 — Paste
+                </div>
+                <p className="text-xs leading-5 text-black/55">
+                  Copy rows from Excel or Google Sheets and
+                  paste them directly into any cell.
                 </p>
               </div>
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-black/45">
-                  Drafts
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider">
+                  03 — Images
+                </div>
+                <p className="text-xs leading-5 text-black/55">
+                  Drag an image into the Image column or upload
+                  many images into the image library.
                 </p>
-                <p className="mt-2 text-sm leading-6 text-black/65">
-                  Your draft is automatically saved in
-                  this browser after changes. Use
-                  Save Draft for an immediate save.
+              </div>
+
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider">
+                  04 — Export
+                </div>
+                <p className="text-xs leading-5 text-black/55">
+                  Download CSV, Excel, or a ZIP containing your
+                  spreadsheet and product images.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Stats */}
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="rounded-2xl border border-black/10 bg-white p-4">
-            <p className="text-xs font-medium uppercase tracking-[0.15em] text-black/40">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
               Products
-            </p>
-            <p className="mt-1 text-2xl font-semibold">
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
               {populatedRows.length}
-            </p>
+            </div>
           </div>
 
           <div className="rounded-2xl border border-black/10 bg-white p-4">
-            <p className="text-xs font-medium uppercase tracking-[0.15em] text-black/40">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
+              Spreadsheet Rows
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
+              {rows.length}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
               Images
-            </p>
-            <p className="mt-1 text-2xl font-semibold">
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
               {imageLibrary.length}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-black/10 bg-white p-4">
-            <p className="text-xs font-medium uppercase tracking-[0.15em] text-black/40">
-              ZIP
-            </p>
-            <p className="mt-1 truncate text-sm font-semibold">
-              {zipFile
-                ? zipFile.name
-                : "None attached"}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-black/10 bg-white p-4">
-            <p className="text-xs font-medium uppercase tracking-[0.15em] text-black/40">
-              Validation
-            </p>
-            <p
-              className={`mt-1 text-sm font-semibold ${
-                validation.length
-                  ? "text-red-600"
-                  : "text-emerald-700"
-              }`}
-            >
-              {validation.length
-                ? `${validation.length} issue${
-                    validation.length ===
-                    1
-                      ? ""
-                      : "s"
-                  }`
-                : "Ready"}
-            </p>
-          </div>
-        </div>
-
-        <div className="mb-5 rounded-2xl border border-black/10 bg-white p-3 shadow-sm">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  addRows(5)
-                }
-                className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:bg-black/85"
-              >
-                + Add 5 Rows
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  addRows(20)
-                }
-                className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium transition hover:border-black/25"
-              >
-                + Add 20 Rows
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  fileInputRef.current?.click()
-                }
-                className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium transition hover:border-black/25"
-              >
-                Add Images
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  csvInputRef.current?.click()
-                }
-                className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium transition hover:border-black/25"
-              >
-                Import CSV
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  zipInputRef.current?.click()
-                }
-                className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium transition hover:border-black/25"
-              >
-                Attach ZIP
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={saveDraftButton}
-                disabled={draftSaving}
-                className="rounded-xl border border-black/10 bg-[#f7f3ed] px-4 py-2.5 text-sm font-semibold transition hover:border-black/25 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {draftSaving
-                  ? "Saving..."
-                  : "Save Draft"}
-              </button>
-
-              <button
-                type="button"
-                onClick={restoreDraftButton}
-                className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium transition hover:border-black/25"
-              >
-                Restore Draft
-              </button>
-
-              <button
-                type="button"
-                onClick={clearDraftButton}
-                className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
-              >
-                Clear Draft
-              </button>
-
-              <button
-                type="button"
-                onClick={clearAll}
-                className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium transition hover:border-black/25"
-              >
-                Clear All
-              </button>
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-black/5 px-1 pt-3 text-xs text-black/45">
-            <span>
-              {draftSaving
-                ? "Saving draft..."
-                : draftRestored
-                ? "Draft restored"
-                : "Autosave enabled"}
-            </span>
-
-            {lastSavedAt && (
-              <span>
-                Last saved{" "}
-                {new Date(
-                  lastSavedAt
-                ).toLocaleTimeString()}
-              </span>
-            )}
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
+              Selected
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
+              {selectedRows.length}
+            </div>
           </div>
         </div>
 
-        {message && (
-          <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            {message}
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        {validation.length > 0 && (
-          <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <div className="flex items-start justify-between gap-4">
+        {/* Import tools */}
+        <div className="mb-4 grid gap-4 xl:grid-cols-3">
+          {/* CSV */}
+          <div
+            className="rounded-2xl border border-black/10 bg-white p-4"
+            onDragOver={(event) =>
+              event.preventDefault()
+            }
+            onDrop={handleCSVDrop}
+          >
+            <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-amber-900">
-                  Please fix these rows before
-                  importing
-                </p>
+                <div className="text-sm font-semibold">
+                  Import CSV
+                </div>
+                <div className="mt-0.5 text-xs text-black/45">
+                  Load an existing spreadsheet
+                </div>
+              </div>
 
-                <ul className="mt-2 space-y-1 text-xs text-amber-800">
-                  {validation
-                    .slice(0, 8)
-                    .map((item) => (
-                      <li key={item}>
-                        • {item}
-                      </li>
-                    ))}
-                </ul>
+              <span className="rounded-full bg-black/5 px-2 py-1 text-[10px]">
+                CSV
+              </span>
+            </div>
 
-                {validation.length >
-                  8 && (
-                  <p className="mt-2 text-xs text-amber-700">
-                    +{" "}
-                    {validation.length -
-                      8}{" "}
-                    more issue
-                    {validation.length -
-                      8 ===
-                    1
-                      ? ""
-                      : "s"}
-                  </p>
-                )}
+            <button
+              type="button"
+              onClick={() =>
+                csvInputRef.current?.click()
+              }
+              className="w-full rounded-xl border border-dashed border-black/20 bg-[#faf8f4] px-4 py-4 text-xs font-medium transition hover:border-black/50"
+            >
+              {loading
+                ? "Reading CSV..."
+                : "Choose CSV or drag it here"}
+            </button>
+          </div>
+
+          {/* ZIP */}
+          <div
+            className={`rounded-2xl border bg-white p-4 transition ${
+              draggingZip
+                ? "border-black bg-black/[0.02]"
+                : "border-black/10"
+            }`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDraggingZip(true);
+            }}
+            onDragLeave={() =>
+              setDraggingZip(false)
+            }
+            onDrop={handleZipDrop}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">
+                  Product ZIP
+                </div>
+                <div className="mt-0.5 text-xs text-black/45">
+                  Keep your image archive attached
+                </div>
+              </div>
+
+              <span className="rounded-full bg-black/5 px-2 py-1 text-[10px]">
+                ZIP
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                zipInputRef.current?.click()
+              }
+              className="w-full rounded-xl border border-dashed border-black/20 bg-[#faf8f4] px-4 py-4 text-left text-xs transition hover:border-black/50"
+            >
+              {zipFile ? (
+                <span className="font-medium">
+                  {zipFile.name}
+                </span>
+              ) : (
+                "Drag ZIP here or choose ZIP"
+              )}
+            </button>
+          </div>
+
+          {/* Images */}
+          <div
+            className={`rounded-2xl border bg-white p-4 transition ${
+              draggingImages
+                ? "border-black bg-black/[0.02]"
+                : "border-black/10"
+            }`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDraggingImages(true);
+            }}
+            onDragLeave={() =>
+              setDraggingImages(false)
+            }
+            onDrop={handleImageDrop}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">
+                  Image Library
+                </div>
+                <div className="mt-0.5 text-xs text-black/45">
+                  Upload many product images
+                </div>
+              </div>
+
+              <span className="rounded-full bg-black/5 px-2 py-1 text-[10px]">
+                {imageLibrary.length} files
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                imageInputRef.current?.click()
+              }
+              className="w-full rounded-xl border border-dashed border-black/20 bg-[#faf8f4] px-4 py-4 text-xs font-medium transition hover:border-black/50"
+            >
+              Drag images here or choose images
+            </button>
+          </div>
+        </div>
+
+        {/* Assets */}
+        <div className="mb-4 overflow-hidden rounded-2xl border border-black/10 bg-white">
+          <button
+            type="button"
+            onClick={() =>
+              setShowAssets((value) => !value)
+            }
+            className="flex w-full items-center justify-between px-4 py-3 text-left"
+          >
+            <div>
+              <div className="text-sm font-semibold">
+                Image Assets
+              </div>
+              <div className="text-xs text-black/40">
+                Dragged/uploaded images available for
+                matching
               </div>
             </div>
-          </div>
-        )}
 
-        <div
-          className={`mb-5 rounded-2xl border bg-white p-4 shadow-sm transition ${
-            dragging
-              ? "border-black bg-black/[0.03]"
-              : "border-black/10"
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold">
-                Image Library
-              </p>
-
-              <p className="mt-1 text-xs leading-5 text-black/45">
-                Drag and drop images here, or use Add
-                Images. Image filenames can be matched
-                against product names.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setShowAssets(
-                    (current) =>
-                      !current
-                  )
-                }
-                className="rounded-xl border border-black/10 px-4 py-2 text-sm font-medium"
-              >
-                {showAssets
-                  ? "Hide Library"
-                  : "Show Library"}
-              </button>
-
-              <button
-                type="button"
-                onClick={matchImagesToRows}
-                disabled={
-                  !imageLibrary.length
-                }
-                className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Match to Products
-              </button>
-            </div>
-          </div>
+            <span className="text-lg text-black/40">
+              {showAssets ? "−" : "+"}
+            </span>
+          </button>
 
           {showAssets && (
-            <div className="mt-4 border-t border-black/5 pt-4">
+            <div className="border-t border-black/10 p-4">
               {imageLibrary.length ? (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-                  {imageLibrary.map(
-                    (item) => (
-                      <div
-                        key={item.id}
-                        className="group relative overflow-hidden rounded-xl border border-black/10 bg-[#f7f3ed]"
-                      >
-                        {item.url ? (
-                          <img
-                            src={item.url}
-                            alt={item.name}
-                            className="aspect-square w-full object-cover"
-                          />
-                        ) : (
-                          <div className="aspect-square" />
-                        )}
+                <div className="flex flex-wrap gap-3">
+                  {imageLibrary.map((image) => (
+                    <div
+                      key={image.id}
+                      className="group relative flex w-[90px] flex-col items-center"
+                    >
+                      <img
+                        src={image.url}
+                        alt={image.name}
+                        className="h-16 w-16 rounded-lg border border-black/10 object-cover"
+                      />
 
-                        <div className="absolute inset-x-0 bottom-0 bg-black/70 px-2 py-2 text-[10px] text-white">
-                          <p className="truncate">
-                            {item.name}
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            removeLibraryImage(
-                              item.id
-                            )
-                          }
-                          className="absolute right-2 top-2 h-6 w-6 rounded-full bg-black/80 text-xs text-white"
-                          title="Remove"
-                        >
-                          ×
-                        </button>
-
-                        <div className="absolute inset-0 hidden items-center justify-center bg-black/40 group-hover:flex">
-                          <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold">
-                            Drag / assign below
-                          </span>
-                        </div>
+                      <div className="mt-1 w-full truncate text-center text-[9px] text-black/50">
+                        {image.name}
                       </div>
-                    )
-                  )}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeLibraryImage(
+                            image.id
+                          )
+                        }
+                        className="absolute right-1 top-[-4px] hidden h-5 w-5 items-center justify-center rounded-full bg-black text-xs text-white group-hover:flex"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={matchImagesToRows}
+                    className="flex h-[88px] min-w-[150px] items-center justify-center rounded-xl border border-dashed border-black/20 px-4 text-xs font-medium transition hover:border-black/50"
+                  >
+                    Match filenames
+                  </button>
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-black/10 py-10 text-center text-sm text-black/40">
-                  Drop product images here.
+                <div className="rounded-xl bg-[#faf8f4] px-4 py-5 text-center text-xs text-black/40">
+                  No images uploaded yet.
                 </div>
               )}
             </div>
           )}
-
-          {zipFile && (
-            <div className="mt-4 flex items-center justify-between rounded-xl border border-black/10 bg-[#f7f3ed] px-4 py-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-black/40">
-                  ZIP attached
-                </p>
-
-                <p className="mt-1 truncate text-sm font-medium">
-                  {zipFile.name}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={removeZipFile}
-                className="ml-4 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
-              >
-                Remove
-              </button>
-            </div>
-          )}
         </div>
 
-        <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-black/10 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2">
+        {/* Toolbar */}
+        <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-black/10 bg-white p-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={exportCSV}
-              className="rounded-xl border border-black/10 px-4 py-2 text-sm font-medium transition hover:border-black/25"
+              onClick={() => addRows(1)}
+              className="rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white hover:bg-black/80"
             >
-              Download CSV
+              + Add Row
             </button>
 
             <button
               type="button"
-              onClick={exportExcel}
-              className="rounded-xl border border-black/10 px-4 py-2 text-sm font-medium transition hover:border-black/25"
+              onClick={() => addRows(5)}
+              className="rounded-xl border border-black/10 px-4 py-2.5 text-xs font-medium hover:border-black/30"
             >
-              Download Excel
+              + 5 Rows
             </button>
 
             <button
               type="button"
-              onClick={exportZIP}
-              className="rounded-xl border border-black/10 px-4 py-2 text-sm font-medium transition hover:border-black/25"
+              onClick={() => addRows(10)}
+              className="rounded-xl border border-black/10 px-4 py-2.5 text-xs font-medium hover:border-black/30"
             >
-              Download ZIP
+              + 10 Rows
             </button>
 
-            {selectedRows.length >
-              0 && (
+            <button
+              type="button"
+              onClick={clearEmptyRows}
+              className="rounded-xl border border-black/10 px-4 py-2.5 text-xs font-medium hover:border-black/30"
+            >
+              Remove Empty
+            </button>
+
+            {selectedRows.length > 0 && (
               <button
                 type="button"
-                onClick={
-                  deleteSelectedRows
-                }
-                className="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                onClick={deleteSelectedRows}
+                className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 hover:bg-red-100"
               >
-                Delete{" "}
-                {selectedRows.length}{" "}
-                Selected
+                Delete {selectedRows.length}
               </button>
             )}
           </div>
 
-          <div className="relative">
-            <input
-              type="search"
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
-              placeholder="Search products..."
-              className="w-full rounded-xl border border-black/10 bg-[#f7f3ed] px-4 py-2.5 text-sm outline-none placeholder:text-black/35 focus:border-black/30 sm:w-64"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <input
+                value={search}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+                placeholder="Search products..."
+                className="w-full rounded-xl border border-black/10 bg-[#faf8f4] px-4 py-2.5 text-xs outline-none transition focus:border-black/30 md:w-[220px]"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const confirmed = window.confirm(
+                  "Clear the saved bulk import draft? This cannot be undone."
+                );
+
+                if (!confirmed) return;
+
+                await clearSavedDraft({
+                  message:
+                    "Saved bulk import draft cleared.",
+                });
+              }}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+            >
+              Clear Saved Draft
+            </button>
+
+            <button
+              type="button"
+              onClick={clearAll}
+              className="rounded-xl border border-black/10 px-4 py-2.5 text-xs font-medium text-black/60 hover:border-black/30 hover:text-black"
+            >
+              Clear All
+            </button>
           </div>
         </div>
 
+        {/* Spreadsheet */}
         <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-black/10 bg-[#f7f3ed]">
-                  <th className="sticky left-0 z-20 w-12 min-w-12 border-r border-black/10 bg-[#f7f3ed] px-2 py-3">
+          <div className="border-b border-black/10 bg-[#faf8f4] px-4 py-3">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-sm font-semibold">
+                  Product Spreadsheet
+                </div>
+                <div className="text-[11px] text-black/40">
+                  {search
+                    ? `${visibleRows.length} matching rows`
+                    : "Each row represents one product"}
+                  {" · "}
+                  {COLUMNS.length} columns
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 text-[11px] text-black/45">
+                <span>
+                  Active cell:{" "}
+                  <span className="font-medium text-black">
+                    {activeCell
+                      ? "selected"
+                      : "none"}
+                  </span>
+                </span>
+
+                <span className="hidden md:inline">
+                  Enter ↓
+                </span>
+
+                <span className="hidden md:inline">
+                  Tab →
+                </span>
+
+                <span className="hidden md:inline">
+                  Paste from Excel
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-h-[680px] overflow-auto">
+            <table
+              className="border-collapse"
+              style={{
+                minWidth: `${
+                  70 +
+                  44 +
+                  COLUMNS.reduce(
+                    (total, column) =>
+                      total + column.width,
+                    0
+                  )
+                }px`,
+              }}
+            >
+              <thead className="sticky top-0 z-30">
+                <tr>
+                  <th className="sticky left-0 z-40 w-[44px] min-w-[44px] border-b border-r border-black/10 bg-[#eee9e1] px-2 py-3">
                     <input
                       type="checkbox"
-                      checked={
-                        rows.length > 0 &&
-                        selectedRows.length ===
-                          rows.length
-                      }
-                      onChange={
-                        toggleAllRows
-                      }
-                      className="h-4 w-4 rounded accent-black"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAll}
+                      className="h-3.5 w-3.5 accent-black"
                     />
                   </th>
 
-                  <th className="w-12 min-w-12 border-r border-black/10 px-2 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-black/40">
+                  <th className="sticky left-[44px] z-40 w-[70px] min-w-[70px] border-b border-r border-black/10 bg-[#eee9e1] px-2 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-black/50">
                     #
                   </th>
 
-                  {COLUMNS.map(
-                    (column) => (
-                      <th
-                        key={column.key}
-                        style={{
-                          width:
-                            column.width,
-                          minWidth:
-                            column.width,
-                        }}
-                        className="border-r border-black/10 px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45 last:border-r-0"
-                      >
+                  {COLUMNS.map((column) => (
+                    <th
+                      key={column.key}
+                      className="border-b border-r border-black/10 bg-[#eee9e1] px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-black/55"
+                      style={{
+                        width: column.width,
+                        minWidth: column.width,
+                      }}
+                    >
+                      <div className="flex items-center gap-1">
                         {column.label}
-                      </th>
-                    )
-                  )}
 
-                  <th className="w-28 min-w-28 border-l border-black/10 px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45">
+                        {column.required && (
+                          <span className="text-red-500">
+                            *
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+
+                  <th className="sticky right-0 z-40 w-[100px] min-w-[100px] border-b border-l border-black/10 bg-[#eee9e1] px-2 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-black/50">
                     Actions
                   </th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredRows.map(
-                  (row) => {
-                    const rowIndex =
-                      rows.findIndex(
-                        (item) =>
-                          item.id ===
-                          row.id
-                      );
+                {visibleRows.map((row) => {
+                  const realIndex = rows.findIndex(
+                    (item) => item.id === row.id
+                  );
 
-                    const hasError =
-                      validation.some(
-                        (item) =>
-                          item.startsWith(
-                            `Row ${
-                              rowIndex + 1
-                            }:`
-                          )
-                      );
+                  const rowHasError =
+                    validationErrors[row.id]?.length > 0;
 
-                    return (
-                      <tr
-                        key={row.id}
-                        className={`border-b border-black/5 last:border-b-0 ${
-                          hasError
-                            ? "bg-red-50/40"
-                            : ""
-                        }`}
-                      >
-                        <td className="sticky left-0 z-10 border-r border-black/5 bg-white px-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedRows.includes(
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`group ${
+                        rowHasError
+                          ? "bg-red-50/40"
+                          : "bg-white"
+                      } hover:bg-black/[0.015]`}
+                    >
+                      <td className="sticky left-0 z-20 border-b border-r border-black/10 bg-inherit px-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.includes(
+                            row.id
+                          )}
+                          onChange={() =>
+                            toggleRowSelection(
                               row.id
+                            )
+                          }
+                          className="h-3.5 w-3.5 accent-black"
+                        />
+                      </td>
+
+                      <td className="sticky left-[44px] z-20 border-b border-r border-black/10 bg-inherit px-2 text-center">
+                        <span className="text-[11px] font-medium text-black/40">
+                          {realIndex + 1}
+                        </span>
+                      </td>
+
+                      {COLUMNS.map(
+                        (column, columnIndex) => (
+                          <td
+                            key={column.key}
+                            className={`border-b border-r border-black/10 p-0 align-middle ${
+                              activeCell ===
+                              `${row.id}:${column.key}`
+                                ? "bg-white"
+                                : ""
+                            }`}
+                            style={{
+                              width: column.width,
+                              minWidth: column.width,
+                            }}
+                          >
+                            {renderCell(
+                              row,
+                              realIndex,
+                              columnIndex,
+                              column
                             )}
-                            onChange={() =>
-                              toggleRowSelected(
-                                row.id
-                              )
+                          </td>
+                        )
+                      )}
+
+                      <td className="sticky right-0 z-20 border-b border-l border-black/10 bg-inherit px-2">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              duplicateRow(row.id)
                             }
-                            className="h-4 w-4 rounded accent-black"
-                          />
-                        </td>
+                            title="Duplicate row"
+                            className="rounded-lg px-2 py-2 text-xs text-black/45 hover:bg-black/5 hover:text-black"
+                          >
+                            ⧉
+                          </button>
 
-                        <td className="border-r border-black/5 px-2 text-center text-xs text-black/35">
-                          {rowIndex + 1}
-                        </td>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteRow(row.id)
+                            }
+                            title="Delete row"
+                            className="rounded-lg px-2 py-2 text-xs text-red-500 hover:bg-red-50"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
 
-                        {COLUMNS.map(
-                          (column) => (
-                            <td
-                              key={
-                                column.key
-                              }
-                              style={{
-                                width:
-                                  column.width,
-                                minWidth:
-                                  column.width,
-                              }}
-                              className="border-r border-black/5 align-middle last:border-r-0"
-                            >
-                              {renderCell(
-                                row,
-                                rowIndex,
-                                column
-                              )}
-                            </td>
-                          )
-                        )}
-
-                        <td className="border-l border-black/5 px-2">
-                          <div className="flex flex-wrap gap-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                duplicateRow(
-                                  row.id
-                                )
-                              }
-                              className="rounded-lg border border-black/10 px-2 py-1.5 text-[10px] font-medium hover:border-black/25"
-                              title="Duplicate row"
-                            >
-                              Copy
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                deleteRow(
-                                  row.id
-                                )
-                              }
-                              className="rounded-lg border border-red-100 px-2 py-1.5 text-[10px] font-medium text-red-600 hover:bg-red-50"
-                              title="Delete row"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
-
-                {!filteredRows.length && (
+                {!visibleRows.length && (
                   <tr>
                     <td
                       colSpan={
-                        COLUMNS.length +
-                        3
+                        COLUMNS.length + 3
                       }
-                      className="px-6 py-16 text-center text-sm text-black/40"
+                      className="px-6 py-16 text-center"
                     >
-                      No rows match your
-                      search.
+                      <div className="text-sm font-medium">
+                        No products found
+                      </div>
+
+                      <div className="mt-1 text-xs text-black/40">
+                        Add a row or change your search.
+                      </div>
                     </td>
                   </tr>
                 )}
+
+                <tr>
+                  <td
+                    colSpan={COLUMNS.length + 3}
+                    className="border-b border-black/10 bg-[#faf8f4] p-2"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => addRows(1)}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-black/15 py-3 text-xs font-medium text-black/50 transition hover:border-black/40 hover:bg-white hover:text-black"
+                    >
+                      <span className="text-base">
+                        +
+                      </span>
+                      Add another product row
+                    </button>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
-
-          <div className="border-t border-black/10 bg-[#f7f3ed] px-4 py-3 text-xs text-black/45">
-            Tip: paste directly from Excel or
-            Google Sheets. Press Enter to move
-            downward. The table can be horizontally
-            scrolled on mobile.
-          </div>
         </div>
 
-        <div className="sticky bottom-4 z-30 mt-5">
-          <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-white/95 p-3 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">
-                Ready to import
-              </p>
+        {/* Validation */}
+        {invalidRows > 0 && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+            <div className="text-sm font-semibold text-red-800">
+              {invalidRows} row
+              {invalidRows === 1 ? "" : "s"} need
+              attention
+            </div>
 
-              <p className="mt-0.5 text-xs text-black/45">
+            <div className="mt-1 text-xs text-red-700/70">
+              Product Name and Price are required.
+              Stock must be a number when provided.
+            </div>
+          </div>
+        )}
+
+        {/* Messages */}
+        {message && (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {message}
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
+          </div>
+        )}
+
+        {/* Import footer */}
+        <div className="mt-5 rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold">
+                Ready to import
+              </div>
+
+              <div className="mt-1 text-xs text-black/45">
                 {populatedRows.length} product
                 {populatedRows.length === 1
                   ? ""
-                  : "s"}{" "}
-                will be sent to the admin
-                bulk-import endpoint.
-              </p>
-
-              {loading &&
-                importProgress > 0 && (
-                  <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-black/10">
-                    <div
-                      className="h-full rounded-full bg-black transition-all"
-                      style={{
-                        width: `${importProgress}%`,
-                      }}
-                    />
-                  </div>
-                )}
+                  : "s"} ready
+                {imageLibrary.length
+                  ? ` · ${imageLibrary.length} image assets`
+                  : ""}
+                {zipFile
+                  ? ` · ${zipFile.name}`
+                  : ""}
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleImport}
-              disabled={
-                loading ||
-                !populatedRows.length ||
-                validation.length > 0
-              }
-              className="w-full rounded-xl bg-black px-6 py-3 text-sm font-semibold text-white transition hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
-            >
-              {loading
-                ? `Importing${
-                    importProgress
-                      ? ` ${importProgress}%`
-                      : "..."
-                  }`
-                : `Import ${populatedRows.length} Product${
-                    populatedRows.length ===
-                    1
-                      ? ""
-                      : "s"
-                  }`}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={downloadCSV}
+                disabled={!populatedRows.length}
+                className="rounded-xl border border-black/10 px-4 py-3 text-xs font-medium transition hover:border-black/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Export CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={downloadExcel}
+                disabled={!populatedRows.length}
+                className="rounded-xl border border-black/10 px-4 py-3 text-xs font-medium transition hover:border-black/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Export Excel
+              </button>
+
+              <button
+                type="button"
+                onClick={downloadZIP}
+                disabled={!populatedRows.length}
+                className="rounded-xl border border-black/10 px-4 py-3 text-xs font-medium transition hover:border-black/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Export ZIP
+              </button>
+
+              <button
+                type="button"
+                onClick={importProducts}
+                disabled={
+                  importing ||
+                  !populatedRows.length ||
+                  invalidRows > 0
+                }
+                className="min-w-[180px] rounded-xl bg-black px-5 py-3 text-xs font-semibold text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {importing
+                  ? `Importing ${progress}%`
+                  : `Import ${populatedRows.length} Product${
+                      populatedRows.length === 1
+                        ? ""
+                        : "s"
+                    }`}
+              </button>
+            </div>
+          </div>
+
+          {importing && (
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-black/10">
+              <div
+                className="h-full rounded-full bg-black transition-all duration-300"
+                style={{
+                  width: `${progress}%`,
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Bottom information */}
+        <div className="mt-4 grid gap-3 text-[11px] text-black/40 md:grid-cols-3">
+          <div>
+            <span className="font-semibold text-black/60">
+              Image matching:
+            </span>{" "}
+            use the exact image filename in the Image
+            column, then upload those images.
+          </div>
+
+          <div>
+            <span className="font-semibold text-black/60">
+              Paste:
+            </span>{" "}
+            copy multiple cells from Excel/Google Sheets
+            and paste into any spreadsheet cell.
+          </div>
+
+          <div>
+            <span className="font-semibold text-black/60">
+              Import:
+            </span>{" "}
+            only rows with a Product Name are sent to the
+            backend.
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
