@@ -7,6 +7,137 @@ const API_URL =
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
+// ============================================================
+// BULK IMPORT DRAFT PERSISTENCE
+// ============================================================
+
+const BULK_DRAFT_DB_NAME = "orentemist-bulk-import";
+const BULK_DRAFT_STORE_NAME = "drafts";
+const BULK_DRAFT_KEY = "current";
+
+function openBulkDraftDB() {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      reject(new Error("IndexedDB is not available in this browser."));
+      return;
+    }
+
+    const request = window.indexedDB.open(
+      BULK_DRAFT_DB_NAME,
+      1
+    );
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains(BULK_DRAFT_STORE_NAME)) {
+        db.createObjectStore(BULK_DRAFT_STORE_NAME);
+      }
+    };
+
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+
+    request.onerror = () => {
+      reject(
+        request.error ||
+          new Error("Unable to open draft storage.")
+      );
+    };
+  });
+}
+
+async function saveBulkDraft(draft) {
+  const db = await openBulkDraftDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      BULK_DRAFT_STORE_NAME,
+      "readwrite"
+    );
+
+    const store = transaction.objectStore(
+      BULK_DRAFT_STORE_NAME
+    );
+
+    store.put(draft, BULK_DRAFT_KEY);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error ||
+          new Error("Unable to save bulk import draft.")
+      );
+    };
+  });
+}
+
+async function loadBulkDraft() {
+  const db = await openBulkDraftDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      BULK_DRAFT_STORE_NAME,
+      "readonly"
+    );
+
+    const store = transaction.objectStore(
+      BULK_DRAFT_STORE_NAME
+    );
+
+    const request = store.get(BULK_DRAFT_KEY);
+
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result || null);
+    };
+
+    request.onerror = () => {
+      db.close();
+      reject(
+        request.error ||
+          new Error("Unable to load bulk import draft.")
+      );
+    };
+  });
+}
+
+async function clearBulkDraft() {
+  const db = await openBulkDraftDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      BULK_DRAFT_STORE_NAME,
+      "readwrite"
+    );
+
+    const store = transaction.objectStore(
+      BULK_DRAFT_STORE_NAME
+    );
+
+    store.delete(BULK_DRAFT_KEY);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    transaction.onerror = () => {
+      db.close();
+      reject(
+        transaction.error ||
+          new Error("Unable to clear bulk import draft.")
+      );
+    };
+  });
+}
+
 const COLUMNS = [
   { key: "image", label: "Image", width: 120, type: "image" },
   { key: "name", label: "Name", width: 220, type: "text", required: true },
@@ -268,6 +399,12 @@ export default function BulkImportPage() {
   const [imageLibrary, setImageLibrary] = useState([]);
   const [zipFile, setZipFile] = useState(null);
 
+  const [draftReady, setDraftReady] = useState(false);
+const [draftSaving, setDraftSaving] = useState(false);
+const [draftRestored, setDraftRestored] = useState(false);
+
+const draftSaveTimerRef = useRef(null);
+
   const [search, setSearch] = useState("");
   const [showAssets, setShowAssets] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
@@ -359,22 +496,37 @@ export default function BulkImportPage() {
   const allVisibleSelected =
     visibleRows.length > 0 &&
     visibleRows.every((row) => selectedRows.includes(row.id));
+// ============================================================
+// CLEAN UP PREVIEW URLS WHEN PAGE UNMOUNTS
+// ============================================================
 
-  useEffect(() => {
-    return () => {
-      imageLibrary.forEach((item) => {
-        if (item.url) {
-          URL.revokeObjectURL(item.url);
-        }
-      });
+const rowsRef = useRef(rows);
+const imageLibraryRef = useRef(imageLibrary);
 
-      rows.forEach((row) => {
-        if (row.imageUrl && row.imageFile) {
-          URL.revokeObjectURL(row.imageUrl);
-        }
-      });
-    };
-  }, []);
+useEffect(() => {
+  rowsRef.current = rows;
+}, [rows]);
+
+useEffect(() => {
+  imageLibraryRef.current = imageLibrary;
+}, [imageLibrary]);
+
+useEffect(() => {
+  return () => {
+    imageLibraryRef.current.forEach((item) => {
+      if (item.url) {
+        URL.revokeObjectURL(item.url);
+      }
+    });
+
+    rowsRef.current.forEach((row) => {
+      if (row.imageUrl && row.imageFile) {
+        URL.revokeObjectURL(row.imageUrl);
+      }
+    });
+  };
+}, []);
+
 
   function updateCell(rowId, key, value) {
     setRows((current) =>
@@ -433,6 +585,155 @@ export default function BulkImportPage() {
     });
   }
 
+
+
+
+// ============================================================
+// RESTORE BULK IMPORT DRAFT ON PAGE LOAD
+// ============================================================
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function restoreDraft() {
+    try {
+      const draft = await loadBulkDraft();
+
+      if (cancelled) return;
+
+      if (!draft) {
+        setDraftReady(true);
+        return;
+      }
+
+      const restoredRows = Array.isArray(draft.rows)
+        ? draft.rows.map((row) => {
+            const restoredRow = {
+              ...row,
+              imageUrl: "",
+            };
+
+            if (restoredRow.imageFile) {
+              restoredRow.imageUrl =
+                URL.createObjectURL(
+                  restoredRow.imageFile
+                );
+            }
+
+            return restoredRow;
+          })
+        : createRows(10);
+
+      const restoredImageLibrary = Array.isArray(
+        draft.imageLibrary
+      )
+        ? draft.imageLibrary.map((item) => ({
+            ...item,
+            url: item.file
+              ? URL.createObjectURL(item.file)
+              : "",
+          }))
+        : [];
+
+      setRows(restoredRows);
+      setImageLibrary(restoredImageLibrary);
+      setZipFile(draft.zipFile || null);
+
+      if (typeof draft.search === "string") {
+        setSearch(draft.search);
+      }
+
+      if (typeof draft.showAssets === "boolean") {
+        setShowAssets(draft.showAssets);
+      }
+
+      setDraftRestored(true);
+      setDraftReady(true);
+    } catch (error) {
+      console.error(
+        "Unable to restore bulk import draft:",
+        error
+      );
+
+      setDraftReady(true);
+    }
+  }
+
+  restoreDraft();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+
+// ============================================================
+// AUTO-SAVE BULK IMPORT DRAFT
+// ============================================================
+
+useEffect(() => {
+  if (!draftReady) return;
+
+  if (draftSaveTimerRef.current) {
+    clearTimeout(draftSaveTimerRef.current);
+  }
+
+  draftSaveTimerRef.current = setTimeout(async () => {
+    try {
+      setDraftSaving(true);
+
+      const rowsToSave = rows.map((row) => ({
+        ...row,
+
+        // Blob URLs only work for the current browser session.
+        // We recreate them after refresh.
+        imageUrl: "",
+      }));
+
+      const imageLibraryToSave = imageLibrary.map(
+        (item) => ({
+          ...item,
+
+          // Same reason: don't persist temporary blob URLs.
+          url: "",
+        })
+      );
+
+      await saveBulkDraft({
+        rows: rowsToSave,
+        imageLibrary: imageLibraryToSave,
+        zipFile: zipFile || null,
+        search,
+        showAssets,
+        savedAt: Date.now(),
+      });
+
+      setDraftSaving(false);
+    } catch (error) {
+      console.error(
+        "Unable to save bulk import draft:",
+        error
+      );
+
+      setDraftSaving(false);
+    }
+  }, 700);
+
+  return () => {
+    if (draftSaveTimerRef.current) {
+      clearTimeout(draftSaveTimerRef.current);
+    }
+  };
+}, [
+  rows,
+  imageLibrary,
+  zipFile,
+  search,
+  showAssets,
+  draftReady,
+]);
+
+
   function clearEmptyRows() {
     setRows((current) => current.filter((row) => row.name.trim()));
     setSelectedRows([]);
@@ -450,6 +751,7 @@ export default function BulkImportPage() {
     setMessage("");
     setError("");
     setSearch("");
+    clearSavedDraft();
   }
 
   function toggleRowSelection(rowId) {
@@ -675,6 +977,29 @@ export default function BulkImportPage() {
       } into the spreadsheet.`
     );
   }
+
+
+  async function clearSavedDraft() {
+  try {
+    await clearBulkDraft();
+
+    setDraftRestored(false);
+
+    setMessage("Saved bulk import draft cleared.");
+    setError("");
+  } catch (error) {
+    console.error(
+      "Unable to clear saved bulk import draft:",
+      error
+    );
+
+    setError(
+      "Unable to clear the saved draft. Please try again."
+    );
+  }
+}
+
+
 
   function validateImageFile(file) {
     if (!file) {
@@ -1416,6 +1741,9 @@ if (
             populatedRows.length === 1 ? "" : "s"
           }.`
       );
+
+      await clearBulkDraft();
+      setDraftRestored(false);
     } catch (err) {
       setError(
         err.message ||
@@ -1635,6 +1963,27 @@ if (
               <span className="text-xs text-black/40">
                 Products / Bulk Import
               </span>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+  <span
+    className={`h-2 w-2 rounded-full ${
+      draftSaving
+        ? "bg-amber-400 animate-pulse"
+        : draftRestored
+        ? "bg-green-500"
+        : "bg-gray-300"
+    }`}
+  />
+
+  <span>
+    {draftSaving
+      ? "Saving draft..."
+      : draftRestored
+      ? "Draft restored"
+      : draftReady
+      ? "Draft saved"
+      : "Loading draft..."}
+  </span>
+</div>
             </div>
 
             <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
@@ -2037,6 +2386,21 @@ if (
                 className="w-full rounded-xl border border-black/10 bg-[#faf8f4] px-4 py-2.5 text-xs outline-none transition focus:border-black/30 md:w-[220px]"
               />
             </div>
+            <button
+  type="button"
+  onClick={async () => {
+    const confirmed = window.confirm(
+      "Clear the saved bulk import draft? This cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    await clearSavedDraft();
+  }}
+  className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+>
+  Clear Saved Draft
+</button>
 
             <button
               type="button"
