@@ -39,28 +39,48 @@ function LoginPageContent() {
     }
   }
 
-  async function getCSRFToken() {
-    const response = await fetch(
-      `${API_URL}/auth/csrf/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    const data = await response
-      .json()
-      .catch(() => ({}));
-
-    if (!response.ok || !data?.csrfToken) {
-      throw new Error(
-        "Unable to initialize secure login. Please try again."
-      );
+ async function getCSRFToken() {
+  const response = await fetch(
+    `${API_URL}/auth/csrf/`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
     }
+  );
 
-    return data.csrfToken;
+  const raw = await response.text();
+
+  let data = {};
+
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = {};
   }
+
+  console.log("CSRF STATUS:", response.status);
+  console.log("CSRF RESPONSE:", data);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.detail ||
+        data?.message ||
+        `Secure login initialization failed (${response.status}).`
+    );
+  }
+
+  if (!data?.csrfToken) {
+    throw new Error(
+      "The server did not return a CSRF token. Please refresh and try again."
+    );
+  }
+
+  return data.csrfToken;
+}
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -89,6 +109,7 @@ function LoginPageContent() {
        */
 
       const csrfToken = await getCSRFToken();
+      console.log("CSRF TOKEN RECEIVED:", Boolean(csrfToken));
 
       /*
        * =====================================================
