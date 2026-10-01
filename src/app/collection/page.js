@@ -699,11 +699,11 @@ async function loadCollection() {
 
                             <div>
 
-                              <h3 className="font-serif text-lg">
+                              <h3 className="font-serif font-semibold text-lg">
                                 {product.name}
                               </h3>
 
-                              <p className="mt-1 text-[9px] uppercase tracking-[0.18em] text-black/35">
+                              <p className="mt-1 text-[9px] uppercase tracking-[0.18em] text-black/80">
                                 {product.category?.name ||
                                   product.category_name ||
                                   "Fragrance"}
