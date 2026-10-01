@@ -1,55 +1,149 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.orentemist.online/api";
+  process.env.NEXT_PUBLIC_API_URL || "https://api.orentemist.online/api";
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
-const emptyProduct = {
-  name: "",
-  brand: "",
-  price: "",
-  size: "",
-  category: "",
-  gender: "",
-  concentration: "",
-  description: "",
-  fragrance_notes: "",
-  stock_quantity: "",
-  featured: false,
-  is_preorder: false,
-  preorder_message: "",
-  preorder_release_date: "",
-  image: null,
-};
+const COLUMNS = [
+  { key: "image", label: "Image", width: 120, type: "image" },
+  { key: "name", label: "Name", width: 220, type: "text", required: true },
+  { key: "brand", label: "Brand", width: 160, type: "text" },
+  { key: "price", label: "Price", width: 120, type: "number", required: true },
+  { key: "size", label: "Size", width: 110, type: "text" },
+  { key: "category", label: "Category", width: 150, type: "text" },
+  { key: "gender", label: "Gender", width: 120, type: "text" },
+  {
+    key: "concentration",
+    label: "Concentration",
+    width: 150,
+    type: "text",
+  },
+  {
+    key: "description",
+    label: "Description",
+    width: 280,
+    type: "textarea",
+  },
+  {
+    key: "fragrance_notes",
+    label: "Fragrance Notes",
+    width: 250,
+    type: "textarea",
+  },
+  {
+    key: "stock_quantity",
+    label: "Stock",
+    width: 100,
+    type: "number",
+  },
+  {
+    key: "in_stock",
+    label: "In Stock",
+    width: 100,
+    type: "boolean",
+  },
+  {
+    key: "featured",
+    label: "Featured",
+    width: 100,
+    type: "boolean",
+  },
+  {
+    key: "is_preorder",
+    label: "Pre-order",
+    width: 110,
+    type: "boolean",
+  },
+  {
+    key: "preorder_message",
+    label: "Pre-order Message",
+    width: 230,
+    type: "text",
+  },
+  {
+    key: "preorder_release_date",
+    label: "Release Date",
+    width: 150,
+    type: "date",
+  },
+];
+
+const CSV_HEADERS = [
+  "image",
+  "name",
+  "brand",
+  "price",
+  "size",
+  "category",
+  "gender",
+  "concentration",
+  "description",
+  "fragrance_notes",
+  "stock_quantity",
+  "in_stock",
+  "featured",
+  "is_preorder",
+  "preorder_message",
+  "preorder_release_date",
+];
 
 function makeId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createBlankRow() {
+  return {
+    id: makeId(),
+
+    imageFile: null,
+    imageUrl: "",
+    imageName: "",
+
+    name: "",
+    brand: "",
+    price: "",
+    size: "",
+    category: "",
+    gender: "",
+    concentration: "",
+    description: "",
+    fragrance_notes: "",
+    stock_quantity: "",
+    in_stock: true,
+    featured: false,
+    is_preorder: false,
+    preorder_message: "",
+    preorder_release_date: "",
+  };
+}
+
+function createRows(count = 10) {
+  return Array.from({ length: count }, () => createBlankRow());
 }
 
 function normalizeHeader(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[\s-]+/g, "_");
+    .replace(/[\s\-]+/g, "_")
+    .replace(/[^\w]/g, "");
 }
 
-function csvToRows(text) {
-  const rows = [];
-  let row = [];
-  let cell = "";
+function parseCSVLine(line) {
+  const values = [];
+  let current = "";
   let insideQuotes = false;
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const next = text[i + 1];
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
 
     if (char === '"' && insideQuotes && next === '"') {
-      cell += '"';
-      i++;
+      current += '"';
+      i += 1;
       continue;
     }
 
@@ -59,472 +153,1197 @@ function csvToRows(text) {
     }
 
     if (char === "," && !insideQuotes) {
-      row.push(cell);
-      cell = "";
+      values.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+
+  return values;
+}
+
+function parseCSV(text) {
+  const lines = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"' && insideQuotes && next === '"') {
+      current += '""';
+      i += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      insideQuotes = !insideQuotes;
+      current += char;
       continue;
     }
 
     if ((char === "\n" || char === "\r") && !insideQuotes) {
       if (char === "\r" && next === "\n") {
-        i++;
+        i += 1;
       }
 
-      row.push(cell);
-      cell = "";
-
-      if (row.some((value) => value.trim() !== "")) {
-        rows.push(row);
-      }
-
-      row = [];
+      lines.push(current);
+      current = "";
       continue;
     }
 
-    cell += char;
+    current += char;
   }
 
-  if (cell !== "" || row.length) {
-    row.push(cell);
-
-    if (row.some((value) => value.trim() !== "")) {
-      rows.push(row);
-    }
+  if (current.length > 0) {
+    lines.push(current);
   }
 
-  return rows;
+  return lines
+    .filter((line) => line.trim() !== "")
+    .map(parseCSVLine);
 }
 
-function parseCSV(text) {
-  const rows = csvToRows(text);
+function csvEscape(value) {
+  const stringValue = String(value ?? "");
 
-  if (!rows.length) {
-    return [];
+  if (
+    stringValue.includes(",") ||
+    stringValue.includes('"') ||
+    stringValue.includes("\n")
+  ) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
   }
 
-  const headers = rows[0].map(normalizeHeader);
-
-  return rows.slice(1).map((values) => {
-    const object = {};
-
-    headers.forEach((header, index) => {
-      object[header] = values[index] ?? "";
-    });
-
-    return object;
-  });
+  return stringValue;
 }
 
-function getExtension(filename) {
-  return filename.split(".").pop()?.toLowerCase() || "";
+function booleanFromValue(value, fallback = false) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) return fallback;
+
+  return [
+    "true",
+    "1",
+    "yes",
+    "y",
+    "on",
+    "checked",
+    "x",
+  ].includes(normalized);
+}
+
+function safeFileName(name) {
+  return String(name || "file")
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .trim();
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 export default function BulkImportPage() {
-  const [products, setProducts] = useState([]);
-  const [images, setImages] = useState([]);
-  const [csvFile, setCsvFile] = useState(null);
+  const [rows, setRows] = useState(() => createRows(10));
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [imageLibrary, setImageLibrary] = useState([]);
   const [zipFile, setZipFile] = useState(null);
 
-  const [draggingImages, setDraggingImages] = useState(false);
-  const [draggingData, setDraggingData] = useState(false);
+  const [search, setSearch] = useState("");
+  const [showAssets, setShowAssets] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
-
   const [progress, setProgress] = useState(0);
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const [activeTab, setActiveTab] = useState("products");
-  const [showPreview, setShowPreview] = useState(false);
+  const [draggingImages, setDraggingImages] = useState(false);
+  const [draggingZip, setDraggingZip] = useState(false);
+
+  const [activeCell, setActiveCell] = useState(null);
 
   const imageInputRef = useRef(null);
-  const csvInputRef = useRef(null);
   const zipInputRef = useRef(null);
+  const csvInputRef = useRef(null);
+  const singleImageInputRef = useRef(null);
 
-  const validProducts = useMemo(
-    () => products.filter((product) => product.name.trim()),
-    [products]
+  const cellRefs = useRef({});
+  const pendingImageRow = useRef(null);
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return rows;
+    }
+
+    return rows.filter((row) =>
+      [
+        row.name,
+        row.brand,
+        row.category,
+        row.gender,
+        row.concentration,
+        row.description,
+        row.fragrance_notes,
+        row.imageName,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [rows, search]);
+
+  const populatedRows = useMemo(
+    () => rows.filter((row) => row.name.trim()),
+    [rows]
   );
 
-  function addProduct() {
-    setProducts((current) => [
-      ...current,
-      {
-        ...emptyProduct,
-        id: makeId(),
-      },
-    ]);
-  }
+  const validationErrors = useMemo(() => {
+    const errors = {};
 
-  function removeProduct(id) {
-    setProducts((current) =>
-      current.filter((product) => product.id !== id)
-    );
-  }
+    rows.forEach((row) => {
+      if (!row.name.trim()) {
+        return;
+      }
 
-  function updateProduct(id, field, value) {
-    setProducts((current) =>
-      current.map((product) =>
-        product.id === id
+      const rowErrors = [];
+
+      if (!row.price || Number.isNaN(Number(row.price))) {
+        rowErrors.push("Price is required");
+      }
+
+      if (
+        row.stock_quantity !== "" &&
+        Number.isNaN(Number(row.stock_quantity))
+      ) {
+        rowErrors.push("Stock must be a number");
+      }
+
+      errors[row.id] = rowErrors;
+    });
+
+    return errors;
+  }, [rows]);
+
+  const invalidRows = useMemo(
+    () =>
+      populatedRows.filter(
+        (row) => validationErrors[row.id]?.length > 0
+      ).length,
+    [populatedRows, validationErrors]
+  );
+
+  const allVisibleSelected =
+    visibleRows.length > 0 &&
+    visibleRows.every((row) => selectedRows.includes(row.id));
+
+  useEffect(() => {
+    return () => {
+      imageLibrary.forEach((item) => {
+        if (item.url) {
+          URL.revokeObjectURL(item.url);
+        }
+      });
+
+      rows.forEach((row) => {
+        if (row.imageUrl && row.imageFile) {
+          URL.revokeObjectURL(row.imageUrl);
+        }
+      });
+    };
+  }, []);
+
+  function updateCell(rowId, key, value) {
+    setRows((current) =>
+      current.map((row) =>
+        row.id === rowId
           ? {
-              ...product,
-              [field]: value,
+              ...row,
+              [key]: value,
             }
-          : product
+          : row
       )
     );
+  }
+
+  function addRows(count = 1) {
+    setRows((current) => [...current, ...createRows(count)]);
+  }
+
+  function deleteRow(rowId) {
+    setRows((current) => {
+      const row = current.find((item) => item.id === rowId);
+
+      if (row?.imageUrl && row.imageFile) {
+        URL.revokeObjectURL(row.imageUrl);
+      }
+
+      return current.filter((item) => item.id !== rowId);
+    });
+
+    setSelectedRows((current) =>
+      current.filter((id) => id !== rowId)
+    );
+  }
+
+  function duplicateRow(rowId) {
+    setRows((current) => {
+      const index = current.findIndex((row) => row.id === rowId);
+
+      if (index === -1) {
+        return current;
+      }
+
+      const original = current[index];
+
+      const copy = {
+        ...original,
+        id: makeId(),
+        imageFile: original.imageFile,
+        imageUrl: original.imageUrl,
+      };
+
+      const next = [...current];
+      next.splice(index + 1, 0, copy);
+
+      return next;
+    });
+  }
+
+  function clearEmptyRows() {
+    setRows((current) => current.filter((row) => row.name.trim()));
+    setSelectedRows([]);
   }
 
   function clearAll() {
-    if (!window.confirm("Clear all imported products and images?")) {
-      return;
-    }
-
-    setProducts([]);
-    setImages([]);
-    setCsvFile(null);
-    setZipFile(null);
-    setMessage("");
-    setError("");
-    setProgress(0);
-  }
-
-  function validateFiles(files) {
-    const valid = [];
-
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        setError(
-          `${file.name} is larger than the 50MB limit.`
-        );
-        continue;
-      }
-
-      valid.push(file);
-    }
-
-    return valid;
-  }
-
-  function handleImages(files) {
-    const selected = validateFiles(
-      Array.from(files || []).filter((file) =>
-        file.type.startsWith("image/")
-      )
+    const confirmed = window.confirm(
+      "Clear the entire spreadsheet? This cannot be undone."
     );
 
-    if (!selected.length) {
+    if (!confirmed) return;
+
+    setRows(createRows(10));
+    setSelectedRows([]);
+    setMessage("");
+    setError("");
+    setSearch("");
+  }
+
+  function toggleRowSelection(rowId) {
+    setSelectedRows((current) =>
+      current.includes(rowId)
+        ? current.filter((id) => id !== rowId)
+        : [...current, rowId]
+    );
+  }
+
+  function toggleSelectAll() {
+    if (allVisibleSelected) {
+      setSelectedRows((current) =>
+        current.filter(
+          (id) => !visibleRows.some((row) => row.id === id)
+        )
+      );
       return;
     }
 
-    const newImages = selected.map((file) => ({
+    setSelectedRows((current) => [
+      ...new Set([
+        ...current,
+        ...visibleRows.map((row) => row.id),
+      ]),
+    ]);
+  }
+
+  function deleteSelectedRows() {
+    if (!selectedRows.length) return;
+
+    const confirmed = window.confirm(
+      `Delete ${selectedRows.length} selected row${
+        selectedRows.length === 1 ? "" : "s"
+      }?`
+    );
+
+    if (!confirmed) return;
+
+    setRows((current) =>
+      current.filter((row) => !selectedRows.includes(row.id))
+    );
+
+    setSelectedRows([]);
+  }
+
+  function focusCell(rowId, columnKey) {
+    const element = cellRefs.current[`${rowId}:${columnKey}`];
+
+    if (element) {
+      element.focus();
+
+      if (
+        typeof element.select === "function" &&
+        element.tagName !== "TEXTAREA"
+      ) {
+        element.select();
+      }
+    }
+  }
+
+  function handleCellKeyDown(event, rowIndex, columnIndex, row, column) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+
+      const nextRow = rows[rowIndex + 1];
+
+      if (nextRow) {
+        focusCell(nextRow.id, column.key);
+      } else {
+        addRows(1);
+
+        setTimeout(() => {
+          const latestRow = rows[rowIndex];
+
+          if (latestRow) {
+            const newRowId = null;
+
+            setRows((current) => {
+              const created = current[current.length - 1];
+
+              if (created) {
+                setTimeout(() => {
+                  focusCell(created.id, column.key);
+                }, 20);
+              }
+
+              return current;
+            });
+
+            void newRowId;
+          }
+        }, 20);
+      }
+
+      return;
+    }
+
+    if (event.key === "ArrowDown" && !event.shiftKey) {
+      const nextRow = rows[rowIndex + 1];
+
+      if (nextRow) {
+        event.preventDefault();
+        focusCell(nextRow.id, column.key);
+      }
+
+      return;
+    }
+
+    if (event.key === "ArrowUp" && !event.shiftKey) {
+      const previousRow = rows[rowIndex - 1];
+
+      if (previousRow) {
+        event.preventDefault();
+        focusCell(previousRow.id, column.key);
+      }
+
+      return;
+    }
+
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      columnIndex === COLUMNS.length - 1 &&
+      rowIndex === rows.length - 1
+    ) {
+      event.preventDefault();
+
+      addRows(1);
+
+      setTimeout(() => {
+        setRows((current) => {
+          const newRow = current[current.length - 1];
+
+          if (newRow) {
+            setTimeout(() => {
+              focusCell(newRow.id, COLUMNS[0].key);
+            }, 20);
+          }
+
+          return current;
+        });
+      }, 20);
+    }
+  }
+
+  function parsePastedTable(text) {
+    return text
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => line.split("\t"));
+  }
+
+  function convertPastedValue(column, value) {
+    if (column.type === "boolean") {
+      return booleanFromValue(value);
+    }
+
+    return value;
+  }
+
+  function handleCellPaste(event, rowIndex, columnIndex) {
+    const text = event.clipboardData.getData("text/plain");
+
+    if (!text) return;
+
+    const hasTableStructure =
+      text.includes("\t") || text.includes("\n");
+
+    if (!hasTableStructure) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const matrix = parsePastedTable(text);
+
+    if (!matrix.length) return;
+
+    setRows((current) => {
+      const updated = [...current];
+
+      while (
+        updated.length <
+        rowIndex + matrix.length
+      ) {
+        updated.push(createBlankRow());
+      }
+
+      matrix.forEach((pasteRow, pastedRowIndex) => {
+        const targetIndex = rowIndex + pastedRowIndex;
+
+        pasteRow.forEach((value, pastedColumnIndex) => {
+          const targetColumnIndex =
+            columnIndex + pastedColumnIndex;
+
+          if (targetColumnIndex >= COLUMNS.length) {
+            return;
+          }
+
+          const column = COLUMNS[targetColumnIndex];
+
+          if (column.type === "image") {
+            updated[targetIndex].imageName =
+              String(value || "").trim();
+
+            return;
+          }
+
+          updated[targetIndex][column.key] =
+            convertPastedValue(column, value);
+        });
+      });
+
+      return updated;
+    });
+
+    setMessage(
+      `Pasted ${matrix.length} row${
+        matrix.length === 1 ? "" : "s"
+      } into the spreadsheet.`
+    );
+  }
+
+  function validateImageFile(file) {
+    if (!file) {
+      return false;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError(`${file.name} is not an image file.`);
+      return false;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`${file.name} is larger than 20MB.`);
+      return false;
+    }
+
+    return true;
+  }
+
+  function assignImageToRow(rowId, file) {
+    if (!validateImageFile(file)) return;
+
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== rowId) {
+          return row;
+        }
+
+        if (row.imageUrl && row.imageFile) {
+          URL.revokeObjectURL(row.imageUrl);
+        }
+
+        return {
+          ...row,
+          imageFile: file,
+          imageUrl: URL.createObjectURL(file),
+          imageName: file.name,
+        };
+      })
+    );
+
+    setError("");
+  }
+
+  function handleSingleImageSelect(event) {
+    const file = event.target.files?.[0];
+    const rowId = pendingImageRow.current;
+
+    if (file && rowId) {
+      assignImageToRow(rowId, file);
+    }
+
+    event.target.value = "";
+    pendingImageRow.current = null;
+  }
+
+  function openImagePicker(rowId) {
+    pendingImageRow.current = rowId;
+    singleImageInputRef.current?.click();
+  }
+
+  function handleImageFiles(files) {
+    const validFiles = Array.from(files || []).filter(
+      validateImageFile
+    );
+
+    if (!validFiles.length) {
+      return;
+    }
+
+    const newImages = validFiles.map((file) => ({
       id: makeId(),
       file,
       name: file.name,
       url: URL.createObjectURL(file),
     }));
 
-    setImages((current) => [...current, ...newImages]);
-    setMessage(`${selected.length} image(s) added.`);
+    setImageLibrary((current) => [
+      ...current,
+      ...newImages,
+    ]);
+
     setError("");
-  }
-
-  function removeImage(id) {
-    setImages((current) => {
-      const image = current.find((item) => item.id === id);
-
-      if (image?.url) {
-        URL.revokeObjectURL(image.url);
-      }
-
-      return current.filter((item) => item.id !== id);
-    });
-  }
-
-  async function handleCSV(file) {
-    if (!file) {
-      return;
-    }
-
-    if (getExtension(file.name) !== "csv") {
-      setError("Please select a CSV file.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-      setMessage("");
-
-      const text = await file.text();
-      const rows = parseCSV(text);
-
-      if (!rows.length) {
-        throw new Error("The CSV file contains no products.");
-      }
-
-      const imported = rows.map((row) => ({
-        ...emptyProduct,
-
-        id: makeId(),
-
-        name: row.name || "",
-        brand: row.brand || "",
-        price: row.price || "",
-        size: row.size || "",
-        category:
-          row.category ||
-          row.category_name ||
-          "",
-        gender: row.gender || "",
-        concentration: row.concentration || "",
-        description: row.description || "",
-        fragrance_notes:
-          row.fragrance_notes ||
-          row.fragrance_note ||
-          row.notes ||
-          "",
-        stock_quantity:
-          row.stock_quantity ||
-          row.stock ||
-          row.quantity ||
-          "",
-
-        featured:
-          String(row.featured || "").toLowerCase() === "true" ||
-          String(row.featured || "") === "1",
-
-        is_preorder:
-          String(row.is_preorder || "").toLowerCase() === "true" ||
-          String(row.is_preorder || "") === "1",
-
-        preorder_message:
-          row.preorder_message || "",
-
-        preorder_release_date:
-          row.preorder_release_date || "",
-
-        csv_image:
-          row.image ||
-          row.image_name ||
-          row.image_filename ||
-          "",
-      }));
-
-      setProducts(imported);
-      setCsvFile(file);
-
-      setMessage(
-        `${imported.length} product(s) loaded from ${file.name}.`
-      );
-    } catch (err) {
-      setError(
-        err?.message ||
-          "Unable to read the CSV file."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleDataDrop(event) {
-    event.preventDefault();
-    setDraggingData(false);
-
-    const files = Array.from(event.dataTransfer.files || []);
-
-    const csv = files.find(
-      (file) => getExtension(file.name) === "csv"
+    setMessage(
+      `${validFiles.length} image${
+        validFiles.length === 1 ? "" : "s"
+      } added to the image library.`
     );
+  }
 
-    const zip = files.find(
-      (file) => getExtension(file.name) === "zip"
-    );
-
-    if (csv) {
-      handleCSV(csv);
-    }
-
-    if (zip) {
-      setZipFile(zip);
-      setMessage(`ZIP selected: ${zip.name}`);
-      setError("");
-    }
+  function handleImageInput(event) {
+    handleImageFiles(event.target.files);
+    event.target.value = "";
   }
 
   function handleImageDrop(event) {
     event.preventDefault();
     setDraggingImages(false);
 
-    handleImages(event.dataTransfer.files);
+    handleImageFiles(event.dataTransfer.files);
   }
 
-  function matchImage(product) {
-    if (!product.csv_image) {
-      return null;
+  function handleImageCellDrop(event, rowId) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const files = Array.from(event.dataTransfer.files || []);
+
+    const image = files.find((file) =>
+      file.type.startsWith("image/")
+    );
+
+    if (image) {
+      assignImageToRow(rowId, image);
     }
-
-    const wanted = product.csv_image
-      .trim()
-      .toLowerCase();
-
-    return (
-      images.find(
-        (image) =>
-          image.name.toLowerCase() === wanted
-      ) ||
-      images.find(
-        (image) =>
-          image.name
-            .toLowerCase()
-            .includes(wanted)
-      ) ||
-      null
-    );
   }
 
-  function assignMatchedImages() {
-    setProducts((current) =>
-      current.map((product) => {
-        const match = matchImage(product);
+  function removeLibraryImage(imageId) {
+    setImageLibrary((current) => {
+      const item = current.find((image) => image.id === imageId);
 
-        return match
-          ? {
-              ...product,
-              image: match.file,
-            }
-          : product;
-      })
-    );
+      if (item?.url) {
+        URL.revokeObjectURL(item.url);
+      }
 
-    setMessage("Matching images assigned to products.");
-  }
-
-  function downloadTemplate() {
-    const headers = [
-      "name",
-      "brand",
-      "price",
-      "size",
-      "category",
-      "gender",
-      "concentration",
-      "description",
-      "fragrance_notes",
-      "stock_quantity",
-      "featured",
-      "is_preorder",
-      "preorder_message",
-      "preorder_release_date",
-      "image",
-    ];
-
-    const example = [
-      "Vintage Radio",
-      "Lattafa",
-      "30000",
-      "100ML",
-      "Perfume",
-      "Unisex",
-      "Eau de Parfum",
-      "Product description",
-      "Top: Citrus; Heart: Floral; Base: Musk",
-      "20",
-      "false",
-      "false",
-      "",
-      "",
-      "vintage-radio.jpg",
-    ];
-
-    const csv =
-      headers.join(",") +
-      "\n" +
-      example
-        .map((value) => {
-          const stringValue = String(value);
-
-          if (
-            stringValue.includes(",") ||
-            stringValue.includes('"')
-          ) {
-            return `"${stringValue.replaceAll('"', '""')}"`;
-          }
-
-          return stringValue;
-        })
-        .join(",");
-
-    const blob = new Blob([csv], {
-      type: "text/csv;charset=utf-8;",
+      return current.filter((image) => image.id !== imageId);
     });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = "product-import-template.csv";
-    link.click();
-
-    URL.revokeObjectURL(url);
   }
 
-  async function importProducts() {
-    if (!validProducts.length) {
-      setError(
-        "Add at least one product with a product name."
-      );
+  function matchImagesToRows() {
+    if (!imageLibrary.length) {
+      setError("Upload images first.");
       return;
     }
 
-    setImporting(true);
-    setProgress(0);
+    let matched = 0;
+
+    setRows((current) =>
+      current.map((row) => {
+        const target = String(row.imageName || "")
+          .trim()
+          .toLowerCase();
+
+        if (!target) {
+          return row;
+        }
+
+        const found = imageLibrary.find((image) => {
+          const imageName = image.name
+            .trim()
+            .toLowerCase();
+
+          return (
+            imageName === target ||
+            imageName.split(".")[0] ===
+              target.split(".")[0]
+          );
+        });
+
+        if (!found) {
+          return row;
+        }
+
+        matched += 1;
+
+        return {
+          ...row,
+          imageFile: found.file,
+          imageUrl: found.url,
+          imageName: found.name,
+        };
+      })
+    );
+
+    setMessage(
+      matched
+        ? `Matched ${matched} image${
+            matched === 1 ? "" : "s"
+          } to products.`
+        : "No image filenames matched your Image column."
+    );
+  }
+
+  function removeRowImage(rowId) {
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== rowId) {
+          return row;
+        }
+
+        if (row.imageUrl && row.imageFile) {
+          URL.revokeObjectURL(row.imageUrl);
+        }
+
+        return {
+          ...row,
+          imageFile: null,
+          imageUrl: "",
+          imageName: "",
+        };
+      })
+    );
+  }
+
+  function validateZip(file) {
+    if (!file) return false;
+
+    const isZip =
+      file.type === "application/zip" ||
+      file.name.toLowerCase().endsWith(".zip");
+
+    if (!isZip) {
+      setError("Please select a ZIP file.");
+      return false;
+    }
+
+    if (file.size > 200 * 1024 * 1024) {
+      setError("ZIP file cannot be larger than 200MB.");
+      return false;
+    }
+
+    return true;
+  }
+
+  function handleZip(file) {
+    if (!validateZip(file)) {
+      return;
+    }
+
+    setZipFile(file);
+    setError("");
+    setMessage(`ZIP selected: ${file.name}`);
+  }
+
+  function handleZipInput(event) {
+    const file = event.target.files?.[0];
+
+    if (file) {
+      handleZip(file);
+    }
+
+    event.target.value = "";
+  }
+
+  function handleZipDrop(event) {
+    event.preventDefault();
+    setDraggingZip(false);
+
+    const file = event.dataTransfer.files?.[0];
+
+    if (file) {
+      handleZip(file);
+    }
+  }
+
+  async function handleCSVFile(file) {
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setError("Please upload a CSV file.");
+      return;
+    }
+
+    setLoading(true);
     setError("");
     setMessage("");
 
     try {
-      /*
-       * This endpoint should be connected to your Django
-       * bulk-import endpoint.
-       *
-       * The frontend is intentionally sending multipart/form-data
-       * so products and images can be handled together.
-       */
+      const text = await file.text();
+      const matrix = parseCSV(text);
 
+      if (!matrix.length) {
+        throw new Error("The CSV file is empty.");
+      }
+
+      const headers = matrix[0].map(normalizeHeader);
+
+      const headerMap = {};
+
+      headers.forEach((header, index) => {
+        headerMap[header] = index;
+      });
+
+      const importedRows = matrix
+        .slice(1)
+        .map((values) => {
+          const row = createBlankRow();
+
+          COLUMNS.forEach((column) => {
+            if (column.key === "image") {
+              const index =
+                headerMap.image ??
+                headerMap.image_name ??
+                headerMap.image_filename;
+
+              if (index !== undefined) {
+                row.imageName =
+                  String(values[index] || "").trim();
+              }
+
+              return;
+            }
+
+            const index = headerMap[column.key];
+
+            if (index === undefined) {
+              return;
+            }
+
+            const value = values[index] ?? "";
+
+            if (column.type === "boolean") {
+              row[column.key] = booleanFromValue(
+                value,
+                column.key === "in_stock"
+              );
+            } else {
+              row[column.key] = value;
+            }
+          });
+
+          return row;
+        })
+        .filter((row) => {
+          return (
+            row.name.trim() ||
+            row.brand.trim() ||
+            row.price !== ""
+          );
+        });
+
+      if (!importedRows.length) {
+        throw new Error(
+          "No product rows were found in this CSV."
+        );
+      }
+
+      setRows(importedRows);
+      setSelectedRows([]);
+      setMessage(
+        `Loaded ${importedRows.length} product${
+          importedRows.length === 1 ? "" : "s"
+        } from ${file.name}.`
+      );
+    } catch (err) {
+      setError(
+        err.message || "Could not read the CSV file."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleCSVInput(event) {
+    const file = event.target.files?.[0];
+
+    if (file) {
+      handleCSVFile(file);
+    }
+
+    event.target.value = "";
+  }
+
+  function handleCSVDrop(event) {
+    event.preventDefault();
+
+    const file = event.dataTransfer.files?.[0];
+
+    if (file) {
+      handleCSVFile(file);
+    }
+  }
+
+  function buildExportRows() {
+    return populatedRows.map((row) => ({
+      image: row.imageName || "",
+      name: row.name,
+      brand: row.brand,
+      price: row.price,
+      size: row.size,
+      category: row.category,
+      gender: row.gender,
+      concentration: row.concentration,
+      description: row.description,
+      fragrance_notes: row.fragrance_notes,
+      stock_quantity: row.stock_quantity,
+      in_stock: row.in_stock,
+      featured: row.featured,
+      is_preorder: row.is_preorder,
+      preorder_message: row.preorder_message,
+      preorder_release_date: row.preorder_release_date,
+    }));
+  }
+
+  function buildCSVContent() {
+    const exportRows = buildExportRows();
+
+    const lines = [
+      CSV_HEADERS.map(csvEscape).join(","),
+    ];
+
+    exportRows.forEach((row) => {
+      lines.push(
+        CSV_HEADERS.map((header) =>
+          csvEscape(row[header])
+        ).join(",")
+      );
+    });
+
+    return lines.join("\n");
+  }
+
+  function downloadCSV() {
+    if (!populatedRows.length) {
+      setError("Add at least one product before exporting.");
+      return;
+    }
+
+    const blob = new Blob([buildCSVContent()], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    downloadBlob(blob, "products-import.csv");
+
+    setMessage("CSV downloaded.");
+  }
+
+  async function downloadExcel() {
+    if (!populatedRows.length) {
+      setError("Add at least one product before exporting.");
+      return;
+    }
+
+    try {
+      const XLSX = await import("xlsx");
+
+      const worksheet = XLSX.utils.json_to_sheet(
+        buildExportRows(),
+        {
+          header: CSV_HEADERS,
+        }
+      );
+
+      worksheet["!cols"] = CSV_HEADERS.map((header) => ({
+        wch:
+          header === "description" ||
+          header === "fragrance_notes"
+            ? 35
+            : 18,
+      }));
+
+      const workbook = XLSX.utils.book_new();
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Products"
+      );
+
+      XLSX.writeFile(
+        workbook,
+        "products-import.xlsx"
+      );
+
+      setMessage("Excel file downloaded.");
+    } catch (err) {
+      setError(
+        "Excel export needs the xlsx package. Run: npm install xlsx"
+      );
+    }
+  }
+
+  async function downloadZIP() {
+    if (!populatedRows.length) {
+      setError("Add at least one product before exporting.");
+      return;
+    }
+
+    try {
+      const JSZip = (await import("jszip")).default;
+
+      const zip = new JSZip();
+
+      zip.file(
+        "products.csv",
+        buildCSVContent()
+      );
+
+      const exportData = buildExportRows();
+
+      try {
+        const XLSX = await import("xlsx");
+
+        const worksheet =
+          XLSX.utils.json_to_sheet(exportData, {
+            header: CSV_HEADERS,
+          });
+
+        const workbook = XLSX.utils.book_new();
+
+        XLSX.utils.book_append_sheet(
+          workbook,
+          worksheet,
+          "Products"
+        );
+
+        const excelBuffer = XLSX.write(workbook, {
+          bookType: "xlsx",
+          type: "array",
+        });
+
+        zip.file(
+          "products.xlsx",
+          excelBuffer
+        );
+      } catch {
+        // CSV will still be included if xlsx isn't installed.
+      }
+
+      const imagesFolder = zip.folder("images");
+
+      rows.forEach((row) => {
+        if (row.imageFile) {
+          imagesFolder.file(
+            safeFileName(row.imageFile.name),
+            row.imageFile
+          );
+        }
+      });
+
+      if (zipFile) {
+        zip.file(
+          `source-${safeFileName(zipFile.name)}`,
+          zipFile
+        );
+      }
+
+      const blob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: {
+          level: 6,
+        },
+      });
+
+      downloadBlob(
+        blob,
+        "bulk-product-import.zip"
+      );
+
+      setMessage(
+        "ZIP downloaded with CSV, Excel and product images."
+      );
+    } catch (err) {
+      setError(
+        "ZIP export needs the jszip package. Run: npm install jszip xlsx"
+      );
+    }
+  }
+
+  function downloadTemplate() {
+    const headers = CSV_HEADERS.join(",");
+
+    const example = [
+      "vintage-radio.jpg",
+      "VINTAGE RADIO",
+      "LATTAFA",
+      "30000",
+      "100ML",
+      "Perfume",
+      "Unisex",
+      "EDP",
+      "A beautiful fragrance",
+      "Top: Bergamot; Heart: Rose; Base: Musk",
+      "10",
+      "true",
+      "false",
+      "false",
+      "",
+      "",
+    ]
+      .map(csvEscape)
+      .join(",");
+
+    const blob = new Blob(
+      [`${headers}\n${example}\n`],
+      {
+        type: "text/csv;charset=utf-8;",
+      }
+    );
+
+    downloadBlob(
+      blob,
+      "bulk-product-template.csv"
+    );
+  }
+
+  async function importProducts() {
+    setError("");
+    setMessage("");
+
+    if (!populatedRows.length) {
+      setError("Add at least one product first.");
+      return;
+    }
+
+    if (invalidRows > 0) {
+      setError(
+        `Fix the ${invalidRows} invalid row${
+          invalidRows === 1 ? "" : "s"
+        } before importing.`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Import ${populatedRows.length} product${
+        populatedRows.length === 1 ? "" : "s"
+      } into your store?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setImporting(true);
+    setProgress(10);
+
+    try {
       const formData = new FormData();
+
+      const payload = populatedRows.map((row) => ({
+        name: row.name.trim(),
+        brand: row.brand.trim(),
+        price: row.price,
+        size: row.size.trim(),
+        category: row.category.trim(),
+        gender: row.gender.trim(),
+        concentration: row.concentration.trim(),
+        description: row.description.trim(),
+        fragrance_notes: row.fragrance_notes.trim(),
+        stock_quantity:
+          row.stock_quantity === ""
+            ? 0
+            : Number(row.stock_quantity),
+        in_stock: Boolean(row.in_stock),
+        featured: Boolean(row.featured),
+        is_preorder: Boolean(row.is_preorder),
+        preorder_message:
+          row.preorder_message.trim(),
+        preorder_release_date:
+          row.preorder_release_date || null,
+        image: row.imageName || "",
+      }));
 
       formData.append(
         "products",
-        JSON.stringify(
-          validProducts.map((product) => ({
-            name: product.name,
-            brand: product.brand,
-            price: product.price,
-            size: product.size,
-            category: product.category,
-            gender: product.gender,
-            concentration: product.concentration,
-            description: product.description,
-            fragrance_notes:
-              product.fragrance_notes,
-            stock_quantity:
-              product.stock_quantity,
-            featured: product.featured,
-            is_preorder:
-              product.is_preorder,
-            preorder_message:
-              product.preorder_message,
-            preorder_release_date:
-              product.preorder_release_date,
-          }))
-        )
+        JSON.stringify(payload)
       );
 
-      images.forEach((image) => {
+      const imageRows = populatedRows.filter(
+        (row) => row.imageFile
+      );
+
+      imageRows.forEach((row) => {
         formData.append(
           "images",
-          image.file,
-          image.name
+          row.imageFile,
+          row.imageFile.name
         );
       });
 
@@ -536,10 +1355,8 @@ export default function BulkImportPage() {
         );
       }
 
-      /*
-       * Change this URL if your Django endpoint uses
-       * another route.
-       */
+      setProgress(30);
+
       const response = await fetch(
         `${API_URL}/products/bulk-import/`,
         {
@@ -549,9 +1366,15 @@ export default function BulkImportPage() {
         }
       );
 
-      setProgress(70);
+      setProgress(80);
 
-      const data = await response.json().catch(() => null);
+      let data = null;
+
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -565,739 +1388,1007 @@ export default function BulkImportPage() {
 
       setMessage(
         data?.message ||
-          `${validProducts.length} product(s) imported successfully.`
+          `Successfully imported ${populatedRows.length} product${
+            populatedRows.length === 1 ? "" : "s"
+          }.`
       );
     } catch (err) {
       setError(
-        err?.message ||
-          "Something went wrong during the import."
+        err.message ||
+          "Something went wrong while importing."
       );
+      setProgress(0);
     } finally {
       setImporting(false);
     }
   }
 
+  function renderImageCell(row) {
+    return (
+      <div
+        className="relative flex h-[68px] w-full items-center justify-center"
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onDrop={(event) =>
+          handleImageCellDrop(event, row.id)
+        }
+      >
+        {row.imageUrl ? (
+          <div className="group relative">
+            <img
+              src={row.imageUrl}
+              alt={row.name || "Product"}
+              className="h-12 w-12 rounded-lg border border-black/10 object-cover"
+            />
+
+            <button
+              type="button"
+              onClick={() => removeRowImage(row.id)}
+              className="absolute -right-2 -top-2 hidden h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] text-white group-hover:flex"
+              title="Remove image"
+            >
+              ×
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => openImagePicker(row.id)}
+            className="flex h-12 w-full max-w-[96px] flex-col items-center justify-center rounded-lg border border-dashed border-black/20 bg-[#faf8f4] text-[10px] text-black/45 transition hover:border-black/50 hover:text-black"
+          >
+            <span className="text-lg">＋</span>
+            <span>Drop / Add</span>
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  function renderCell(row, rowIndex, columnIndex, column) {
+    if (column.type === "image") {
+      return renderImageCell(row);
+    }
+
+    if (column.type === "boolean") {
+      return (
+        <div className="flex h-[68px] items-center justify-center">
+          <button
+            type="button"
+            onClick={() =>
+              updateCell(
+                row.id,
+                column.key,
+                !row[column.key]
+              )
+            }
+            className={`relative h-6 w-11 rounded-full transition ${
+              row[column.key]
+                ? "bg-black"
+                : "bg-black/15"
+            }`}
+            title={
+              row[column.key]
+                ? "Enabled"
+                : "Disabled"
+            }
+          >
+            <span
+              className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition ${
+                row[column.key]
+                  ? "left-6"
+                  : "left-1"
+              }`}
+            />
+          </button>
+        </div>
+      );
+    }
+
+    const commonProps = {
+      ref: (element) => {
+        if (element) {
+          cellRefs.current[
+            `${row.id}:${column.key}`
+          ] = element;
+        }
+      },
+      value: row[column.key] ?? "",
+      onChange: (event) =>
+        updateCell(
+          row.id,
+          column.key,
+          event.target.value
+        ),
+      onFocus: () =>
+        setActiveCell(
+          `${row.id}:${column.key}`
+        ),
+      onPaste: (event) =>
+        handleCellPaste(
+          event,
+          rowIndex,
+          columnIndex
+        ),
+      onKeyDown: (event) =>
+        handleCellKeyDown(
+          event,
+          rowIndex,
+          columnIndex,
+          row,
+          column
+        ),
+      className:
+        "h-[66px] w-full resize-none border-0 bg-transparent px-3 py-2 text-[13px] text-black outline-none placeholder:text-black/25 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-black/10",
+      placeholder: column.required
+        ? "Required"
+        : "",
+    };
+
+    if (column.type === "textarea") {
+      return <textarea {...commonProps} />;
+    }
+
+    return (
+      <input
+        {...commonProps}
+        type={
+          column.type === "number"
+            ? "number"
+            : column.type === "date"
+            ? "date"
+            : "text"
+        }
+        min={
+          column.type === "number"
+            ? column.key === "price"
+              ? "0"
+              : "0"
+            : undefined
+        }
+        step={
+          column.key === "price"
+            ? "0.01"
+            : undefined
+        }
+      />
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-[#f7f3ed] px-4 py-6 text-[#171512] md:px-8 lg:px-10">
-      <div className="mx-auto max-w-[1600px]">
-        {/* HEADER */}
-        <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+    <div className="min-h-screen bg-[#f7f3ed] text-black">
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleImageInput}
+      />
+
+      <input
+        ref={singleImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleSingleImageSelect}
+      />
+
+      <input
+        ref={zipInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        className="hidden"
+        onChange={handleZipInput}
+      />
+
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={handleCSVInput}
+      />
+
+      <div className="mx-auto max-w-[1900px] px-4 py-6 md:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
-              Admin / Products
+            <div className="mb-2 flex items-center gap-2">
+              <span className="rounded-full bg-black px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+                Admin
+              </span>
+
+              <span className="text-xs text-black/40">
+                Products / Bulk Import
+              </span>
             </div>
 
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
               Bulk Product Importer
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-600">
-              Add products manually, upload a CSV, drag and
-              drop images, or prepare a complete product
-              batch before sending it to your backend.
+            <p className="mt-1 max-w-2xl text-sm text-black/50">
+              Add products row by row like Excel, paste
+              directly from spreadsheets, attach images, and
+              import everything in one go.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
+              onClick={() => setShowHelp((value) => !value)}
+              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
+            >
+              {showHelp ? "Hide Help" : "How it works"}
+            </button>
+
+            <button
+              type="button"
               onClick={downloadTemplate}
-              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-medium transition hover:bg-black hover:text-white"
+              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
             >
-              Download CSV Template
+              CSV Template
             </button>
 
             <button
               type="button"
-              onClick={clearAll}
-              className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
+              onClick={downloadCSV}
+              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
             >
-              Clear
+              ↓ CSV
             </button>
-          </div>
-        </div>
 
-        {/* STATUS */}
-        {(message || error) && (
-          <div
-            className={`mb-6 rounded-2xl border px-4 py-4 text-sm ${
-              error
-                ? "border-red-200 bg-red-50 text-red-700"
-                : "border-emerald-200 bg-emerald-50 text-emerald-700"
-            }`}
-          >
-            {error || message}
-          </div>
-        )}
-
-        {/* TABS */}
-        <div className="mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-black/10 bg-white p-2">
-          {[
-            ["products", "Products"],
-            ["images", "Images"],
-            ["preview", "Preview"],
-          ].map(([value, label]) => (
             <button
-              key={value}
               type="button"
-              onClick={() => setActiveTab(value)}
-              className={`rounded-xl px-5 py-2.5 text-sm font-medium whitespace-nowrap transition ${
-                activeTab === value
-                  ? "bg-black text-white"
-                  : "text-neutral-600 hover:bg-neutral-100"
-              }`}
+              onClick={downloadExcel}
+              className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
             >
-              {label}
-
-              {value === "products" &&
-                ` (${products.length})`}
-
-              {value === "images" &&
-                ` (${images.length})`}
+              ↓ Excel
             </button>
-          ))}
+
+            <button
+              type="button"
+              onClick={downloadZIP}
+              className="rounded-xl bg-black px-4 py-2.5 text-xs font-medium text-white transition hover:bg-black/80"
+            >
+              ↓ Download ZIP
+            </button>
+          </div>
         </div>
 
-        {/* IMPORT AREA */}
-        {activeTab === "products" && (
-          <>
-            <div className="mb-6 grid gap-5 lg:grid-cols-2">
-              {/* CSV / ZIP */}
-              <div
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDraggingData(true);
-                }}
-                onDragLeave={() =>
-                  setDraggingData(false)
-                }
-                onDrop={handleDataDrop}
-                className={`rounded-3xl border-2 border-dashed p-8 transition ${
-                  draggingData
-                    ? "border-black bg-white"
-                    : "border-black/10 bg-white"
-                }`}
-              >
-                <div className="mb-4 text-3xl">
-                  📦
-                </div>
-
-                <h2 className="text-lg font-semibold">
-                  Drop CSV or ZIP
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-neutral-500">
-                  Drop your product spreadsheet or ZIP
-                  package here.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      csvInputRef.current?.click()
-                    }
-                    className="rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white"
-                  >
-                    Choose CSV
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      zipInputRef.current?.click()
-                    }
-                    className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium"
-                  >
-                    Choose ZIP
-                  </button>
-                </div>
-
-                {csvFile && (
-                  <div className="mt-5 rounded-xl bg-neutral-50 p-3 text-sm">
-                    <strong>CSV:</strong>{" "}
-                    {csvFile.name}
-                  </div>
-                )}
-
-                {zipFile && (
-                  <div className="mt-2 rounded-xl bg-neutral-50 p-3 text-sm">
-                    <strong>ZIP:</strong>{" "}
-                    {zipFile.name}
-                  </div>
-                )}
-
-                <input
-                  ref={csvInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  className="hidden"
-                  onChange={(event) =>
-                    handleCSV(
-                      event.target.files?.[0]
-                    )
-                  }
-                />
-
-                <input
-                  ref={zipInputRef}
-                  type="file"
-                  accept=".zip,application/zip"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file =
-                      event.target.files?.[0];
-
-                    if (file) {
-                      setZipFile(file);
-                      setMessage(
-                        `ZIP selected: ${file.name}`
-                      );
-                      setError("");
-                    }
-                  }}
-                />
-              </div>
-
-              {/* IMAGE DROP */}
-              <div
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDraggingImages(true);
-                }}
-                onDragLeave={() =>
-                  setDraggingImages(false)
-                }
-                onDrop={handleImageDrop}
-                className={`rounded-3xl border-2 border-dashed p-8 transition ${
-                  draggingImages
-                    ? "border-black bg-white"
-                    : "border-black/10 bg-white"
-                }`}
-              >
-                <div className="mb-4 text-3xl">
-                  🖼️
-                </div>
-
-                <h2 className="text-lg font-semibold">
-                  Drag & Drop Product Images
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-neutral-500">
-                  Drop JPG, PNG, WEBP or other supported
-                  image files here.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    imageInputRef.current?.click()
-                  }
-                  className="mt-5 rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white"
-                >
-                  Choose Images
-                </button>
-
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) =>
-                    handleImages(
-                      event.target.files
-                    )
-                  }
-                />
-
-                <div className="mt-5 text-sm text-neutral-500">
-                  {images.length} image(s) loaded
-                </div>
-              </div>
-            </div>
-
-            {/* ACTION BAR */}
-            <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-black/10 bg-white p-4 md:flex-row md:items-center md:justify-between">
+        {/* Help */}
+        {showHelp && (
+          <div className="mb-5 rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
               <div>
-                <div className="font-semibold">
-                  {products.length} product(s)
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider">
+                  01 — Spreadsheet
                 </div>
-
-                <div className="text-sm text-neutral-500">
-                  {validProducts.length} ready for import
-                </div>
+                <p className="text-xs leading-5 text-black/55">
+                  Click any cell and type. Press Enter to
+                  move down. Tab moves across like Excel.
+                </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={addProduct}
-                  className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium hover:bg-neutral-50"
-                >
-                  + Add Product
-                </button>
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider">
+                  02 — Paste
+                </div>
+                <p className="text-xs leading-5 text-black/55">
+                  Copy rows from Excel or Google Sheets and
+                  paste them directly into any cell.
+                </p>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={assignMatchedImages}
-                  disabled={!images.length}
-                  className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Match Images
-                </button>
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider">
+                  03 — Images
+                </div>
+                <p className="text-xs leading-5 text-black/55">
+                  Drag an image into the Image column or upload
+                  many images into the image library.
+                </p>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setActiveTab("preview")
-                  }
-                  disabled={!products.length}
-                  className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium disabled:opacity-40"
-                >
-                  Preview
-                </button>
-
-                <button
-                  type="button"
-                  onClick={importProducts}
-                  disabled={
-                    importing ||
-                    !validProducts.length
-                  }
-                  className="rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {importing
-                    ? "Importing..."
-                    : "Import Products"}
-                </button>
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wider">
+                  04 — Export
+                </div>
+                <p className="text-xs leading-5 text-black/55">
+                  Download CSV, Excel, or a ZIP containing your
+                  spreadsheet and product images.
+                </p>
               </div>
             </div>
-
-            {/* PROGRESS */}
-            {importing && (
-              <div className="mb-5 rounded-2xl border border-black/10 bg-white p-4">
-                <div className="mb-2 flex justify-between text-sm">
-                  <span>Importing products...</span>
-                  <span>{progress}%</span>
-                </div>
-
-                <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
-                  <div
-                    className="h-full rounded-full bg-black transition-all"
-                    style={{
-                      width: `${progress}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* PRODUCT LIST */}
-            <div className="space-y-4">
-              {!products.length && (
-                <div className="rounded-3xl border border-black/10 bg-white px-6 py-16 text-center">
-                  <div className="text-4xl">📦</div>
-
-                  <h2 className="mt-4 text-lg font-semibold">
-                    No products yet
-                  </h2>
-
-                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-neutral-500">
-                    Upload a CSV, drag products into the
-                    importer, or add products manually.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={addProduct}
-                    className="mt-6 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white"
-                  >
-                    Add Your First Product
-                  </button>
-                </div>
-              )}
-
-              {products.map((product, index) => (
-                <div
-                  key={product.id}
-                  className="rounded-3xl border border-black/10 bg-white p-5"
-                >
-                  <div className="mb-5 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">
-                        Product {index + 1}
-                      </div>
-
-                      <div className="mt-1 font-semibold">
-                        {product.name ||
-                          "Untitled Product"}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        removeProduct(product.id)
-                      }
-                      className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {[
-                      ["name", "Product Name"],
-                      ["brand", "Brand"],
-                      ["price", "Price"],
-                      ["size", "Size"],
-                      ["category", "Category"],
-                      ["gender", "Gender"],
-                      ["concentration", "Concentration"],
-                      [
-                        "stock_quantity",
-                        "Stock Quantity",
-                      ],
-                      [
-                        "fragrance_notes",
-                        "Fragrance Notes",
-                      ],
-                      [
-                        "csv_image",
-                        "Image Filename",
-                      ],
-                    ].map(([field, label]) => (
-                      <label
-                        key={field}
-                        className={
-                          field ===
-                          "fragrance_notes"
-                            ? "md:col-span-2"
-                            : ""
-                        }
-                      >
-                        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                          {label}
-                        </span>
-
-                        <input
-                          type={
-                            field === "price" ||
-                            field ===
-                              "stock_quantity"
-                              ? "number"
-                              : "text"
-                          }
-                          value={
-                            product[field] ?? ""
-                          }
-                          onChange={(event) =>
-                            updateProduct(
-                              product.id,
-                              field,
-                              event.target.value
-                            )
-                          }
-                          className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-black"
-                        />
-                      </label>
-                    ))}
-
-                    <label className="md:col-span-2 lg:col-span-3">
-                      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                        Description
-                      </span>
-
-                      <textarea
-                        rows={4}
-                        value={
-                          product.description
-                        }
-                        onChange={(event) =>
-                          updateProduct(
-                            product.id,
-                            "description",
-                            event.target.value
-                          )
-                        }
-                        className="w-full resize-y rounded-xl border border-black/10 px-3 py-2.5 text-sm outline-none focus:border-black"
-                      />
-                    </label>
-
-                    <label className="flex items-center gap-3 rounded-xl border border-black/10 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(
-                          product.featured
-                        )}
-                        onChange={(event) =>
-                          updateProduct(
-                            product.id,
-                            "featured",
-                            event.target.checked
-                          )
-                        }
-                      />
-
-                      <span className="text-sm font-medium">
-                        Featured Product
-                      </span>
-                    </label>
-
-                    <label className="flex items-center gap-3 rounded-xl border border-black/10 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(
-                          product.is_preorder
-                        )}
-                        onChange={(event) =>
-                          updateProduct(
-                            product.id,
-                            "is_preorder",
-                            event.target.checked
-                          )
-                        }
-                      />
-
-                      <span className="text-sm font-medium">
-                        Pre-order
-                      </span>
-                    </label>
-
-                    <label>
-                      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                        Pre-order Release Date
-                      </span>
-
-                      <input
-                        type="date"
-                        value={
-                          product.preorder_release_date
-                        }
-                        onChange={(event) =>
-                          updateProduct(
-                            product.id,
-                            "preorder_release_date",
-                            event.target.value
-                          )
-                        }
-                        className="w-full rounded-xl border border-black/10 px-3 py-2.5 text-sm"
-                      />
-                    </label>
-
-                    <label className="md:col-span-2 lg:col-span-3">
-                      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                        Pre-order Message
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          product.preorder_message
-                        }
-                        onChange={(event) =>
-                          updateProduct(
-                            product.id,
-                            "preorder_message",
-                            event.target.value
-                          )
-                        }
-                        className="w-full rounded-xl border border-black/10 px-3 py-2.5 text-sm"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+          </div>
         )}
 
-        {/* IMAGE TAB */}
-        {activeTab === "images" && (
-          <section>
-            <div className="mb-6 rounded-3xl border border-black/10 bg-white p-6">
-              <h2 className="text-xl font-semibold">
-                Image Library
-              </h2>
+        {/* Stats */}
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
+              Products
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
+              {populatedRows.length}
+            </div>
+          </div>
 
-              <p className="mt-2 text-sm text-neutral-500">
-                Upload all your product images here. The
-                importer can match them to products using
-                the image filename from your CSV.
-              </p>
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
+              Spreadsheet Rows
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
+              {rows.length}
+            </div>
+          </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  imageInputRef.current?.click()
-                }
-                className="mt-5 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white"
-              >
-                Add More Images
-              </button>
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
+              Images
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
+              {imageLibrary.length}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
+              Selected
+            </div>
+            <div className="mt-1 text-2xl font-semibold">
+              {selectedRows.length}
+            </div>
+          </div>
+        </div>
+
+        {/* Import tools */}
+        <div className="mb-4 grid gap-4 xl:grid-cols-3">
+          {/* CSV */}
+          <div
+            className="rounded-2xl border border-black/10 bg-white p-4"
+            onDragOver={(event) =>
+              event.preventDefault()
+            }
+            onDrop={handleCSVDrop}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">
+                  Import CSV
+                </div>
+                <div className="mt-0.5 text-xs text-black/45">
+                  Load an existing spreadsheet
+                </div>
+              </div>
+
+              <span className="rounded-full bg-black/5 px-2 py-1 text-[10px]">
+                CSV
+              </span>
             </div>
 
-            {!images.length ? (
-              <div className="rounded-3xl border border-black/10 bg-white p-16 text-center text-sm text-neutral-500">
-                No images uploaded yet.
+            <button
+              type="button"
+              onClick={() =>
+                csvInputRef.current?.click()
+              }
+              className="w-full rounded-xl border border-dashed border-black/20 bg-[#faf8f4] px-4 py-4 text-xs font-medium transition hover:border-black/50"
+            >
+              {loading
+                ? "Reading CSV..."
+                : "Choose CSV or drag it here"}
+            </button>
+          </div>
+
+          {/* ZIP */}
+          <div
+            className={`rounded-2xl border bg-white p-4 transition ${
+              draggingZip
+                ? "border-black bg-black/[0.02]"
+                : "border-black/10"
+            }`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDraggingZip(true);
+            }}
+            onDragLeave={() =>
+              setDraggingZip(false)
+            }
+            onDrop={handleZipDrop}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">
+                  Product ZIP
+                </div>
+                <div className="mt-0.5 text-xs text-black/45">
+                  Keep your image archive attached
+                </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-                {images.map((image) => (
-                  <div
-                    key={image.id}
-                    className="overflow-hidden rounded-2xl border border-black/10 bg-white"
-                  >
-                    <div className="aspect-square bg-neutral-100">
+
+              <span className="rounded-full bg-black/5 px-2 py-1 text-[10px]">
+                ZIP
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                zipInputRef.current?.click()
+              }
+              className="w-full rounded-xl border border-dashed border-black/20 bg-[#faf8f4] px-4 py-4 text-left text-xs transition hover:border-black/50"
+            >
+              {zipFile ? (
+                <span className="font-medium">
+                  {zipFile.name}
+                </span>
+              ) : (
+                "Drag ZIP here or choose ZIP"
+              )}
+            </button>
+          </div>
+
+          {/* Images */}
+          <div
+            className={`rounded-2xl border bg-white p-4 transition ${
+              draggingImages
+                ? "border-black bg-black/[0.02]"
+                : "border-black/10"
+            }`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDraggingImages(true);
+            }}
+            onDragLeave={() =>
+              setDraggingImages(false)
+            }
+            onDrop={handleImageDrop}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">
+                  Image Library
+                </div>
+                <div className="mt-0.5 text-xs text-black/45">
+                  Upload many product images
+                </div>
+              </div>
+
+              <span className="rounded-full bg-black/5 px-2 py-1 text-[10px]">
+                {imageLibrary.length} files
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                imageInputRef.current?.click()
+              }
+              className="w-full rounded-xl border border-dashed border-black/20 bg-[#faf8f4] px-4 py-4 text-xs font-medium transition hover:border-black/50"
+            >
+              Drag images here or choose images
+            </button>
+          </div>
+        </div>
+
+        {/* Assets */}
+        <div className="mb-4 overflow-hidden rounded-2xl border border-black/10 bg-white">
+          <button
+            type="button"
+            onClick={() =>
+              setShowAssets((value) => !value)
+            }
+            className="flex w-full items-center justify-between px-4 py-3 text-left"
+          >
+            <div>
+              <div className="text-sm font-semibold">
+                Image Assets
+              </div>
+              <div className="text-xs text-black/40">
+                Dragged/uploaded images available for
+                matching
+              </div>
+            </div>
+
+            <span className="text-lg text-black/40">
+              {showAssets ? "−" : "+"}
+            </span>
+          </button>
+
+          {showAssets && (
+            <div className="border-t border-black/10 p-4">
+              {imageLibrary.length ? (
+                <div className="flex flex-wrap gap-3">
+                  {imageLibrary.map((image) => (
+                    <div
+                      key={image.id}
+                      className="group relative flex w-[90px] flex-col items-center"
+                    >
                       <img
                         src={image.url}
                         alt={image.name}
-                        className="h-full w-full object-cover"
+                        className="h-16 w-16 rounded-lg border border-black/10 object-cover"
                       />
-                    </div>
 
-                    <div className="p-3">
-                      <div
-                        className="truncate text-xs font-medium"
-                        title={image.name}
-                      >
+                      <div className="mt-1 w-full truncate text-center text-[9px] text-black/50">
                         {image.name}
                       </div>
 
                       <button
                         type="button"
                         onClick={() =>
-                          removeImage(image.id)
+                          removeLibraryImage(
+                            image.id
+                          )
                         }
-                        className="mt-2 text-xs font-medium text-red-600"
+                        className="absolute right-1 top-[-4px] hidden h-5 w-5 items-center justify-center rounded-full bg-black text-xs text-white group-hover:flex"
                       >
-                        Remove
+                        ×
                       </button>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={matchImagesToRows}
+                    className="flex h-[88px] min-w-[150px] items-center justify-center rounded-xl border border-dashed border-black/20 px-4 text-xs font-medium transition hover:border-black/50"
+                  >
+                    Match filenames
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-[#faf8f4] px-4 py-5 text-center text-xs text-black/40">
+                  No images uploaded yet.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Toolbar */}
+        <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-black/10 bg-white p-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => addRows(1)}
+              className="rounded-xl bg-black px-4 py-2.5 text-xs font-semibold text-white hover:bg-black/80"
+            >
+              + Add Row
+            </button>
+
+            <button
+              type="button"
+              onClick={() => addRows(5)}
+              className="rounded-xl border border-black/10 px-4 py-2.5 text-xs font-medium hover:border-black/30"
+            >
+              + 5 Rows
+            </button>
+
+            <button
+              type="button"
+              onClick={() => addRows(10)}
+              className="rounded-xl border border-black/10 px-4 py-2.5 text-xs font-medium hover:border-black/30"
+            >
+              + 10 Rows
+            </button>
+
+            <button
+              type="button"
+              onClick={clearEmptyRows}
+              className="rounded-xl border border-black/10 px-4 py-2.5 text-xs font-medium hover:border-black/30"
+            >
+              Remove Empty
+            </button>
+
+            {selectedRows.length > 0 && (
+              <button
+                type="button"
+                onClick={deleteSelectedRows}
+                className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 hover:bg-red-100"
+              >
+                Delete {selectedRows.length}
+              </button>
             )}
-          </section>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <input
+                value={search}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+                placeholder="Search products..."
+                className="w-full rounded-xl border border-black/10 bg-[#faf8f4] px-4 py-2.5 text-xs outline-none transition focus:border-black/30 md:w-[220px]"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={clearAll}
+              className="rounded-xl border border-black/10 px-4 py-2.5 text-xs font-medium text-black/60 hover:border-black/30 hover:text-black"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+
+        {/* Spreadsheet */}
+        <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
+          <div className="border-b border-black/10 bg-[#faf8f4] px-4 py-3">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-sm font-semibold">
+                  Product Spreadsheet
+                </div>
+                <div className="text-[11px] text-black/40">
+                  {search
+                    ? `${visibleRows.length} matching rows`
+                    : "Each row represents one product"}
+                  {" · "}
+                  {COLUMNS.length} columns
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 text-[11px] text-black/45">
+                <span>
+                  Active cell:{" "}
+                  <span className="font-medium text-black">
+                    {activeCell
+                      ? "selected"
+                      : "none"}
+                  </span>
+                </span>
+
+                <span className="hidden md:inline">
+                  Enter ↓
+                </span>
+
+                <span className="hidden md:inline">
+                  Tab →
+                </span>
+
+                <span className="hidden md:inline">
+                  Paste from Excel
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-h-[680px] overflow-auto">
+            <table
+              className="border-collapse"
+              style={{
+                minWidth: `${
+                  70 +
+                  44 +
+                  COLUMNS.reduce(
+                    (total, column) =>
+                      total + column.width,
+                    0
+                  )
+                }px`,
+              }}
+            >
+              <thead className="sticky top-0 z-30">
+                <tr>
+                  <th className="sticky left-0 z-40 w-[44px] min-w-[44px] border-b border-r border-black/10 bg-[#eee9e1] px-2 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAll}
+                      className="h-3.5 w-3.5 accent-black"
+                    />
+                  </th>
+
+                  <th className="sticky left-[44px] z-40 w-[70px] min-w-[70px] border-b border-r border-black/10 bg-[#eee9e1] px-2 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-black/50">
+                    #
+                  </th>
+
+                  {COLUMNS.map((column) => (
+                    <th
+                      key={column.key}
+                      className="border-b border-r border-black/10 bg-[#eee9e1] px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-black/55"
+                      style={{
+                        width: column.width,
+                        minWidth: column.width,
+                      }}
+                    >
+                      <div className="flex items-center gap-1">
+                        {column.label}
+
+                        {column.required && (
+                          <span className="text-red-500">
+                            *
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+
+                  <th className="sticky right-0 z-40 w-[100px] min-w-[100px] border-b border-l border-black/10 bg-[#eee9e1] px-2 py-3 text-center text-[10px] font-semibold uppercase tracking-wider text-black/50">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {visibleRows.map((row) => {
+                  const realIndex = rows.findIndex(
+                    (item) => item.id === row.id
+                  );
+
+                  const rowHasError =
+                    validationErrors[row.id]?.length > 0;
+
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`group ${
+                        rowHasError
+                          ? "bg-red-50/40"
+                          : "bg-white"
+                      } hover:bg-black/[0.015]`}
+                    >
+                      <td className="sticky left-0 z-20 border-b border-r border-black/10 bg-inherit px-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.includes(
+                            row.id
+                          )}
+                          onChange={() =>
+                            toggleRowSelection(
+                              row.id
+                            )
+                          }
+                          className="h-3.5 w-3.5 accent-black"
+                        />
+                      </td>
+
+                      <td className="sticky left-[44px] z-20 border-b border-r border-black/10 bg-inherit px-2 text-center">
+                        <span className="text-[11px] font-medium text-black/40">
+                          {realIndex + 1}
+                        </span>
+                      </td>
+
+                      {COLUMNS.map(
+                        (column, columnIndex) => (
+                          <td
+                            key={column.key}
+                            className={`border-b border-r border-black/10 p-0 align-middle ${
+                              activeCell ===
+                              `${row.id}:${column.key}`
+                                ? "bg-white"
+                                : ""
+                            }`}
+                            style={{
+                              width: column.width,
+                              minWidth: column.width,
+                            }}
+                          >
+                            {renderCell(
+                              row,
+                              realIndex,
+                              columnIndex,
+                              column
+                            )}
+                          </td>
+                        )
+                      )}
+
+                      <td className="sticky right-0 z-20 border-b border-l border-black/10 bg-inherit px-2">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              duplicateRow(row.id)
+                            }
+                            title="Duplicate row"
+                            className="rounded-lg px-2 py-2 text-xs text-black/45 hover:bg-black/5 hover:text-black"
+                          >
+                            ⧉
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteRow(row.id)
+                            }
+                            title="Delete row"
+                            className="rounded-lg px-2 py-2 text-xs text-red-500 hover:bg-red-50"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {!visibleRows.length && (
+                  <tr>
+                    <td
+                      colSpan={
+                        COLUMNS.length + 3
+                      }
+                      className="px-6 py-16 text-center"
+                    >
+                      <div className="text-sm font-medium">
+                        No products found
+                      </div>
+
+                      <div className="mt-1 text-xs text-black/40">
+                        Add a row or change your search.
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
+                {/* Add row */}
+                <tr>
+                  <td
+                    colSpan={COLUMNS.length + 3}
+                    className="border-b border-black/10 bg-[#faf8f4] p-2"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => addRows(1)}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-black/15 py-3 text-xs font-medium text-black/50 transition hover:border-black/40 hover:bg-white hover:text-black"
+                    >
+                      <span className="text-base">
+                        +
+                      </span>
+                      Add another product row
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Validation */}
+        {invalidRows > 0 && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+            <div className="text-sm font-semibold text-red-800">
+              {invalidRows} row
+              {invalidRows === 1 ? "" : "s"} need
+              attention
+            </div>
+
+            <div className="mt-1 text-xs text-red-700/70">
+              Product Name and Price are required.
+              Stock must be a number when provided.
+            </div>
+          </div>
         )}
 
-        {/* PREVIEW */}
-        {activeTab === "preview" && (
-          <section>
-            <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-black/10 bg-white p-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">
-                  Import Preview
-                </h2>
+        {/* Messages */}
+        {message && (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {message}
+          </div>
+        )}
 
-                <p className="mt-1 text-sm text-neutral-500">
-                  Review everything before sending it to
-                  Django.
-                </p>
+        {error && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
+          </div>
+        )}
+
+        {/* Import footer */}
+        <div className="mt-5 rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold">
+                Ready to import
               </div>
+
+              <div className="mt-1 text-xs text-black/45">
+                {populatedRows.length} product
+                {populatedRows.length === 1
+                  ? ""
+                  : "s"} ready
+                {imageLibrary.length
+                  ? ` · ${imageLibrary.length} image assets`
+                  : ""}
+                {zipFile
+                  ? ` · ${zipFile.name}`
+                  : ""}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={downloadCSV}
+                disabled={!populatedRows.length}
+                className="rounded-xl border border-black/10 px-4 py-3 text-xs font-medium transition hover:border-black/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Export CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={downloadExcel}
+                disabled={!populatedRows.length}
+                className="rounded-xl border border-black/10 px-4 py-3 text-xs font-medium transition hover:border-black/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Export Excel
+              </button>
+
+              <button
+                type="button"
+                onClick={downloadZIP}
+                disabled={!populatedRows.length}
+                className="rounded-xl border border-black/10 px-4 py-3 text-xs font-medium transition hover:border-black/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Export ZIP
+              </button>
 
               <button
                 type="button"
                 onClick={importProducts}
                 disabled={
                   importing ||
-                  !validProducts.length
+                  !populatedRows.length ||
+                  invalidRows > 0
                 }
-                className="rounded-xl bg-black px-5 py-3 text-sm font-medium text-white disabled:opacity-40"
+                className="min-w-[180px] rounded-xl bg-black px-5 py-3 text-xs font-semibold text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {importing
-                  ? "Importing..."
-                  : `Import ${validProducts.length} Product(s)`}
+                  ? `Importing ${progress}%`
+                  : `Import ${populatedRows.length} Product${
+                      populatedRows.length === 1
+                        ? ""
+                        : "s"
+                    }`}
               </button>
             </div>
+          </div>
 
-            <div className="grid gap-4">
-              {validProducts.map(
-                (product, index) => {
-                  const matchedImage =
-                    product.image
-                      ? images.find(
-                          (image) =>
-                            image.file ===
-                            product.image
-                        )
-                      : matchImage(product);
-
-                  return (
-                    <div
-                      key={product.id}
-                      className="rounded-3xl border border-black/10 bg-white p-5"
-                    >
-                      <div className="flex gap-4">
-                        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-neutral-100">
-                          {matchedImage ? (
-                            <img
-                              src={matchedImage.url}
-                              alt={product.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-2xl">
-                              🖼️
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                            Product {index + 1}
-                          </div>
-
-                          <h3 className="mt-1 text-lg font-semibold">
-                            {product.name}
-                          </h3>
-
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500">
-                            {product.brand && (
-                              <span className="rounded-full bg-neutral-100 px-2.5 py-1">
-                                {product.brand}
-                              </span>
-                            )}
-
-                            {product.price && (
-                              <span className="rounded-full bg-neutral-100 px-2.5 py-1">
-                                ₦{product.price}
-                              </span>
-                            )}
-
-                            {product.size && (
-                              <span className="rounded-full bg-neutral-100 px-2.5 py-1">
-                                {product.size}
-                              </span>
-                            )}
-
-                            {product.category && (
-                              <span className="rounded-full bg-neutral-100 px-2.5 py-1">
-                                {product.category}
-                              </span>
-                            )}
-
-                            {product.stock_quantity !==
-                              "" && (
-                              <span className="rounded-full bg-neutral-100 px-2.5 py-1">
-                                Stock:{" "}
-                                {
-                                  product.stock_quantity
-                                }
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-              )}
+          {importing && (
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-black/10">
+              <div
+                className="h-full rounded-full bg-black transition-all duration-300"
+                style={{
+                  width: `${progress}%`,
+                }}
+              />
             </div>
-          </section>
-        )}
+          )}
+        </div>
+
+        {/* Bottom information */}
+        <div className="mt-4 grid gap-3 text-[11px] text-black/40 md:grid-cols-3">
+          <div>
+            <span className="font-semibold text-black/60">
+              Image matching:
+            </span>{" "}
+            use the exact image filename in the Image
+            column, then upload those images.
+          </div>
+
+          <div>
+            <span className="font-semibold text-black/60">
+              Paste:
+            </span>{" "}
+            copy multiple cells from Excel/Google Sheets
+            and paste into any spreadsheet cell.
+          </div>
+
+          <div>
+            <span className="font-semibold text-black/60">
+              Import:
+            </span>{" "}
+            only rows with a Product Name are sent to the
+            backend.
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
