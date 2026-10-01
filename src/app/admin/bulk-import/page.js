@@ -1379,21 +1379,16 @@ if (
   return;
 }
       const response = await fetch(
-        `${API_URL}/products/bulk-import/`,
-        {
-         method: "POST",
-
+  `${API_URL}/products/admin/bulk-import/`,
+  {
+    method: "POST",
     credentials: "include",
-
     headers: {
-
-      "X-CSRFToken": csrfData.csrfToken,
-
+      "X-CSRFToken": csrfToken,
     },
-
     body: formData,
-        }
-      );
+  }
+);
 
       setProgress(80);
 
