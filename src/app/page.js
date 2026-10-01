@@ -1185,16 +1185,16 @@ const isSoldOut =
 
             <div className="pt-4">
 
-              <p className="text-[10px] uppercase tracking-[0.2em] text-black/40">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-black/90">
                 {product.brand}
               </p>
 
-              <h3 className="mt-1 text-sm font-medium sm:text-base">
+              <h3 className="mt-1 text-sm font-semibold sm:text-base">
                 {product.name}
               </h3>
 
               {product.size && (
-                <p className="mt-1 text-xs text-black/40">
+                <p className="mt-1 text-xs text-black/70">
                   {product.size}
                 </p>
               )}
