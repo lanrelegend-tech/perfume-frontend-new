@@ -62,8 +62,6 @@ function LoginPageContent() {
     data = {};
   }
 
-  console.log("CSRF STATUS:", response.status);
-  console.log("CSRF RESPONSE:", data);
 
   if (!response.ok) {
     throw new Error(
@@ -109,7 +107,7 @@ function LoginPageContent() {
        */
 
       const csrfToken = await getCSRFToken();
-      console.log("CSRF TOKEN RECEIVED:", Boolean(csrfToken));
+      
 
       /*
        * =====================================================
@@ -142,20 +140,7 @@ function LoginPageContent() {
         .json()
         .catch(() => ({}));
 
-      console.log(
-        "LOGIN STATUS:",
-        response.status
-      );
-
-      console.log(
-        "LOGIN RESPONSE:",
-        data
-      );
-
-      console.log(
-        "LOGIN ERROR VALUE:",
-        data?.error
-      );
+     
 
       if (!response.ok) {
         /*

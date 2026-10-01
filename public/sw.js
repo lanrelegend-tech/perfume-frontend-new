@@ -51,7 +51,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  console.log("[ORENTEMIST PUSH] Push event received");
+
 
   let data = {};
 
@@ -60,10 +60,6 @@ self.addEventListener("push", (event) => {
       ? event.data.json()
       : {};
 
-    console.log(
-      "[ORENTEMIST PUSH] Payload:",
-      data
-    );
   } catch (error) {
     console.error(
       "[ORENTEMIST PUSH] JSON parsing failed:",
@@ -145,9 +141,7 @@ self.addEventListener("push", (event) => {
 self.addEventListener(
   "notificationclick",
   (event) => {
-    console.log(
-      "[ORENTEMIST PUSH] Notification clicked"
-    );
+   
 
     event.notification.close();
 
