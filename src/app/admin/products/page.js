@@ -321,13 +321,23 @@ return (
 
               </div>
 
-              <button
-                onClick={() => router.push("/admin/products/new")}
-                className="flex items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-black/80"
-              >
-                <Plus size={18} />
-                Add Product
-              </button>
+             <div className="flex flex-col gap-3 sm:flex-row">
+  <button
+    onClick={() => router.push("/admin/products/bulk-import")}
+    className="flex items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-black/5"
+  >
+    <Boxes size={18} />
+    Bulk Add Products
+  </button>
+
+  <button
+    onClick={() => router.push("/admin/products/new")}
+    className="flex items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-black/80"
+  >
+    <Plus size={18} />
+    Add Product
+  </button>
+</div>
 
             </div>
 
