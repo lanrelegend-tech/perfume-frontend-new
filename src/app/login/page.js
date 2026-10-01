@@ -171,7 +171,7 @@ function LoginPageContent() {
           try {
             const resendResponse =
               await fetch(
-                `${API_URL}/users/resend-verification/`,
+                `${API_URL}/auth/resend-verification/`,
                 {
                   method: "POST",
                   headers: {

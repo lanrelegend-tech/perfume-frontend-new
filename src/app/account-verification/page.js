@@ -241,7 +241,7 @@ function AccountVerificationContent() {
 
     try {
       const response = await fetch(
-        `${API_URL}/users/resend-verification/`,
+        `${API_URL}/auth/resend-verification/`,
         {
           method: "POST",
           headers: {
