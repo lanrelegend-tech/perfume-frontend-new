@@ -1356,13 +1356,42 @@ export default function BulkImportPage() {
       }
 
       setProgress(30);
+const csrfResponse = await fetch(
+  `${API_URL}/auth/csrf/`,
+  {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  }
+);
 
+const csrfData = await csrfResponse
+  .json()
+  .catch(() => ({}));
+
+if (
+  !csrfResponse.ok ||
+  !csrfData?.csrfToken
+) {
+  setError(
+    "Unable to initialize secure request. Please refresh and try again."
+  );
+  return;
+}
       const response = await fetch(
         `${API_URL}/products/bulk-import/`,
         {
-          method: "POST",
-          body: formData,
-          credentials: "include",
+         method: "POST",
+
+    credentials: "include",
+
+    headers: {
+
+      "X-CSRFToken": csrfData.csrfToken,
+
+    },
+
+    body: formData,
         }
       );
 
