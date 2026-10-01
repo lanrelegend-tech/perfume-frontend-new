@@ -1534,13 +1534,13 @@ function ProductGrid({
 
                 <div className="min-w-0">
 
-                  <p className="truncate text-[9px] uppercase tracking-[0.22em] text-black/35 sm:text-[10px]">
+                  <p className="truncate text-[9px] uppercase tracking-[0.22em] text-black/80 sm:text-[10px]">
                     {product.brand ||
                       category ||
                       "Perfume"}
                   </p>
 
-                  <h3 className="mt-1 truncate text-sm font-medium sm:text-base">
+                  <h3 className="mt-1 truncate text-sm font-semibold sm:text-base">
                     {product.name}
                   </h3>
 
@@ -1558,7 +1558,7 @@ function ProductGrid({
               {/* SIZE */}
 
               {size && (
-                <p className="mt-2 text-xs text-black/40">
+                <p className="mt-2 text-xs text-black/70">
                   {size}
                 </p>
               )}
@@ -1573,7 +1573,7 @@ function ProductGrid({
                     .map((note, index) => (
                       <span
                         key={`${note}-${index}`}
-                        className="shrink-0 rounded-full bg-black/[0.035] px-2.5 py-1 text-[8px] uppercase tracking-wider text-black/45"
+                        className="shrink-0 rounded-full bg-black/[0.035] px-2.5 py-1 text-[8px] uppercase tracking-wider text-black/70"
                       >
                         {note}
                       </span>
@@ -1584,7 +1584,7 @@ function ProductGrid({
 
               {/* CATEGORY */}
 
-              <p className="mt-3 text-[9px] uppercase tracking-[0.15em] text-black/25">
+              <p className="mt-3 text-[9px] uppercase tracking-[0.15em] text-black/80">
                 {category}
               </p>
 
