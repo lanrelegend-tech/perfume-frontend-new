@@ -323,7 +323,7 @@ return (
 
              <div className="flex flex-col gap-3 sm:flex-row">
   <button
-    onClick={() => router.push("/admin/products/bulk-import")}
+    onClick={() => router.push("/admin/bulk-import")}
     className="flex items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-black/5"
   >
     <Boxes size={18} />
