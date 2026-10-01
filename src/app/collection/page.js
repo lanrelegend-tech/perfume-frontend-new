@@ -358,7 +358,7 @@ async function loadCollection() {
 
           <Link
             href="/"
-            className="font-serif text-2xl tracking-[0.08em]"
+            className="font-serif text-xl tracking-[0.08em]"
           >
             ORENTEMIST
           </Link>
@@ -399,7 +399,7 @@ async function loadCollection() {
 
           {/* Right Side */}
 
-          <div className="flex items-center gap-5">
+         <div className="flex items-center gap-2 text-sm sm:gap-4">
 
             {/* Account */}
 
@@ -411,7 +411,24 @@ async function loadCollection() {
             </Link>
 
             {/* Desktop Cart */}
-
+{/* SEARCH ICON */}
+<Link
+  href="/search"
+  aria-label="Search products"
+ className="flex h-9 w-9 items-center justify-center rounded-full border border-black transition hover:bg-black hover:text-white sm:h-10 sm:w-10"
+>
+  <svg
+    width="17"
+    height="17"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+  >
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 5 5" />
+  </svg>
+</Link>
             <Link
               href="/cart"
               aria-label="Shopping cart"

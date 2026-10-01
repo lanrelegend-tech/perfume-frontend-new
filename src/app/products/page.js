@@ -512,7 +512,7 @@ export default function ProductsPage() {
 
           <Link
             href="/"
-            className="text-lg font-semibold tracking-[0.25em] sm:text-2xl sm:tracking-[0.3em]"
+           className="text-lg font-semibold tracking-[0.2em] sm:text-2xl"
           >
             ORENTEMIST
           </Link>
@@ -549,7 +549,7 @@ export default function ProductsPage() {
 
           </nav>
 
-          <div className="flex items-center gap-4 text-sm sm:gap-5">
+          <div className="flex items-center gap-2 text-sm sm:gap-4">
 
             <Link
               href="/account"
@@ -557,11 +557,28 @@ export default function ProductsPage() {
             >
               Account
             </Link>
-
+{/* SEARCH ICON */}
+<Link
+  href="/search"
+  aria-label="Search products"
+ className="flex h-9 w-9 items-center justify-center rounded-full border border-black transition hover:bg-black hover:text-white sm:h-10 sm:w-10"
+>
+  <svg
+    width="17"
+    height="17"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+  >
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 5 5" />
+  </svg>
+</Link>
             <Link
               href="/cart"
               aria-label="Shopping cart"
-              className="relative flex h-10 w-10 items-center justify-center rounded-full border border-black bg-black text-white"
+             className="relative flex h-9 w-9 items-center justify-center rounded-full border border-black bg-black text-white sm:h-10 sm:w-10"
             >
               <svg
                 width="17"

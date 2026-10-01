@@ -296,7 +296,7 @@ fetch(`${API_URL}/products/categories/`, {
 
           <Link
             href="/"
-            className="text-xl font-semibold tracking-[0.3em] sm:text-2xl"
+            className="text-lg font-semibold tracking-[0.2em] sm:text-2xl"
           >
             {storeName}
           </Link>
@@ -333,7 +333,7 @@ fetch(`${API_URL}/products/categories/`, {
 
           </nav>
 
-         <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-2 text-sm sm:gap-4">
 
   <Link
     href="/account"
@@ -341,12 +341,29 @@ fetch(`${API_URL}/products/categories/`, {
   >
     Account
   </Link>
-
+{/* SEARCH ICON */}
+<Link
+  href="/search"
+  aria-label="Search products"
+ className="flex h-9 w-9 items-center justify-center rounded-full border border-black transition hover:bg-black hover:text-white sm:h-10 sm:w-10"
+>
+  <svg
+    width="17"
+    height="17"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+  >
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 5 5" />
+  </svg>
+</Link>
   {/* CART ICON */}
   <Link
     href="/cart"
     aria-label="Shopping cart"
-    className="relative flex h-10 w-10 items-center justify-center rounded-full border border-black bg-black text-white"
+    className="relative flex h-9 w-9 items-center justify-center rounded-full border border-black bg-black text-white sm:h-10 sm:w-10"
   >
     <svg
       width="17"
@@ -372,7 +389,7 @@ fetch(`${API_URL}/products/categories/`, {
     type="button"
     onClick={() => setMobileMenuOpen(true)}
     aria-label="Open menu"
-    className="flex h-10 w-10 items-center justify-center rounded-full transition active:scale-95 md:hidden"
+   className="flex h-9 w-9 items-center justify-center rounded-full transition active:scale-95 md:hidden"
   >
     <span className="flex flex-col gap-1.5">
       <span className="h-1 w-1 rounded-full bg-black" />
