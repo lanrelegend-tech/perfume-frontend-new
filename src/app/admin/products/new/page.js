@@ -10,6 +10,8 @@ import {
   Trash2,
 } from "lucide-react";
 
+const MAX_PRODUCT_IMAGES = 4;
+
 export default function AddProductPage() {
   const router = useRouter();
 
@@ -201,7 +203,20 @@ export default function AddProductPage() {
       return;
     }
 
-    const newImages = files.map((file) => ({
+    const availableSlots = MAX_PRODUCT_IMAGES - images.length;
+    const acceptedFiles = files.slice(0, availableSlots);
+
+    if (!acceptedFiles.length) {
+      setError("A product can have a maximum of 4 images.");
+      e.target.value = "";
+      return;
+    }
+
+    if (acceptedFiles.length < files.length) {
+      setError("Only the first 4 product images can be added.");
+    }
+
+    const newImages = acceptedFiles.map((file) => ({
       id: `${file.name}-${Date.now()}-${Math.random()}`,
       name: file.name,
       url: URL.createObjectURL(file),
@@ -955,7 +970,7 @@ const response = await fetch(
                 </h2>
 
                 <p className="mt-1 text-sm text-black/50">
-                  Upload high-quality images of your product.
+                  Upload up to 4 high-quality product images.
                 </p>
               </div>
 
@@ -1003,7 +1018,7 @@ const response = await fetch(
                     accept="image/png,image/jpeg,image/webp"
                     multiple
                     onChange={handleImageUpload}
-                    disabled={loading}
+                    disabled={loading || images.length >= MAX_PRODUCT_IMAGES}
                     className="hidden"
                   />
                 </label>

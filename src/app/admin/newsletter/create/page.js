@@ -641,12 +641,12 @@ const fetchSubscribers = async () => {
 
     if (
       file.size >
-      10 * 1024 * 1024
+      2 * 1024 * 1024
     ) {
       showNotice(
         "error",
         "Image too large",
-        "Please choose an image smaller than 10MB."
+        "Please choose a JPG, PNG, GIF, or BMP image smaller than 2MB."
       );
 
       event.target.value = "";
@@ -2305,7 +2305,7 @@ headers: {
 
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/gif,image/bmp"
                           onChange={(
                             event
                           ) =>
@@ -2340,7 +2340,7 @@ headers: {
                         </p>
 
                         <p className="mt-1 max-w-sm text-xs leading-5 text-black/40">
-                          JPG, PNG or WebP · maximum 10MB.
+                          JPG, PNG, GIF or BMP · maximum 2MB.
                         </p>
 
                       </label>
@@ -2402,7 +2402,7 @@ headers: {
 
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/gif,image/bmp"
                           onChange={(
                             event
                           ) =>
@@ -2437,7 +2437,7 @@ headers: {
                         </p>
 
                         <p className="mt-1 max-w-sm text-xs leading-5 text-black/40">
-                          JPG, PNG or WebP · maximum 10MB.
+                          JPG, PNG, GIF or BMP · maximum 2MB.
                         </p>
 
                       </label>

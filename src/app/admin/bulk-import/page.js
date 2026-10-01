@@ -142,13 +142,6 @@ const COLUMNS = [
   { key: "price", label: "Price", width: 120, type: "number", required: true },
   { key: "size", label: "Size", width: 110, type: "text" },
   { key: "category", label: "Category", width: 150, type: "text" },
-  { key: "gender", label: "Gender", width: 120, type: "text" },
-  {
-    key: "concentration",
-    label: "Concentration",
-    width: 150,
-    type: "text",
-  },
   {
     key: "description",
     label: "Description",
@@ -206,8 +199,6 @@ const CSV_HEADERS = [
   "price",
   "size",
   "category",
-  "gender",
-  "concentration",
   "description",
   "fragrance_notes",
   "stock_quantity",
@@ -235,8 +226,6 @@ function createBlankRow() {
     price: "",
     size: "",
     category: "",
-    gender: "",
-    concentration: "",
     description: "",
     fragrance_notes: "",
     stock_quantity: "",
@@ -445,8 +434,6 @@ export default function BulkImportPage() {
         row.name,
         row.brand,
         row.category,
-        row.gender,
-        row.concentration,
         row.description,
         row.fragrance_notes,
         row.imageName,
@@ -1447,8 +1434,6 @@ export default function BulkImportPage() {
       price: row.price,
       size: row.size,
       category: row.category,
-      gender: row.gender,
-      concentration: row.concentration,
       description: row.description,
       fragrance_notes: row.fragrance_notes,
       stock_quantity: row.stock_quantity,
@@ -1636,8 +1621,6 @@ export default function BulkImportPage() {
       "30000",
       "100ML",
       "Perfume",
-      "Unisex",
-      "EDP",
       "A beautiful fragrance",
       "Top: Bergamot; Heart: Rose; Base: Musk",
       "10",
@@ -1696,32 +1679,6 @@ export default function BulkImportPage() {
 
     try {
       const formData = new FormData();
-
-      const payload = populatedRows.map((row) => ({
-        name: row.name.trim(),
-        brand: row.brand.trim(),
-        price: row.price,
-        size: row.size.trim(),
-        category: row.category.trim(),
-        gender: row.gender.trim(),
-        concentration: row.concentration.trim(),
-        description: row.description.trim(),
-        fragrance_notes: row.fragrance_notes.trim(),
-        stock_quantity:
-          row.stock_quantity === ""
-            ? 0
-            : Number(row.stock_quantity),
-        in_stock: Boolean(row.in_stock),
-        featured: Boolean(row.featured),
-        is_preorder: Boolean(row.is_preorder),
-        preorder_message:
-          row.preorder_message.trim(),
-        preorder_release_date:
-          row.preorder_release_date || null,
-        image: row.imageName || "",
-      }));
-
-     
 
 // Build the CSV that Django expects.
 

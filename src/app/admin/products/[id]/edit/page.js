@@ -13,6 +13,8 @@ import {
   CalendarDays,
 } from "lucide-react";
 
+const MAX_PRODUCT_IMAGES = 4;
+
 function getImageUrl(image) {
   if (!image) return "/placeholder-product.jpg";
 
@@ -443,12 +445,25 @@ const loadData = async () => {
 
     if (!files.length) return;
 
+    const availableSlots = MAX_PRODUCT_IMAGES - images.length;
+    const acceptedFiles = files.slice(0, availableSlots);
+
+    if (!acceptedFiles.length) {
+      setError("A product can have a maximum of 4 images.");
+      e.target.value = "";
+      return;
+    }
+
+    if (acceptedFiles.length < files.length) {
+      setError("Only the first 4 product images can be added.");
+    }
+
     const hasMainImage = images.some(
       (image) =>
         image.isMain === true
     );
 
-    const newImages = files.map(
+    const newImages = acceptedFiles.map(
       (file, index) => ({
         id: `${file.name}-${Date.now()}-${Math.random()}`,
         name: file.name,
@@ -1548,7 +1563,7 @@ headers: {
                 </h2>
 
                 <p className="mt-1 text-sm text-black/50">
-                  Add or remove product images.
+                  Add or remove up to 4 product images.
                 </p>
               </div>
 
@@ -1613,6 +1628,7 @@ headers: {
                     onChange={
                       handleImageUpload
                     }
+                    disabled={images.length >= MAX_PRODUCT_IMAGES}
                     className="hidden"
                   />
                 </label>

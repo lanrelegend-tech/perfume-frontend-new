@@ -1071,7 +1071,7 @@ if (
                       )}
 
                       {isPickupOrder
-  ? "Mark as Ready for Pickup"
+  ? "Ready"
   : "Mark as Shipped"}
 
                     </button>
