@@ -1384,7 +1384,7 @@ if (
     method: "POST",
     credentials: "include",
     headers: {
-      "X-CSRFToken": csrfToken,
+      "X-CSRFToken": csrfData.csrfToken,
     },
     body: formData,
   }
