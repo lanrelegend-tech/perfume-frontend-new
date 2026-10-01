@@ -1721,30 +1721,69 @@ export default function BulkImportPage() {
         image: row.imageName || "",
       }));
 
-      formData.append(
-        "products",
-        JSON.stringify(payload)
-      );
+     
 
-      const imageRows = populatedRows.filter(
-        (row) => row.imageFile
-      );
+// Build the CSV that Django expects.
 
-      imageRows.forEach((row) => {
-        formData.append(
-          "images",
-          row.imageFile,
-          row.imageFile.name
-        );
-      });
+const csvBlob = new Blob(
 
-      if (zipFile) {
-        formData.append(
-          "zip_file",
-          zipFile,
-          zipFile.name
-        );
-      }
+  [buildCSVContent()],
+
+  {
+
+    type: "text/csv;charset=utf-8;",
+
+  }
+
+);
+
+formData.append(
+
+  "csv_file",
+
+  csvBlob,
+
+  "products.csv"
+
+);
+
+// Send the ZIP using the backend's expected field name.
+
+if (zipFile) {
+
+  formData.append(
+
+    "images_zip",
+
+    zipFile,
+
+    zipFile.name
+
+  );
+
+}
+
+// Also send individually attached images.
+
+const imageRows = populatedRows.filter(
+
+  (row) => row.imageFile
+
+);
+
+imageRows.forEach((row) => {
+
+  formData.append(
+
+    "images",
+
+    row.imageFile,
+
+    row.imageFile.name
+
+  );
+
+});
 
       setProgress(30);
 
