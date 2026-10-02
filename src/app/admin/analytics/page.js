@@ -534,8 +534,12 @@ async function loadAnalytics() {
       meResponse.status === 401 ||
       meResponse.status === 403
     ) {
-      router.replace("/admin/login");
-      return;
+      router.replace(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
+return;
     }
 
     if (!meResponse.ok) {
@@ -587,8 +591,12 @@ async function loadAnalytics() {
       dashboardResponse.status === 401 ||
       dashboardResponse.status === 403
     ) {
-      router.replace("/admin/login");
-      return;
+      router.replace(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
+return;
     }
 
     /*
@@ -630,8 +638,12 @@ async function loadAnalytics() {
         ordersResponse.status === 401 ||
         ordersResponse.status === 403
       ) {
-        router.replace("/admin/login");
-        return;
+       router.replace(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
+return;
       }
 
       if (!ordersResponse.ok) {

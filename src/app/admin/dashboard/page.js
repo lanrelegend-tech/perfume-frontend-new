@@ -86,7 +86,12 @@ const logout = async () => {
   } catch (err) {
     console.error("LOGOUT ERROR:", err);
   } finally {
-    router.replace("/admin/login");
+    router.replace(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
+return;
   }
 };
 
@@ -177,7 +182,12 @@ const loadDashboard = async () => {
       meResponse.status === 401 ||
       meResponse.status === 403
     ) {
-      router.replace("/admin/login");
+      router.replace(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
+return;
       return;
     }
 
@@ -245,7 +255,12 @@ const loadDashboard = async () => {
         ordersResponse.status === 401 ||
         ordersResponse.status === 403
       ) {
-        router.replace("/admin/login");
+        router.replace(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
+return;
         return;
       }
 

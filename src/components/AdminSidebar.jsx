@@ -98,7 +98,7 @@ export default function AdminSidebar() {
   const logout = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
-    router.push("/admin/login");
+    router.replace("/admin/login");
   };
 
   const navigate = (path) => {

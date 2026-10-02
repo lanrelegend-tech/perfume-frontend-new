@@ -95,7 +95,7 @@ function AdminLogin() {
           ? next
           : "/admin/dashboard";
 
-      router.push(safeNext);
+      router.replace(safeNext);
     } catch (err) {
       console.error("Login error:", err);
       setError(

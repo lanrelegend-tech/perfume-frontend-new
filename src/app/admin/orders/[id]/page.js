@@ -79,7 +79,7 @@ if (
   authResponse.status === 403
 ) {
   if (redirectOnAuth) {
-    router.push(
+    router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -106,7 +106,7 @@ const response = await fetch(
 
 if (response.status === 401) {
   if (redirectOnAuth) {
-    router.push(
+    router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -487,7 +487,7 @@ if (
   response.status === 401 ||
   response.status === 403
 ) {
-  router.push(
+  router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -603,7 +603,7 @@ if (
   response.status === 401 ||
   response.status === 403
 ) {
-  router.push(
+  router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`

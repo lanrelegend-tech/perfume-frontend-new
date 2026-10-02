@@ -725,7 +725,7 @@ credentials: "include",
   response.status === 401 ||
   response.status === 403
 ) {
-  router.push(
+  router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -817,7 +817,7 @@ if (
   mainImageResponse.status === 401 ||
   mainImageResponse.status === 403
 ) {
-  router.push(
+  router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -858,7 +858,7 @@ if (
   promoteResponse.status === 401 ||
   promoteResponse.status === 403
 ) {
-  router.push(
+  router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -903,7 +903,7 @@ headers: {
   deleteResponse.status === 401 ||
   deleteResponse.status === 403
 ) {
-  router.push(
+  router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -975,7 +975,7 @@ headers: {
   imageResponse.status === 401 ||
   imageResponse.status === 403
 ) {
-  router.push(
+  router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`

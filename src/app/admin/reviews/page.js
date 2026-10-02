@@ -89,7 +89,7 @@ const fetchReviews = async () => {
       await checkAuthentication();
 
     if (!authenticated) {
-      router.push(
+      router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -114,7 +114,7 @@ const fetchReviews = async () => {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push(
+        router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -181,7 +181,7 @@ const fetchReviews = async () => {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push(
+        router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`

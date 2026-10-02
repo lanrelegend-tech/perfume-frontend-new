@@ -65,7 +65,7 @@ export default function CustomerDetailsPage() {
           response.status === 401 ||
           response.status === 403
         ) {
-          router.push(
+          router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -302,7 +302,7 @@ export default function CustomerDetailsPage() {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push(
+        router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -425,7 +425,7 @@ export default function CustomerDetailsPage() {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push(
+        router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
@@ -511,7 +511,7 @@ export default function CustomerDetailsPage() {
     } catch (err) {
       console.error("LOGOUT ERROR:", err);
     } finally {
-      router.push(
+      router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`

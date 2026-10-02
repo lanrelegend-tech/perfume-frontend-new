@@ -127,7 +127,7 @@ export default function CreateNewsletterCampaignPage() {
   "Content-Type": "application/json",
 });
   const handleUnauthorized = () => {
-  router.push(
+  router.replace(
     `/admin/login?next=${encodeURIComponent(
       window.location.pathname
     )}`

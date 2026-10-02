@@ -519,7 +519,7 @@ const response = await fetch(
   response.status === 401 ||
   response.status === 403
 ) {
-  router.push(
+  router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`

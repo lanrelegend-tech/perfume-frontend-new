@@ -66,7 +66,7 @@ export default function CouponsPage() {
   */
 
   const handleUnauthorized = () => {
-  router.push(
+  router.replace(
     `/admin/login?next=${encodeURIComponent(
       window.location.pathname
     )}`
@@ -928,7 +928,7 @@ export default function CouponsPage() {
         err
       );
     } finally {
-      router.push(
+      router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`

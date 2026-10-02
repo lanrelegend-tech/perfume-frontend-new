@@ -63,7 +63,7 @@ const authHeaders = () => ({
     }, 5000);
   };
   const handleUnauthorized = () => {
-  router.push(
+  router.replace(
     `/admin/login?next=${encodeURIComponent(
       window.location.pathname
     )}`
