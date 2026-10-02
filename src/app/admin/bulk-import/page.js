@@ -6,6 +6,7 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://api.orentemist.online/api";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_IMAGES_PER_ROW = 4;
 
 // ============================================================
 // BULK IMPORT DRAFT PERSISTENCE
@@ -217,9 +218,9 @@ function createBlankRow() {
   return {
     id: makeId(),
 
-    imageFile: null,
-    imageUrl: "",
-    imageName: "",
+    imageFiles: [],
+    imageUrls: [],
+    imageNames: [],
 
     name: "",
     brand: "",
@@ -391,11 +392,7 @@ export default function BulkImportPage() {
 
   const draftSaveTimerRef = useRef(null);
 
-  // Prevent a cleared draft from being recreated by auto-save.
   const skipNextDraftSaveRef = useRef(false);
-
-  // Prevent an older async save from recreating a draft after
-  // Clear Saved Draft / Clear All / successful import.
   const draftSaveVersionRef = useRef(0);
 
   const [search, setSearch] = useState("");
@@ -436,7 +433,7 @@ export default function BulkImportPage() {
         row.category,
         row.description,
         row.fragrance_notes,
-        row.imageName,
+        (row.imageNames || []).join(" "),
       ]
         .join(" ")
         .toLowerCase()
@@ -512,9 +509,17 @@ export default function BulkImportPage() {
       });
 
       rowsRef.current.forEach((row) => {
-        if (row.imageUrl && row.imageFile) {
-          URL.revokeObjectURL(row.imageUrl);
-        }
+        const urls = Array.isArray(row.imageUrls)
+          ? row.imageUrls
+          : row.imageUrl
+          ? [row.imageUrl]
+          : [];
+
+        urls.forEach((url) => {
+          if (url) {
+            URL.revokeObjectURL(url);
+          }
+        });
       });
     };
   }, []);
@@ -540,9 +545,17 @@ export default function BulkImportPage() {
     setRows((current) => {
       const row = current.find((item) => item.id === rowId);
 
-      if (row?.imageUrl && row.imageFile) {
-        URL.revokeObjectURL(row.imageUrl);
-      }
+      const urls = Array.isArray(row?.imageUrls)
+        ? row.imageUrls
+        : row?.imageUrl
+        ? [row.imageUrl]
+        : [];
+
+      urls.forEach((url) => {
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+      });
 
       return current.filter((item) => item.id !== rowId);
     });
@@ -561,12 +574,20 @@ export default function BulkImportPage() {
       }
 
       const original = current[index];
+      const imageFiles = [...(original.imageFiles || [])];
+      const imageUrls = imageFiles.map((file) =>
+        URL.createObjectURL(file)
+      );
 
       const copy = {
         ...original,
         id: makeId(),
-        imageFile: original.imageFile,
-        imageUrl: original.imageUrl,
+        imageFiles,
+        imageUrls,
+        imageNames: [...(original.imageNames || [])],
+        imageFile: imageFiles[0] || null,
+        imageUrl: imageUrls[0] || "",
+        imageName: original.imageNames?.[0] || "",
       };
 
       const next = [...current];
@@ -598,15 +619,31 @@ export default function BulkImportPage() {
           ? draft.rows.map((row) => {
               const restoredRow = {
                 ...row,
-                imageUrl: "",
+                imageFiles: Array.isArray(row.imageFiles)
+                  ? row.imageFiles
+                  : row.imageFile
+                  ? [row.imageFile]
+                  : [],
+                imageUrls: [],
+                imageNames: Array.isArray(row.imageNames)
+                  ? row.imageNames
+                  : row.imageName
+                  ? [row.imageName]
+                  : [],
               };
 
-              if (restoredRow.imageFile) {
-                restoredRow.imageUrl =
-                  URL.createObjectURL(
-                    restoredRow.imageFile
-                  );
-              }
+              restoredRow.imageUrls = restoredRow.imageFiles.map(
+                (file) => URL.createObjectURL(file)
+              );
+
+              restoredRow.imageFile =
+                restoredRow.imageFiles[0] || null;
+
+              restoredRow.imageUrl =
+                restoredRow.imageUrls[0] || "";
+
+              restoredRow.imageName =
+                restoredRow.imageNames[0] || "";
 
               return restoredRow;
             })
@@ -661,8 +698,6 @@ export default function BulkImportPage() {
   useEffect(() => {
     if (!draftReady) return;
 
-    // Prevent the draft from being recreated immediately after
-    // Clear Saved Draft, Clear All, or successful import.
     if (skipNextDraftSaveRef.current) {
       skipNextDraftSaveRef.current = false;
 
@@ -686,24 +721,17 @@ export default function BulkImportPage() {
 
         const rowsToSave = rows.map((row) => ({
           ...row,
-
-          // Blob URLs only work for the current browser session.
-          // We recreate them after refresh.
           imageUrl: "",
+          imageUrls: [],
         }));
 
         const imageLibraryToSave = imageLibrary.map(
           (item) => ({
             ...item,
-
-            // Blob URLs only work for the current browser session.
-            // We recreate them after refresh.
             url: "",
           })
         );
 
-        // If the draft was cleared while this save was waiting,
-        // do not write the old draft back.
         if (saveVersion !== draftSaveVersionRef.current) {
           setDraftSaving(false);
           return;
@@ -718,8 +746,6 @@ export default function BulkImportPage() {
           savedAt: Date.now(),
         });
 
-        // If the draft was cleared while IndexedDB was writing,
-        // remove the newly-written stale draft again.
         if (saveVersion !== draftSaveVersionRef.current) {
           await clearBulkDraft();
         }
@@ -762,16 +788,12 @@ export default function BulkImportPage() {
     message = "Saved bulk import draft cleared.",
   } = {}) {
     try {
-      // Cancel any scheduled auto-save.
       if (draftSaveTimerRef.current) {
         clearTimeout(draftSaveTimerRef.current);
         draftSaveTimerRef.current = null;
       }
 
-      // Invalidate any auto-save that may already be running.
       draftSaveVersionRef.current += 1;
-
-      // Stop the next auto-save cycle.
       skipNextDraftSaveRef.current = true;
 
       await clearBulkDraft();
@@ -897,25 +919,17 @@ export default function BulkImportPage() {
         addRows(1);
 
         setTimeout(() => {
-          const latestRow = rows[rowIndex];
+          setRows((current) => {
+            const created = current[current.length - 1];
 
-          if (latestRow) {
-            const newRowId = null;
+            if (created) {
+              setTimeout(() => {
+                focusCell(created.id, column.key);
+              }, 20);
+            }
 
-            setRows((current) => {
-              const created = current[current.length - 1];
-
-              if (created) {
-                setTimeout(() => {
-                  focusCell(created.id, column.key);
-                }, 20);
-              }
-
-              return current;
-            });
-
-            void newRowId;
-          }
+            return current;
+          });
         }, 20);
       }
 
@@ -1029,8 +1043,13 @@ export default function BulkImportPage() {
           const column = COLUMNS[targetColumnIndex];
 
           if (column.type === "image") {
-            updated[targetIndex].imageName =
-              String(value || "").trim();
+            const imageNames = String(value || "")
+              .split(/[|;]/)
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .slice(0, MAX_IMAGES_PER_ROW);
+
+            updated[targetIndex].imageNames = imageNames;
 
             return;
           }
@@ -1077,15 +1096,43 @@ export default function BulkImportPage() {
           return row;
         }
 
-        if (row.imageUrl && row.imageFile) {
-          URL.revokeObjectURL(row.imageUrl);
+        const existingFiles = Array.isArray(row.imageFiles)
+          ? row.imageFiles
+          : row.imageFile
+          ? [row.imageFile]
+          : [];
+
+        if (existingFiles.length >= MAX_IMAGES_PER_ROW) {
+          setError(
+            `Each product can have up to ${MAX_IMAGES_PER_ROW} images.`
+          );
+          return row;
         }
+
+        const existingUrls = Array.isArray(row.imageUrls)
+          ? row.imageUrls
+          : row.imageUrl
+          ? [row.imageUrl]
+          : [];
+
+        const existingNames = Array.isArray(row.imageNames)
+          ? row.imageNames
+          : row.imageName
+          ? [row.imageName]
+          : [];
+
+        const newUrl = URL.createObjectURL(file);
 
         return {
           ...row,
-          imageFile: file,
-          imageUrl: URL.createObjectURL(file),
-          imageName: file.name,
+          imageFiles: [...existingFiles, file],
+          imageUrls: [...existingUrls, newUrl],
+          imageNames: [...existingNames, file.name],
+
+          // Legacy compatibility.
+          imageFile: existingFiles[0] || file,
+          imageUrl: existingUrls[0] || newUrl,
+          imageName: existingNames[0] || file.name,
         };
       })
     );
@@ -1094,11 +1141,102 @@ export default function BulkImportPage() {
   }
 
   function handleSingleImageSelect(event) {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     const rowId = pendingImageRow.current;
 
-    if (file && rowId) {
-      assignImageToRow(rowId, file);
+    if (files.length && rowId) {
+      setRows((current) => {
+        return current.map((row) => {
+          if (row.id !== rowId) {
+            return row;
+          }
+
+          const existingFiles = Array.isArray(row.imageFiles)
+            ? row.imageFiles
+            : row.imageFile
+            ? [row.imageFile]
+            : [];
+
+          const existingUrls = Array.isArray(row.imageUrls)
+            ? row.imageUrls
+            : row.imageUrl
+            ? [row.imageUrl]
+            : [];
+
+          const existingNames = Array.isArray(row.imageNames)
+            ? row.imageNames
+            : row.imageName
+            ? [row.imageName]
+            : [];
+
+          const availableSlots =
+            MAX_IMAGES_PER_ROW - existingFiles.length;
+
+          if (availableSlots <= 0) {
+            return row;
+          }
+
+          const validFiles = files
+            .filter((file) => validateImageFile(file))
+            .slice(0, availableSlots);
+
+          if (!validFiles.length) {
+            return row;
+          }
+
+          const newUrls = validFiles.map((file) =>
+            URL.createObjectURL(file)
+          );
+
+          const nextFiles = [
+            ...existingFiles,
+            ...validFiles,
+          ];
+
+          const nextUrls = [
+            ...existingUrls,
+            ...newUrls,
+          ];
+
+          const nextNames = [
+            ...existingNames,
+            ...validFiles.map((file) => file.name),
+          ];
+
+          return {
+            ...row,
+            imageFiles: nextFiles,
+            imageUrls: nextUrls,
+            imageNames: nextNames,
+            imageFile: nextFiles[0] || null,
+            imageUrl: nextUrls[0] || "",
+            imageName: nextNames[0] || "",
+          };
+        });
+      });
+
+      const existingRow = rows.find(
+        (row) => row.id === rowId
+      );
+
+      const existingCount = existingRow
+        ? Array.isArray(existingRow.imageFiles)
+          ? existingRow.imageFiles.length
+          : existingRow.imageFile
+          ? 1
+          : 0
+        : 0;
+
+      if (
+        existingCount + files.length >
+        MAX_IMAGES_PER_ROW
+      ) {
+        setMessage(
+          `A product can have up to ${MAX_IMAGES_PER_ROW} images. Extra images were not added.`
+        );
+      } else {
+        setError("");
+      }
     }
 
     event.target.value = "";
@@ -1155,15 +1293,88 @@ export default function BulkImportPage() {
     event.preventDefault();
     event.stopPropagation();
 
-    const files = Array.from(event.dataTransfer.files || []);
-
-    const image = files.find((file) =>
+    const files = Array.from(
+      event.dataTransfer.files || []
+    ).filter((file) =>
       file.type.startsWith("image/")
     );
 
-    if (image) {
-      assignImageToRow(rowId, image);
-    }
+    if (!files.length) return;
+
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== rowId) {
+          return row;
+        }
+
+        const existingFiles = Array.isArray(row.imageFiles)
+          ? row.imageFiles
+          : row.imageFile
+          ? [row.imageFile]
+          : [];
+
+        const existingUrls = Array.isArray(row.imageUrls)
+          ? row.imageUrls
+          : row.imageUrl
+          ? [row.imageUrl]
+          : [];
+
+        const existingNames = Array.isArray(row.imageNames)
+          ? row.imageNames
+          : row.imageName
+          ? [row.imageName]
+          : [];
+
+        const availableSlots =
+          MAX_IMAGES_PER_ROW - existingFiles.length;
+
+        if (availableSlots <= 0) {
+          setError(
+            `Each product can have up to ${MAX_IMAGES_PER_ROW} images.`
+          );
+          return row;
+        }
+
+        const validFiles = files
+          .filter((file) => validateImageFile(file))
+          .slice(0, availableSlots);
+
+        if (!validFiles.length) {
+          return row;
+        }
+
+        const newUrls = validFiles.map((file) =>
+          URL.createObjectURL(file)
+        );
+
+        const nextFiles = [
+          ...existingFiles,
+          ...validFiles,
+        ];
+
+        const nextUrls = [
+          ...existingUrls,
+          ...newUrls,
+        ];
+
+        const nextNames = [
+          ...existingNames,
+          ...validFiles.map((file) => file.name),
+        ];
+
+        return {
+          ...row,
+          imageFiles: nextFiles,
+          imageUrls: nextUrls,
+          imageNames: nextNames,
+          imageFile: nextFiles[0] || null,
+          imageUrl: nextUrls[0] || "",
+          imageName: nextNames[0] || "",
+        };
+      })
+    );
+
+    setError("");
   }
 
   function removeLibraryImage(imageId) {
@@ -1192,37 +1403,57 @@ export default function BulkImportPage() {
 
     setRows((current) =>
       current.map((row) => {
-        const target = String(row.imageName || "")
-          .trim()
-          .toLowerCase();
+        const targets = Array.isArray(row.imageNames)
+          ? row.imageNames.filter(Boolean)
+          : row.imageName
+          ? [row.imageName]
+          : [];
 
-        if (!target) {
+        if (!targets.length) {
           return row;
         }
 
-        const found = imageLibrary.find((image) => {
-          const imageName = image.name
-            .trim()
-            .toLowerCase();
+        const foundImages = targets
+          .map((target) => {
+            const normalizedTarget = String(target)
+              .trim()
+              .toLowerCase();
 
-          return (
-            imageName === target ||
-            imageName.split(".")[0] ===
-              target.split(".")[0]
-          );
-        });
+            return imageLibrary.find((image) => {
+              const imageName = image.name
+                .trim()
+                .toLowerCase();
 
-        if (!found) {
+              return (
+                imageName === normalizedTarget ||
+                imageName.split(".")[0] ===
+                  normalizedTarget.split(".")[0]
+              );
+            });
+          })
+          .filter(Boolean)
+          .slice(0, MAX_IMAGES_PER_ROW);
+
+        if (!foundImages.length) {
           return row;
         }
 
-        matched += 1;
+        matched += foundImages.length;
 
         return {
           ...row,
-          imageFile: found.file,
-          imageUrl: found.url,
-          imageName: found.name,
+          imageFiles: foundImages.map(
+            (image) => image.file
+          ),
+          imageUrls: foundImages.map(
+            (image) => image.url
+          ),
+          imageNames: foundImages.map(
+            (image) => image.name
+          ),
+          imageFile: foundImages[0].file,
+          imageUrl: foundImages[0].url,
+          imageName: foundImages[0].name,
         };
       })
     );
@@ -1236,22 +1467,62 @@ export default function BulkImportPage() {
     );
   }
 
-  function removeRowImage(rowId) {
+  function removeRowImage(rowId, imageIndex = 0) {
     setRows((current) =>
       current.map((row) => {
         if (row.id !== rowId) {
           return row;
         }
 
-        if (row.imageUrl && row.imageFile) {
-          URL.revokeObjectURL(row.imageUrl);
+        const files = Array.isArray(row.imageFiles)
+          ? row.imageFiles
+          : row.imageFile
+          ? [row.imageFile]
+          : [];
+
+        const urls = Array.isArray(row.imageUrls)
+          ? row.imageUrls
+          : row.imageUrl
+          ? [row.imageUrl]
+          : [];
+
+        const names = Array.isArray(row.imageNames)
+          ? row.imageNames
+          : row.imageName
+          ? [row.imageName]
+          : [];
+
+        if (
+          imageIndex < 0 ||
+          imageIndex >= files.length
+        ) {
+          return row;
         }
+
+        if (urls[imageIndex]) {
+          URL.revokeObjectURL(urls[imageIndex]);
+        }
+
+        const nextFiles = files.filter(
+          (_, index) => index !== imageIndex
+        );
+
+        const nextUrls = urls.filter(
+          (_, index) => index !== imageIndex
+        );
+
+        const nextNames = names.filter(
+          (_, index) => index !== imageIndex
+        );
 
         return {
           ...row,
-          imageFile: null,
-          imageUrl: "",
-          imageName: "",
+          imageFiles: nextFiles,
+          imageUrls: nextUrls,
+          imageNames: nextNames,
+          imageFile: nextFiles[0] || null,
+          imageUrl: nextUrls[0] || "",
+          imageName: nextNames[0] || "",
         };
       })
     );
@@ -1349,8 +1620,13 @@ export default function BulkImportPage() {
                 headerMap.image_filename;
 
               if (index !== undefined) {
-                row.imageName =
-                  String(values[index] || "").trim();
+                row.imageNames = String(
+                  values[index] || ""
+                )
+                  .split(/[|;]/)
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                  .slice(0, MAX_IMAGES_PER_ROW);
               }
 
               return;
@@ -1392,6 +1668,7 @@ export default function BulkImportPage() {
 
       setRows(importedRows);
       setSelectedRows([]);
+
       setMessage(
         `Loaded ${importedRows.length} product${
           importedRows.length === 1 ? "" : "s"
@@ -1399,7 +1676,8 @@ export default function BulkImportPage() {
       );
     } catch (err) {
       setError(
-        err.message || "Could not read the CSV file."
+        err.message ||
+          "Could not read the CSV file."
       );
     } finally {
       setLoading(false);
@@ -1428,7 +1706,7 @@ export default function BulkImportPage() {
 
   function buildExportRows() {
     return populatedRows.map((row) => ({
-      image: row.imageName || "",
+      image: (row.imageNames || []).join("|"),
       name: row.name,
       brand: row.brand,
       price: row.price,
@@ -1441,7 +1719,8 @@ export default function BulkImportPage() {
       featured: row.featured,
       is_preorder: row.is_preorder,
       preorder_message: row.preorder_message,
-      preorder_release_date: row.preorder_release_date,
+      preorder_release_date:
+        row.preorder_release_date,
     }));
   }
 
@@ -1465,7 +1744,9 @@ export default function BulkImportPage() {
 
   function downloadCSV() {
     if (!populatedRows.length) {
-      setError("Add at least one product before exporting.");
+      setError(
+        "Add at least one product before exporting."
+      );
       return;
     }
 
@@ -1480,7 +1761,9 @@ export default function BulkImportPage() {
 
   async function downloadExcel() {
     if (!populatedRows.length) {
-      setError("Add at least one product before exporting.");
+      setError(
+        "Add at least one product before exporting."
+      );
       return;
     }
 
@@ -1494,13 +1777,15 @@ export default function BulkImportPage() {
         }
       );
 
-      worksheet["!cols"] = CSV_HEADERS.map((header) => ({
-        wch:
-          header === "description" ||
-          header === "fragrance_notes"
-            ? 35
-            : 18,
-      }));
+      worksheet["!cols"] = CSV_HEADERS.map(
+        (header) => ({
+          wch:
+            header === "description" ||
+            header === "fragrance_notes"
+              ? 35
+              : 18,
+        })
+      );
 
       const workbook = XLSX.utils.book_new();
 
@@ -1525,7 +1810,9 @@ export default function BulkImportPage() {
 
   async function downloadZIP() {
     if (!populatedRows.length) {
-      setError("Add at least one product before exporting.");
+      setError(
+        "Add at least one product before exporting."
+      );
       return;
     }
 
@@ -1567,18 +1854,26 @@ export default function BulkImportPage() {
           excelBuffer
         );
       } catch {
-        // CSV will still be included if xlsx isn't installed.
+        // CSV will still be included.
       }
 
       const imagesFolder = zip.folder("images");
 
       rows.forEach((row) => {
-        if (row.imageFile) {
-          imagesFolder.file(
-            safeFileName(row.imageFile.name),
-            row.imageFile
-          );
-        }
+        const files = Array.isArray(row.imageFiles)
+          ? row.imageFiles
+          : row.imageFile
+          ? [row.imageFile]
+          : [];
+
+        files
+          .slice(0, MAX_IMAGES_PER_ROW)
+          .forEach((file) => {
+            imagesFolder.file(
+              safeFileName(file.name),
+              file
+            );
+          });
       });
 
       if (zipFile) {
@@ -1615,7 +1910,7 @@ export default function BulkImportPage() {
     const headers = CSV_HEADERS.join(",");
 
     const example = [
-      "vintage-radio.jpg",
+      "vintage-radio.jpg|vintage-radio-2.jpg",
       "VINTAGE RADIO",
       "LATTAFA",
       "30000",
@@ -1651,7 +1946,9 @@ export default function BulkImportPage() {
     setMessage("");
 
     if (!populatedRows.length) {
-      setError("Add at least one product first.");
+      setError(
+        "Add at least one product first."
+      );
       return;
     }
 
@@ -1680,67 +1977,54 @@ export default function BulkImportPage() {
     try {
       const formData = new FormData();
 
-// Build the CSV that Django expects.
+      // Build the CSV that Django expects.
+      const csvBlob = new Blob(
+        [buildCSVContent()],
+        {
+          type: "text/csv;charset=utf-8;",
+        }
+      );
 
-const csvBlob = new Blob(
+      formData.append(
+        "csv_file",
+        csvBlob,
+        "products.csv"
+      );
 
-  [buildCSVContent()],
+      // Send the ZIP using the backend's expected field name.
+      if (zipFile) {
+        formData.append(
+          "images_zip",
+          zipFile,
+          zipFile.name
+        );
+      }
 
-  {
+      // Send every image attached to every product row.
+      const imageRows = populatedRows.filter(
+        (row) =>
+          (Array.isArray(row.imageFiles) &&
+            row.imageFiles.length) ||
+          row.imageFile
+      );
 
-    type: "text/csv;charset=utf-8;",
+      imageRows.forEach((row) => {
+        const files = Array.isArray(row.imageFiles)
+          ? row.imageFiles
+          : row.imageFile
+          ? [row.imageFile]
+          : [];
 
-  }
-
-);
-
-formData.append(
-
-  "csv_file",
-
-  csvBlob,
-
-  "products.csv"
-
-);
-
-// Send the ZIP using the backend's expected field name.
-
-if (zipFile) {
-
-  formData.append(
-
-    "images_zip",
-
-    zipFile,
-
-    zipFile.name
-
-  );
-
-}
-
-// Also send individually attached images.
-
-const imageRows = populatedRows.filter(
-
-  (row) => row.imageFile
-
-);
-
-imageRows.forEach((row) => {
-
-  formData.append(
-
-    "images",
-
-    row.imageFile,
-
-    row.imageFile.name
-
-  );
-
-});
+        files
+          .slice(0, MAX_IMAGES_PER_ROW)
+          .forEach((file) => {
+            formData.append(
+              "images",
+              file,
+              file.name
+            );
+          });
+      });
 
       setProgress(30);
 
@@ -1806,13 +2090,6 @@ imageRows.forEach((row) => {
           }.`
       );
 
-      // ========================================================
-      // IMPORTANT:
-      // Clear the saved draft and invalidate any pending save.
-      // This prevents the imported products from returning
-      // as a draft after the import succeeds.
-      // ========================================================
-
       if (draftSaveTimerRef.current) {
         clearTimeout(draftSaveTimerRef.current);
         draftSaveTimerRef.current = null;
@@ -1837,9 +2114,15 @@ imageRows.forEach((row) => {
   }
 
   function renderImageCell(row) {
+    const imageUrls = Array.isArray(row.imageUrls)
+      ? row.imageUrls
+      : row.imageUrl
+      ? [row.imageUrl]
+      : [];
+
     return (
       <div
-        className="relative flex h-[68px] w-full items-center justify-center"
+        className="relative flex min-h-[68px] w-full items-center justify-center gap-1 px-1"
         onDragOver={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -1848,27 +2131,61 @@ imageRows.forEach((row) => {
           handleImageCellDrop(event, row.id)
         }
       >
-        {row.imageUrl ? (
-          <div className="group relative">
-            <img
-              src={row.imageUrl}
-              alt={row.name || "Product"}
-              className="h-12 w-12 rounded-lg border border-black/10 object-cover"
-            />
+        {imageUrls.length ? (
+          <div className="flex items-center justify-center gap-1">
+            {imageUrls
+              .slice(0, MAX_IMAGES_PER_ROW)
+              .map((url, index) => (
+                <div
+                  key={`${row.id}-image-${index}`}
+                  className="group relative"
+                >
+                  <img
+                    src={url}
+                    alt={`${row.name || "Product"} image ${
+                      index + 1
+                    }`}
+                    className="h-12 w-12 rounded-lg border border-black/10 object-cover"
+                  />
 
-            <button
-              type="button"
-              onClick={() => removeRowImage(row.id)}
-              className="absolute -right-2 -top-2 hidden h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] text-white group-hover:flex"
-              title="Remove image"
-            >
-              ×
-            </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      removeRowImage(
+                        row.id,
+                        index
+                      )
+                    }
+                    className="absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-black text-[11px] text-white group-hover:flex"
+                    title={`Remove image ${
+                      index + 1
+                    }`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+
+            {imageUrls.length <
+              MAX_IMAGES_PER_ROW && (
+              <button
+                type="button"
+                onClick={() =>
+                  openImagePicker(row.id)
+                }
+                className="flex h-12 w-8 items-center justify-center rounded-lg border border-dashed border-black/20 bg-[#faf8f4] text-lg text-black/45 transition hover:border-black/50 hover:text-black"
+                title="Add another image"
+              >
+                +
+              </button>
+            )}
           </div>
         ) : (
           <button
             type="button"
-            onClick={() => openImagePicker(row.id)}
+            onClick={() =>
+              openImagePicker(row.id)
+            }
             className="flex h-12 w-full max-w-[96px] flex-col items-center justify-center rounded-lg border border-dashed border-black/20 bg-[#faf8f4] text-[10px] text-black/45 transition hover:border-black/50 hover:text-black"
           >
             <span className="text-lg">＋</span>
@@ -1932,23 +2249,28 @@ imageRows.forEach((row) => {
           ] = element;
         }
       },
+
       value: row[column.key] ?? "",
+
       onChange: (event) =>
         updateCell(
           row.id,
           column.key,
           event.target.value
         ),
+
       onFocus: () =>
         setActiveCell(
           `${row.id}:${column.key}`
         ),
+
       onPaste: (event) =>
         handleCellPaste(
           event,
           rowIndex,
           columnIndex
         ),
+
       onKeyDown: (event) =>
         handleCellKeyDown(
           event,
@@ -1957,8 +2279,10 @@ imageRows.forEach((row) => {
           row,
           column
         ),
+
       className:
         "h-[66px] w-full resize-none border-0 bg-transparent px-3 py-2 text-[13px] text-black outline-none placeholder:text-black/25 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-black/10",
+
       placeholder: column.required
         ? "Required"
         : "",
@@ -1980,9 +2304,7 @@ imageRows.forEach((row) => {
         }
         min={
           column.type === "number"
-            ? column.key === "price"
-              ? "0"
-              : "0"
+            ? "0"
             : undefined
         }
         step={
@@ -2009,6 +2331,7 @@ imageRows.forEach((row) => {
         ref={singleImageInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={handleSingleImageSelect}
       />
@@ -2035,7 +2358,9 @@ imageRows.forEach((row) => {
           <div>
             <button
               type="button"
-              onClick={() => window.history.back()}
+              onClick={() =>
+                window.history.back()
+              }
               className="mb-3 inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30 hover:bg-black/[0.02]"
             >
               <span className="text-base leading-none">
@@ -2081,9 +2406,10 @@ imageRows.forEach((row) => {
             </h1>
 
             <p className="mt-1 max-w-2xl text-sm text-black/50">
-              Add products row by row like Excel, paste
-              directly from spreadsheets, attach images, and
-              import everything in one go.
+              Add products row by row like Excel,
+              paste directly from spreadsheets,
+              attach images, and import everything
+              in one go.
             </p>
           </div>
 
@@ -2095,7 +2421,9 @@ imageRows.forEach((row) => {
               }
               className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-xs font-medium transition hover:border-black/30"
             >
-              {showHelp ? "Hide Help" : "How it works"}
+              {showHelp
+                ? "Hide Help"
+                : "How it works"}
             </button>
 
             <button
@@ -2141,8 +2469,9 @@ imageRows.forEach((row) => {
                   01 — Spreadsheet
                 </div>
                 <p className="text-xs leading-5 text-black/55">
-                  Click any cell and type. Press Enter to
-                  move down. Tab moves across like Excel.
+                  Click any cell and type. Press Enter
+                  to move down. Tab moves across like
+                  Excel.
                 </p>
               </div>
 
@@ -2151,8 +2480,8 @@ imageRows.forEach((row) => {
                   02 — Paste
                 </div>
                 <p className="text-xs leading-5 text-black/55">
-                  Copy rows from Excel or Google Sheets and
-                  paste them directly into any cell.
+                  Copy rows from Excel or Google Sheets
+                  and paste them directly into any cell.
                 </p>
               </div>
 
@@ -2161,8 +2490,10 @@ imageRows.forEach((row) => {
                   03 — Images
                 </div>
                 <p className="text-xs leading-5 text-black/55">
-                  Drag an image into the Image column or upload
-                  many images into the image library.
+                  Each product can have up to 4 images.
+                  Drag images into the Image column or
+                  upload many images into the image
+                  library.
                 </p>
               </div>
 
@@ -2171,8 +2502,8 @@ imageRows.forEach((row) => {
                   04 — Export
                 </div>
                 <p className="text-xs leading-5 text-black/55">
-                  Download CSV, Excel, or a ZIP containing your
-                  spreadsheet and product images.
+                  Download CSV, Excel, or a ZIP containing
+                  your spreadsheet and product images.
                 </p>
               </div>
             </div>
@@ -2185,6 +2516,7 @@ imageRows.forEach((row) => {
             <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
               Products
             </div>
+
             <div className="mt-1 text-2xl font-semibold">
               {populatedRows.length}
             </div>
@@ -2194,6 +2526,7 @@ imageRows.forEach((row) => {
             <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
               Spreadsheet Rows
             </div>
+
             <div className="mt-1 text-2xl font-semibold">
               {rows.length}
             </div>
@@ -2203,6 +2536,7 @@ imageRows.forEach((row) => {
             <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
               Images
             </div>
+
             <div className="mt-1 text-2xl font-semibold">
               {imageLibrary.length}
             </div>
@@ -2212,6 +2546,7 @@ imageRows.forEach((row) => {
             <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40">
               Selected
             </div>
+
             <div className="mt-1 text-2xl font-semibold">
               {selectedRows.length}
             </div>
@@ -2233,6 +2568,7 @@ imageRows.forEach((row) => {
                 <div className="text-sm font-semibold">
                   Import CSV
                 </div>
+
                 <div className="mt-0.5 text-xs text-black/45">
                   Load an existing spreadsheet
                 </div>
@@ -2277,6 +2613,7 @@ imageRows.forEach((row) => {
                 <div className="text-sm font-semibold">
                   Product ZIP
                 </div>
+
                 <div className="mt-0.5 text-xs text-black/45">
                   Keep your image archive attached
                 </div>
@@ -2325,6 +2662,7 @@ imageRows.forEach((row) => {
                 <div className="text-sm font-semibold">
                   Image Library
                 </div>
+
                 <div className="mt-0.5 text-xs text-black/45">
                   Upload many product images
                 </div>
@@ -2360,6 +2698,7 @@ imageRows.forEach((row) => {
               <div className="text-sm font-semibold">
                 Image Assets
               </div>
+
               <div className="text-xs text-black/40">
                 Dragged/uploaded images available for
                 matching
@@ -2516,6 +2855,7 @@ imageRows.forEach((row) => {
                 <div className="text-sm font-semibold">
                   Product Spreadsheet
                 </div>
+
                 <div className="text-[11px] text-black/40">
                   {search
                     ? `${visibleRows.length} matching rows`
@@ -2721,7 +3061,9 @@ imageRows.forEach((row) => {
 
                 <tr>
                   <td
-                    colSpan={COLUMNS.length + 3}
+                    colSpan={
+                      COLUMNS.length + 3
+                    }
                     className="border-b border-black/10 bg-[#faf8f4] p-2"
                   >
                     <button
@@ -2859,8 +3201,9 @@ imageRows.forEach((row) => {
             <span className="font-semibold text-black/60">
               Image matching:
             </span>{" "}
-            use the exact image filename in the Image
-            column, then upload those images.
+            use image filenames separated by{" "}
+            <strong>|</strong> in the Image column, then
+            upload those images.
           </div>
 
           <div>
@@ -2876,10 +3219,11 @@ imageRows.forEach((row) => {
               Import:
             </span>{" "}
             only rows with a Product Name are sent to the
-            backend.
+            backend. Each product can have up to 4 images.
           </div>
         </div>
       </div>
     </div>
   );
 }
+
