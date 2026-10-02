@@ -142,7 +142,7 @@ const COLUMNS = [
   { key: "brand", label: "Brand", width: 160, type: "text" },
   { key: "price", label: "Price", width: 120, type: "number", required: true },
   { key: "size", label: "Size", width: 110, type: "text" },
-  { key: "category", label: "Category", width: 150, type: "text" },
+  { key: "category", label: "Category", width: 150, type: "select" },
   {
     key: "description",
     label: "Description",
@@ -385,6 +385,7 @@ export default function BulkImportPage() {
   const [selectedRows, setSelectedRows] = useState([]);
   const [imageLibrary, setImageLibrary] = useState([]);
   const [zipFile, setZipFile] = useState(null);
+  const [categories, setCategories] = useState([]);
 
   const [draftReady, setDraftReady] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -488,7 +489,42 @@ export default function BulkImportPage() {
   // ============================================================
   // CLEAN UP PREVIEW URLS WHEN PAGE UNMOUNTS
   // ============================================================
+useEffect(() => {
+  async function loadCategories() {
+    try {
+      const response = await fetch(
+        `${API_URL}/products/categories/`,
+        {
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
+      if (!response.ok) {
+        throw new Error("Unable to load categories.");
+      }
+
+      const data = await response.json();
+
+      const categoryList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+        ? data.results
+        : Array.isArray(data?.categories)
+        ? data.categories
+        : [];
+
+      setCategories(categoryList);
+    } catch (error) {
+      console.error(
+        "Unable to load product categories:",
+        error
+      );
+    }
+  }
+
+  loadCategories();
+}, []);
   const rowsRef = useRef(rows);
   const imageLibraryRef = useRef(imageLibrary);
 
@@ -2294,6 +2330,64 @@ export default function BulkImportPage() {
     if (column.type === "image") {
       return renderImageCell(row);
     }
+    if (column.type === "select") {
+  return (
+    <div className="flex h-[68px] items-center px-2">
+      <select
+        value={row[column.key] ?? ""}
+        onChange={(event) =>
+          updateCell(
+            row.id,
+            column.key,
+            event.target.value
+          )
+        }
+        onFocus={() =>
+          setActiveCell(
+            `${row.id}:${column.key}`
+          )
+        }
+        onKeyDown={(event) =>
+          handleCellKeyDown(
+            event,
+            rowIndex,
+            columnIndex,
+            row,
+            column
+          )
+        }
+        className="h-10 w-full rounded-lg border border-black/10 bg-transparent px-2 text-[13px] text-black outline-none focus:border-black/30 focus:bg-white"
+      >
+        <option value="">
+          Select category
+        </option>
+
+        {categories.map((category) => {
+          const value =
+            category.name ??
+            category.title ??
+            category.slug ??
+            category.id;
+
+          const label =
+            category.name ??
+            category.title ??
+            category.slug ??
+            String(category.id);
+
+          return (
+            <option
+              key={category.id ?? value}
+              value={value}
+            >
+              {label}
+            </option>
+          );
+        })}
+      </select>
+    </div>
+  );
+}
 
     if (column.type === "boolean") {
       return (
