@@ -79,7 +79,11 @@ if (
   authResponse.status === 403
 ) {
   if (redirectOnAuth) {
-    router.push("/admin/login");
+    router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
   }
 
   return null;
@@ -102,7 +106,11 @@ const response = await fetch(
 
 if (response.status === 401) {
   if (redirectOnAuth) {
-    router.push("/admin/login");
+    router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
   }
 
   return null;
@@ -479,7 +487,11 @@ if (
   response.status === 401 ||
   response.status === 403
 ) {
-  router.push("/admin/login");
+  router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
 
   return;
 }
@@ -591,7 +603,11 @@ if (
   response.status === 401 ||
   response.status === 403
 ) {
-  router.push("/admin/login");
+  router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
 
   return;
 }

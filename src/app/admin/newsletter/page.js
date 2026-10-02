@@ -63,9 +63,12 @@ const authHeaders = () => ({
     }, 5000);
   };
   const handleUnauthorized = () => {
-  router.replace("/admin/login");
+  router.push(
+    `/admin/login?next=${encodeURIComponent(
+      window.location.pathname
+    )}`
+  );
 };
-
   
 const fetchSubscribers = async () => {
   try {

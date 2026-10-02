@@ -65,7 +65,11 @@ export default function CustomerDetailsPage() {
           response.status === 401 ||
           response.status === 403
         ) {
-          router.push("/admin/login");
+          router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
           return;
         }
 
@@ -298,7 +302,11 @@ export default function CustomerDetailsPage() {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push("/admin/login");
+        router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
         return;
       }
 
@@ -417,7 +425,11 @@ export default function CustomerDetailsPage() {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push("/admin/login");
+        router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
         return;
       }
 
@@ -499,7 +511,11 @@ export default function CustomerDetailsPage() {
     } catch (err) {
       console.error("LOGOUT ERROR:", err);
     } finally {
-      router.push("/admin/login");
+      router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
     }
   };
 

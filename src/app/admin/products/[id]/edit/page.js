@@ -725,7 +725,11 @@ credentials: "include",
   response.status === 401 ||
   response.status === 403
 ) {
-  router.push("/admin/login");
+  router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
   return;
 }
 
@@ -813,7 +817,11 @@ if (
   mainImageResponse.status === 401 ||
   mainImageResponse.status === 403
 ) {
-  router.push("/admin/login");
+  router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
   return;
 }
 
@@ -850,7 +858,11 @@ if (
   promoteResponse.status === 401 ||
   promoteResponse.status === 403
 ) {
-  router.push("/admin/login");
+  router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
   return;
 }
 
@@ -891,7 +903,11 @@ headers: {
   deleteResponse.status === 401 ||
   deleteResponse.status === 403
 ) {
-  router.push("/admin/login");
+  router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
   return;
 }
 
@@ -959,7 +975,11 @@ headers: {
   imageResponse.status === 401 ||
   imageResponse.status === 403
 ) {
-  router.push("/admin/login");
+  router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
   return;
 }
 

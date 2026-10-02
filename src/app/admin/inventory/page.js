@@ -68,9 +68,15 @@ export default function InventoryPage() {
    * AUTH REDIRECT
    */
   const redirectToLogin = () => {
-    router.push("/admin/login");
-  };
+  const returnUrl =
+    window.location.pathname +
+    window.location.search +
+    window.location.hash;
 
+  window.location.href = `/admin/login?next=${encodeURIComponent(
+    returnUrl
+  )}`;
+};
   /*
    * CSRF TOKEN
    */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ||
@@ -10,8 +10,9 @@ const API_URL = (
 
 export default function AdminLogin() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -20,10 +21,11 @@ const [email, setEmail] = useState("");
     e.preventDefault();
     setError("");
 
-  if (!email || !password) {
-  setError("Please enter your email and password.");
-  return;
-}
+    if (!email || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -32,27 +34,25 @@ const [email, setEmail] = useState("");
         credentials: "include",
         cache: "no-store",
       });
+
       const csrfData = await csrfResponse.json().catch(() => ({}));
 
       if (!csrfResponse.ok || !csrfData.csrfToken) {
         throw new Error("Unable to initialize secure login.");
       }
 
-      const response = await fetch(
-        `${API_URL}/auth/login/`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrfData.csrfToken,
-          },
-          body: JSON.stringify({
-  email,
-  password,
-}),
-        }
-      );
+      const response = await fetch(`${API_URL}/auth/login/`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfData.csrfToken,
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
       const data = await response.json();
 
@@ -70,6 +70,7 @@ const [email, setEmail] = useState("");
         credentials: "include",
         cache: "no-store",
       });
+
       const user = await userResponse.json().catch(() => ({}));
 
       if (!userResponse.ok || !user.is_staff) {
@@ -80,11 +81,21 @@ const [email, setEmail] = useState("");
             "X-CSRFToken": csrfData.csrfToken,
           },
         });
+
         setError("This account does not have administrator access.");
         return;
       }
 
-      router.push("/admin/dashboard");
+      const next = searchParams.get("next");
+
+      const safeNext =
+        next &&
+        next.startsWith("/") &&
+        !next.startsWith("//")
+          ? next
+          : "/admin/dashboard";
+
+      router.push(safeNext);
     } catch (err) {
       console.error("Login error:", err);
       setError(
@@ -101,7 +112,7 @@ const [email, setEmail] = useState("");
         <div className="w-full max-w-md">
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-semibold tracking-tight">
-              ORENTEMIST 
+              ORENTEMIST
             </h1>
 
             <p className="mt-2 text-sm text-white/45">
@@ -112,19 +123,19 @@ const [email, setEmail] = useState("");
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-  <label className="mb-2 block text-sm font-medium text-white/80">
-    Email
-  </label>
+                <label className="mb-2 block text-sm font-medium text-white/80">
+                  Email
+                </label>
 
-  <input
-    type="email"
-    value={email}
-    onChange={(e) => setEmail(e.target.value)}
-    placeholder="Enter your email"
-    autoComplete="email"
-    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-base sm:text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/30"
-  />
-</div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  autoComplete="email"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-base sm:text-sm text-white outline-none transition placeholder:text-white/25 focus:border-white/30"
+                />
+              </div>
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-white/80">

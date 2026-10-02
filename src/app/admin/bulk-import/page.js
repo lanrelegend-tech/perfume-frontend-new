@@ -441,7 +441,16 @@ export default function BulkImportPage() {
         .includes(query)
     );
   }, [rows, search]);
+ const redirectToLogin = () => {
+  const returnUrl =
+    window.location.pathname +
+    window.location.search +
+    window.location.hash;
 
+  window.location.href = `/admin/login?next=${encodeURIComponent(
+    returnUrl
+  )}`;
+};
   const populatedRows = useMemo(
     () => rows.filter((row) => row.name.trim()),
     [rows]
@@ -500,9 +509,17 @@ useEffect(() => {
         }
       );
 
+      if (
+  response.status === 401 ||
+  response.status === 403
+) {
+  redirectToLogin();
+         return;
+}
+
       if (!response.ok) {
-        throw new Error("Unable to load categories.");
-      }
+          throw new Error("Unable to load categories.");
+}
 
       const data = await response.json();
 
@@ -2089,13 +2106,12 @@ useEffect(() => {
       .catch(() => ({}));
 
     if (
-      !csrfResponse.ok ||
-      !csrfData?.csrfToken
-    ) {
-      throw new Error(
-        "Unable to initialize secure request. Please refresh and try again."
-      );
-    }
+  csrfResponse.status === 401 ||
+  csrfResponse.status === 403
+) {
+      redirectToLogin();
+      return;
+}
 
     // ------------------------------------------------------------
     // SEND IMPORT
@@ -2124,13 +2140,22 @@ useEffect(() => {
     }
 
     if (!response.ok) {
+      if (
+    response.status === 401 ||
+    response.status === 403
+  ) {
+    redirectToLogin();
+        return;
+  }
+
       throw new Error(
-        data?.detail ||
-          data?.error ||
-          data?.message ||
-          "Bulk import failed."
-      );
-    }
+    data?.detail ||
+      data?.error ||
+      data?.message ||
+      "Bulk import failed."
+  );
+}
+    
 
     // ------------------------------------------------------------
     // READ THE REAL BACKEND RESULT

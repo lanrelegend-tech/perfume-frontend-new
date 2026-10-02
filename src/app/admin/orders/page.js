@@ -181,7 +181,11 @@ const fetchOrders = async () => {
       await checkAuthentication();
 
     if (!authenticated) {
-      router.push("/admin/login");
+      router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
       return;
     }
 
@@ -202,7 +206,11 @@ const fetchOrders = async () => {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push("/admin/login");
+        router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
         return;
       }
 
@@ -492,7 +500,11 @@ const fetchOrders = async () => {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push("/admin/login");
+        router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
         return;
       }
 

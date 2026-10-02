@@ -66,9 +66,12 @@ export default function CouponsPage() {
   */
 
   const handleUnauthorized = () => {
-    router.push("/admin/login");
-  };
-
+  router.push(
+    `/admin/login?next=${encodeURIComponent(
+      window.location.pathname
+    )}`
+  );
+};
   /*
   |--------------------------------------------------------------------------
   | FETCH COUPONS
@@ -925,7 +928,11 @@ export default function CouponsPage() {
         err
       );
     } finally {
-      router.push("/admin/login");
+      router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
     }
   };
 

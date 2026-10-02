@@ -89,7 +89,11 @@ const fetchReviews = async () => {
       await checkAuthentication();
 
     if (!authenticated) {
-      router.push("/admin/login");
+      router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
       return;
     }
 
@@ -110,7 +114,11 @@ const fetchReviews = async () => {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push("/admin/login");
+        router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
         return;
       }
 
@@ -173,7 +181,11 @@ const fetchReviews = async () => {
         response.status === 401 ||
         response.status === 403
       ) {
-        router.push("/admin/login");
+        router.push(
+  `/admin/login?next=${encodeURIComponent(
+    window.location.pathname
+  )}`
+);
         return;
       }
 
