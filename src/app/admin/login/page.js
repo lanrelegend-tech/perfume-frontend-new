@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const API_URL = (
@@ -8,7 +8,7 @@ const API_URL = (
   "https://perfume-backend-sbvd.onrender.com/api"
 ).replace(/\/$/, "");
 
-export default function AdminLogin() {
+function AdminLogin() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -170,5 +170,12 @@ export default function AdminLogin() {
         </div>
       </div>
     </main>
+  );
+}
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminLogin />
+    </Suspense>
   );
 }
