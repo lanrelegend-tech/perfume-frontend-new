@@ -1941,178 +1941,267 @@ export default function BulkImportPage() {
     );
   }
 
-  async function importProducts() {
-    setError("");
-    setMessage("");
+ async function importProducts() {
+  setError("");
+  setMessage("");
 
-    if (!populatedRows.length) {
-      setError(
-        "Add at least one product first."
-      );
-      return;
-    }
-
-    if (invalidRows > 0) {
-      setError(
-        `Fix the ${invalidRows} invalid row${
-          invalidRows === 1 ? "" : "s"
-        } before importing.`
-      );
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Import ${populatedRows.length} product${
-        populatedRows.length === 1 ? "" : "s"
-      } into your store?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setImporting(true);
-    setProgress(10);
-
-    try {
-      const formData = new FormData();
-
-      // Build the CSV that Django expects.
-      const csvBlob = new Blob(
-        [buildCSVContent()],
-        {
-          type: "text/csv;charset=utf-8;",
-        }
-      );
-
-      formData.append(
-        "csv_file",
-        csvBlob,
-        "products.csv"
-      );
-
-      // Send the ZIP using the backend's expected field name.
-      if (zipFile) {
-        formData.append(
-          "images_zip",
-          zipFile,
-          zipFile.name
-        );
-      }
-
-      // Send every image attached to every product row.
-      const imageRows = populatedRows.filter(
-        (row) =>
-          (Array.isArray(row.imageFiles) &&
-            row.imageFiles.length) ||
-          row.imageFile
-      );
-
-      imageRows.forEach((row) => {
-        const files = Array.isArray(row.imageFiles)
-          ? row.imageFiles
-          : row.imageFile
-          ? [row.imageFile]
-          : [];
-
-        files
-          .slice(0, MAX_IMAGES_PER_ROW)
-          .forEach((file) => {
-            formData.append(
-              "images",
-              file,
-              file.name
-            );
-          });
-      });
-
-      setProgress(30);
-
-      const csrfResponse = await fetch(
-        `${API_URL}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
-
-      const csrfData = await csrfResponse
-        .json()
-        .catch(() => ({}));
-
-      if (
-        !csrfResponse.ok ||
-        !csrfData?.csrfToken
-      ) {
-        setError(
-          "Unable to initialize secure request. Please refresh and try again."
-        );
-        return;
-      }
-
-      const response = await fetch(
-        `${API_URL}/products/admin/bulk-import/`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "X-CSRFToken": csrfData.csrfToken,
-          },
-          body: formData,
-        }
-      );
-
-      setProgress(80);
-
-      let data = null;
-
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data?.detail ||
-            data?.error ||
-            "Bulk import failed."
-        );
-      }
-
-      setProgress(100);
-
-      setMessage(
-        data?.message ||
-          `Successfully imported ${populatedRows.length} product${
-            populatedRows.length === 1 ? "" : "s"
-          }.`
-      );
-
-      if (draftSaveTimerRef.current) {
-        clearTimeout(draftSaveTimerRef.current);
-        draftSaveTimerRef.current = null;
-      }
-
-      draftSaveVersionRef.current += 1;
-      skipNextDraftSaveRef.current = true;
-
-      await clearBulkDraft();
-
-      setDraftRestored(false);
-      setDraftSaving(false);
-    } catch (err) {
-      setError(
-        err.message ||
-          "Something went wrong while importing."
-      );
-      setProgress(0);
-    } finally {
-      setImporting(false);
-    }
+  if (!populatedRows.length) {
+    setError("Add at least one product first.");
+    return;
   }
 
+  if (invalidRows > 0) {
+    setError(
+      `Fix the ${invalidRows} invalid row${
+        invalidRows === 1 ? "" : "s"
+      } before importing.`
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Import ${populatedRows.length} product${
+      populatedRows.length === 1 ? "" : "s"
+    } into your store?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  setImporting(true);
+  setProgress(10);
+
+  try {
+    const formData = new FormData();
+
+    // ------------------------------------------------------------
+    // BUILD CSV
+    // ------------------------------------------------------------
+
+    const csvBlob = new Blob(
+      [buildCSVContent()],
+      {
+        type: "text/csv;charset=utf-8;",
+      }
+    );
+
+    formData.append(
+      "csv_file",
+      csvBlob,
+      "products.csv"
+    );
+
+    // ------------------------------------------------------------
+    // OPTIONAL ZIP
+    // ------------------------------------------------------------
+
+    if (zipFile) {
+      formData.append(
+        "images_zip",
+        zipFile,
+        zipFile.name
+      );
+    }
+
+    // ------------------------------------------------------------
+    // ATTACHED PRODUCT IMAGES
+    // ------------------------------------------------------------
+
+    const imageRows = populatedRows.filter(
+      (row) =>
+        (Array.isArray(row.imageFiles) &&
+          row.imageFiles.length > 0) ||
+        row.imageFile
+    );
+
+    imageRows.forEach((row) => {
+      const files = Array.isArray(row.imageFiles)
+        ? row.imageFiles
+        : row.imageFile
+        ? [row.imageFile]
+        : [];
+
+      files
+        .slice(0, MAX_IMAGES_PER_ROW)
+        .forEach((file) => {
+          formData.append(
+            "images",
+            file,
+            file.name
+          );
+        });
+    });
+
+    setProgress(30);
+
+    // ------------------------------------------------------------
+    // CSRF
+    // ------------------------------------------------------------
+
+    const csrfResponse = await fetch(
+      `${API_URL}/auth/csrf/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    const csrfData = await csrfResponse
+      .json()
+      .catch(() => ({}));
+
+    if (
+      !csrfResponse.ok ||
+      !csrfData?.csrfToken
+    ) {
+      throw new Error(
+        "Unable to initialize secure request. Please refresh and try again."
+      );
+    }
+
+    // ------------------------------------------------------------
+    // SEND IMPORT
+    // ------------------------------------------------------------
+
+    const response = await fetch(
+      `${API_URL}/products/admin/bulk-import/`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken": csrfData.csrfToken,
+        },
+        body: formData,
+      }
+    );
+
+    setProgress(80);
+
+    let data = null;
+
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data?.detail ||
+          data?.error ||
+          data?.message ||
+          "Bulk import failed."
+      );
+    }
+
+    // ------------------------------------------------------------
+    // READ THE REAL BACKEND RESULT
+    // ------------------------------------------------------------
+
+    const successCount = Number(
+      data?.success_count ?? 0
+    );
+
+    const failureCount = Number(
+      data?.failure_count ?? 0
+    );
+
+    const backendErrors = Array.isArray(
+      data?.errors
+    )
+      ? data.errors
+      : [];
+
+    setProgress(100);
+
+    // ------------------------------------------------------------
+    // SHOW ACTUAL RESULT
+    // ------------------------------------------------------------
+
+    if (failureCount > 0) {
+      let resultMessage =
+        `Import finished: ${successCount} product${
+          successCount === 1 ? "" : "s"
+        } imported successfully, ` +
+        `${failureCount} failed.`;
+
+      if (backendErrors.length) {
+        const errorDetails = backendErrors
+          .map((item, index) => {
+            if (typeof item === "string") {
+              return `${index + 1}. ${item}`;
+            }
+
+            const rowNumber =
+              item?.row ??
+              item?.row_number ??
+              item?.index;
+
+            const productName =
+              item?.name ??
+              item?.product ??
+              item?.product_name;
+
+            const reason =
+              item?.error ??
+              item?.message ??
+              item?.detail ??
+              JSON.stringify(item);
+
+            const prefix = rowNumber
+              ? `Row ${rowNumber}`
+              : productName
+              ? productName
+              : `Item ${index + 1}`;
+
+            return `${prefix}: ${reason}`;
+          })
+          .join("\n");
+
+        resultMessage += `\n\nFailed products:\n${errorDetails}`;
+      }
+
+      setError(resultMessage);
+
+      // Do NOT clear the draft when some products failed.
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // FULL SUCCESS
+    // ------------------------------------------------------------
+
+    setMessage(
+      `Successfully imported ${successCount} product${
+        successCount === 1 ? "" : "s"
+      }.`
+    );
+
+    if (draftSaveTimerRef.current) {
+      clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+
+    draftSaveVersionRef.current += 1;
+    skipNextDraftSaveRef.current = true;
+
+    await clearBulkDraft();
+
+    setDraftRestored(false);
+    setDraftSaving(false);
+  } catch (err) {
+    setError(
+      err.message ||
+        "Something went wrong while importing."
+    );
+
+    setProgress(0);
+  } finally {
+    setImporting(false);
+  }
+}
   function renderImageCell(row) {
     const imageUrls = Array.isArray(row.imageUrls)
       ? row.imageUrls
