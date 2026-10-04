@@ -100,6 +100,8 @@ export default function ProductDetailsPage() {
   const [editRating, setEditRating] = useState(5);
   const [editComment, setEditComment] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [cartMessage, setCartMessage] = useState("");
+const [cartMessageType, setCartMessageType] = useState("");
 
   const [deletingReview, setDeletingReview] = useState(null);
   const [deletingReviewLoading, setDeletingReviewLoading] =
@@ -668,144 +670,105 @@ async function loadRelatedProducts(
     );
   }
 
-  function handleAddToCart() {
-    if (
-      !product ||
-      !isAvailable
-    ) {
-      return;
-    }
+function handleAddToCart() {
+  if (!product || !isAvailable) {
+    return;
+  }
 
-    try {
-      setAddingToCart(true);
+  try {
+    setAddingToCart(true);
+    setCartMessage("");
+    setCartMessageType("");
 
-      const savedCart =
-        localStorage.getItem(
-          "orentemist_cart"
+    const savedCart = localStorage.getItem("orentemist_cart");
+
+    const cart = savedCart ? JSON.parse(savedCart) : [];
+
+    const safeCart = Array.isArray(cart) ? cart : [];
+
+    const variantId = selectedVariant?.id || null;
+
+    const existingIndex = safeCart.findIndex(
+      (item) =>
+        Number(item.product_id) === Number(product.id) &&
+        Number(item.variant_id || 0) === Number(variantId || 0)
+    );
+
+    if (existingIndex !== -1) {
+      const existingItem = safeCart[existingIndex];
+
+      const newQuantity =
+        Number(existingItem.quantity || 0) + quantity;
+
+      if (
+        !isPreorder &&
+        currentStock > 0 &&
+        newQuantity > currentStock
+      ) {
+        setCartMessage(
+          `Only ${currentStock} available for ${product.name}.`
         );
-
-      const cart = savedCart
-        ? JSON.parse(savedCart)
-        : [];
-
-      const safeCart =
-        Array.isArray(cart)
-          ? cart
-          : [];
-
-      const variantId =
-        selectedVariant?.id || null;
-
-      const existingIndex =
-        safeCart.findIndex(
-          (item) =>
-            Number(
-              item.product_id
-            ) === Number(product.id) &&
-            Number(
-              item.variant_id || 0
-            ) ===
-              Number(
-                variantId || 0
-              )
-        );
-
-      if (existingIndex !== -1) {
-        const existingItem =
-          safeCart[existingIndex];
-
-        const newQuantity =
-          Number(
-            existingItem.quantity || 0
-          ) + quantity;
-
-        /*
-         * Normal products respect current stock.
-         *
-         * Pre-orders do not because stock is intentionally 0.
-         */
-
-        if (
-          !isPreorder &&
-          currentStock > 0 &&
-          newQuantity > currentStock
-        ) {
-          alert(
-            `Only ${currentStock} available for ${product.name}.`
-          );
-
-          return;
-        }
-
-        safeCart[existingIndex] = {
-          ...existingItem,
-          quantity: newQuantity,
-          is_preorder:
-            isPreorder,
-        };
-      } else {
-        safeCart.push({
-          product_id: product.id,
-          slug: product.slug,
-          variant_id: variantId,
-          name: product.name,
-          brand:
-            product.brand ||
-            "ORENTEMIST",
-          price: Number(
-            selectedVariant
-              ? selectedVariant.price
-              : product.price
-          ),
-          image:
-            product.image || null,
-          size:
-            selectedVariant?.size ||
-            product.size ||
-            null,
-          quantity,
-          stock_quantity:
-            currentStock,
-          in_stock:
-            currentInStock,
-          is_preorder:
-            isPreorder,
-        });
+        setCartMessageType("error");
+        return;
       }
 
-      localStorage.setItem(
-        "orentemist_cart",
-        JSON.stringify(
-          safeCart
-        )
-      );
-
-      loadCartCount();
-
-      window.dispatchEvent(
-        new Event(
-          "orentemist-cart-updated"
-        )
-      );
-
-      alert(
-        isPreorder
-          ? `${product.name} added as a pre-order.`
-          : `${product.name} added to cart.`
-      );
-    } catch (error) {
-      console.error(
-        "Add to cart error:",
-        error
-      );
-
-      alert(
-        "Something went wrong. Please try again."
-      );
-    } finally {
-      setAddingToCart(false);
+      safeCart[existingIndex] = {
+        ...existingItem,
+        quantity: newQuantity,
+        is_preorder: isPreorder,
+      };
+    } else {
+      safeCart.push({
+        product_id: product.id,
+        slug: product.slug,
+        variant_id: variantId,
+        name: product.name,
+        brand: product.brand || "ORENTEMIST",
+        price: Number(
+          selectedVariant ? selectedVariant.price : product.price
+        ),
+        image: product.image || null,
+        size:
+          selectedVariant?.size ||
+          product.size ||
+          null,
+        quantity,
+        stock_quantity: currentStock,
+        in_stock: currentInStock,
+        is_preorder: isPreorder,
+      });
     }
+
+    localStorage.setItem(
+      "orentemist_cart",
+      JSON.stringify(safeCart)
+    );
+
+    loadCartCount();
+
+    window.dispatchEvent(
+      new Event("orentemist-cart-updated")
+    );
+
+    setCartMessage(
+      isPreorder
+        ? `${product.name} added as a pre-order.`
+        : `${product.name} added to cart.`
+    );
+
+    setCartMessageType("success");
+  } catch (error) {
+    console.error("Add to cart error:", error);
+
+    setCartMessage(
+      "Something went wrong. Please try again."
+    );
+
+    setCartMessageType("error");
+  } finally {
+    setAddingToCart(false);
   }
+}  
 
   function handleBuyNow() {
     if (
@@ -2139,7 +2102,17 @@ async function loadRelatedProducts(
                   ? "Add Pre-order"
                   : "Add to Cart"}
               </button>
-
+{cartMessage && (
+  <div
+    className={`mt-3 rounded-lg px-4 py-3 text-sm font-medium ${
+      cartMessageType === "success"
+        ? "bg-green-50 text-green-700 border border-green-200"
+        : "bg-red-50 text-red-700 border border-red-200"
+    }`}
+  >
+    {cartMessage}
+  </div>
+)}
               <button
                 type="button"
                 onClick={

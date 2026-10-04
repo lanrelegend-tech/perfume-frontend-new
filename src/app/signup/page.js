@@ -321,43 +321,7 @@ export default function SignupPage() {
       }
 
       const data = result.data;
-
-      const accessToken =
-        data?.access ||
-        data?.access_token ||
-        data?.token ||
-        data?.tokens?.access ||
-        data?.tokens?.access_token;
-
-      const refreshToken =
-        data?.refresh ||
-        data?.refresh_token ||
-        data?.tokens?.refresh ||
-        data?.tokens?.refresh_token;
-
-      if (accessToken) {
-        localStorage.setItem(
-          "access_token",
-          accessToken
-        );
-
-        if (refreshToken) {
-          localStorage.setItem(
-            "refresh_token",
-            refreshToken
-          );
-        }
-
-        setSuccess(
-          "Account created successfully. Redirecting..."
-        );
-
-        setTimeout(() => {
-          router.push("/account");
-        }, 500);
-
-        return;
-      }
+      
 
       if (
         data?.verification_required ||

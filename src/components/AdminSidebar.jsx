@@ -95,11 +95,18 @@ export default function AdminSidebar() {
     };
   }, [open]);
 
-  const logout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+const logout = async () => {
+  try {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/logout/`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch (error) {
+    console.error("Logout failed:", error);
+  } finally {
     router.replace("/admin/login");
-  };
+  }
+};  
 
   const navigate = (path) => {
     setOpen(false);
