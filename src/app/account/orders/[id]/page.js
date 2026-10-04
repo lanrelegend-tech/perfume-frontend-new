@@ -138,6 +138,8 @@ function getAddress(order) {
   };
 }
 
+
+
 function StatusIcon({ completed }) {
   return (
     <div
@@ -375,6 +377,22 @@ async function fetchOrder() {
     : order.items?.results || [];
 
   const address = getAddress(order);
+  const fulfillmentType = String(
+  order?.fulfillment_type ||
+    order?.delivery_method ||
+    order?.shipping_method ||
+    order?.order_type ||
+    ""
+)
+  .toLowerCase()
+  .replace(/[_-]/g, " ")
+  .trim();
+
+const isPickup =
+  fulfillmentType === "pickup" ||
+  fulfillmentType === "pick up" ||
+  order?.is_pickup === true ||
+  order?.pickup === true;
 
   const subtotal = Number(
     order.subtotal ??
@@ -817,108 +835,163 @@ async function fetchOrder() {
 
             </section>
 
-            <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
+<section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
 
-              <div className="border-b border-neutral-100 pb-6">
+  <div className="border-b border-neutral-100 pb-6">
 
-                <h2 className="text-2xl font-bold tracking-tight text-black">
-                  Delivery Address
-                </h2>
+    <h2 className="text-2xl font-bold tracking-tight text-black">
+      {isPickup ? "Pickup Information" : "Delivery Address"}
+    </h2>
 
-                <p className="mt-2 text-sm leading-6 text-neutral-600">
-                  This is the delivery information
-                  saved for this order.
-                </p>
+    <p className="mt-2 text-sm leading-6 text-neutral-600">
+      {isPickup
+        ? "This order will be picked up from our pickup location."
+        : "This is the delivery information saved for this order."}
+    </p>
 
-              </div>
+  </div>
 
-              <div className="mt-6 rounded-xl bg-neutral-50 p-5 sm:p-6">
+  {isPickup ? (
 
-                <div className="grid gap-5 sm:grid-cols-2">
+    <div className="mt-6 rounded-xl bg-neutral-50 p-5 sm:p-6">
 
-                  <div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+          Order method
+        </p>
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                      Full name
-                    </p>
+        <p className="mt-1 text-sm font-semibold text-black">
+          Pickup
+        </p>
+      </div>
 
-                    <p className="mt-1 text-sm font-semibold text-black">
-                      {address.name ||
-                        "Not provided"}
-                    </p>
+      <div className="mt-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+          Pickup location
+        </p>
 
-                  </div>
+        <p className="mt-1 text-sm font-semibold leading-6 text-black">
+          {order?.pickup_location ||
+            order?.pickup_address ||
+            "Pickup location will be provided by ORENTEMIST."}
+        </p>
+      </div>
 
-                  <div>
+      {address.name && (
+        <div className="mt-5">
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                      Phone number
-                    </p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            Customer
+          </p>
 
-                    <p className="mt-1 text-sm font-semibold text-black">
-                      {address.phone ||
-                        "Not provided"}
-                    </p>
+          <p className="mt-1 text-sm font-semibold text-black">
+            {address.name}
+          </p>
 
-                  </div>
+        </div>
+      )}
 
-                  <div className="sm:col-span-2">
+      {address.phone && (
+        <div className="mt-5">
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                      Street address
-                    </p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            Phone number
+          </p>
 
-                    <p className="mt-1 text-sm font-semibold leading-6 text-black">
-                      {address.street ||
-                        "Not provided"}
-                    </p>
+          <p className="mt-1 text-sm font-semibold text-black">
+            {address.phone}
+          </p>
 
-                  </div>
+        </div>
+      )}
 
-                  <div>
+    </div>
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                      City
-                    </p>
+  ) : (
 
-                    <p className="mt-1 text-sm font-semibold text-black">
-                      {address.city ||
-                        "Not provided"}
-                    </p>
+    <div className="mt-6 rounded-xl bg-neutral-50 p-5 sm:p-6">
 
-                  </div>
+      <div className="grid gap-5 sm:grid-cols-2">
 
-                  <div>
+        <div>
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                      State
-                    </p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            Full name
+          </p>
 
-                    <p className="mt-1 text-sm font-semibold text-black">
-                      {address.state ||
-                        "Not provided"}
-                    </p>
+          <p className="mt-1 text-sm font-semibold text-black">
+            {address.name || "Not provided"}
+          </p>
 
-                  </div>
+        </div>
 
-                  <div>
+        <div>
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                      Country
-                    </p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            Phone number
+          </p>
 
-                    <p className="mt-1 text-sm font-semibold text-black">
-                      {address.country}
-                    </p>
+          <p className="mt-1 text-sm font-semibold text-black">
+            {address.phone || "Not provided"}
+          </p>
 
-                  </div>
+        </div>
 
-                </div>
+        <div className="sm:col-span-2">
 
-              </div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            Street address
+          </p>
 
-            </section>
+          <p className="mt-1 text-sm font-semibold leading-6 text-black">
+            {address.street || "Not provided"}
+          </p>
 
+        </div>
+
+        <div>
+
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            City
+          </p>
+
+          <p className="mt-1 text-sm font-semibold text-black">
+            {address.city || "Not provided"}
+          </p>
+
+        </div>
+
+        <div>
+
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            State
+          </p>
+
+          <p className="mt-1 text-sm font-semibold text-black">
+            {address.state || "Not provided"}
+          </p>
+
+        </div>
+
+        <div>
+
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+            Country
+          </p>
+
+          <p className="mt-1 text-sm font-semibold text-black">
+            {address.country}
+          </p>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  )}
+
+</section>
           </div>
 
           <aside className="space-y-6">
@@ -952,20 +1025,33 @@ async function fetchOrder() {
 
                 </div>
 
-                {discount > 0 && (
-                  <div className="flex items-center justify-between gap-4">
+                {order?.coupon?.code && (
+  <div className="flex items-center justify-between gap-4">
 
-                    <span className="text-sm font-medium text-neutral-600">
-                      Discount
-                    </span>
+    <span className="text-sm font-medium text-neutral-600">
+      Coupon
+    </span>
 
-                    <span className="text-sm font-semibold text-green-600">
-                      -{formatPrice(discount)}
-                    </span>
+    <span className="text-sm font-semibold text-black">
+      {order.coupon.code}
+    </span>
 
-                  </div>
-                )}
+  </div>
+)}
 
+{discount > 0 && (
+  <div className="flex items-center justify-between gap-4">
+
+    <span className="text-sm font-medium text-neutral-600">
+      Coupon discount
+    </span>
+
+    <span className="text-sm font-semibold text-green-600">
+      -{formatPrice(discount)}
+    </span>
+
+  </div>
+)}
                 <div className="flex items-center justify-between gap-4">
 
                   <span className="text-sm font-medium text-neutral-600">
