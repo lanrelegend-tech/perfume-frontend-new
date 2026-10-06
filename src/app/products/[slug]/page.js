@@ -793,84 +793,11 @@ async function handleShareProduct() {
 
   const shareData = {
     title: product.name,
-    text: `Check out ${product.name} from ORENTEMIST.`,
+    text: `Check out ${product.name} from ORENTEMIST.\n\n${url}`,
     url,
   };
 
   try {
-    const shareImage = product.image || images?.[0] || null;
-
-    const imageUrl = shareImage
-      ? getImageUrl(shareImage)
-      : null;
-
-    if (
-      imageUrl &&
-      typeof navigator.canShare === "function" &&
-      typeof navigator.share === "function"
-    ) {
-      try {
-        const response = await fetch(imageUrl, {
-          mode: "cors",
-          cache: "no-store",
-        });
-
-        if (response.ok) {
-          const blob = await response.blob();
-
-          if (blob.size > 0) {
-            let mimeType = blob.type;
-
-            if (!mimeType || !mimeType.startsWith("image/")) {
-              const lowerUrl = imageUrl.toLowerCase();
-
-              if (lowerUrl.includes(".png")) {
-                mimeType = "image/png";
-              } else if (lowerUrl.includes(".webp")) {
-                mimeType = "image/webp";
-              } else if (lowerUrl.includes(".gif")) {
-                mimeType = "image/gif";
-              } else {
-                mimeType = "image/jpeg";
-              }
-            }
-
-            const extension =
-              mimeType === "image/png"
-                ? "png"
-                : mimeType === "image/webp"
-                ? "webp"
-                : mimeType === "image/gif"
-                ? "gif"
-                : "jpg";
-
-            const imageFile = new File(
-              [blob],
-              `${product.slug || "product"}.${extension}`,
-              {
-                type: mimeType,
-              }
-            );
-
-            const shareWithImage = {
-              ...shareData,
-              files: [imageFile],
-            };
-
-            if (navigator.canShare(shareWithImage)) {
-              await navigator.share(shareWithImage);
-              return;
-            }
-          }
-        }
-      } catch (imageError) {
-        console.error(
-          "Product image sharing failed:",
-          imageError
-        );
-      }
-    }
-
     if (typeof navigator.share === "function") {
       await navigator.share(shareData);
       return;
