@@ -798,50 +798,69 @@ async function handleShareProduct() {
   };
 
   try {
-    const imageUrl = product.image
-      ? getImageUrl(product.image)
+    const shareImage = product.image || images?.[0] || null;
+
+    const imageUrl = shareImage
+      ? getImageUrl(shareImage)
       : null;
 
     if (
       imageUrl &&
-      navigator.canShare &&
-      navigator.canShare({ files: [] })
+      typeof navigator.canShare === "function" &&
+      typeof navigator.share === "function"
     ) {
       try {
-        const response = await fetch(imageUrl);
+        const response = await fetch(imageUrl, {
+          mode: "cors",
+          cache: "no-store",
+        });
 
         if (response.ok) {
           const blob = await response.blob();
 
-          const extension =
-            blob.type === "image/png"
-              ? "png"
-              : blob.type === "image/webp"
-              ? "webp"
-              : "jpg";
+          if (blob.size > 0) {
+            let mimeType = blob.type;
 
-          const imageFile = new File(
-            [blob],
-            `${product.slug || "product"}.${extension}`,
-            {
-              type:
-                blob.type || "image/jpeg",
+            if (!mimeType || !mimeType.startsWith("image/")) {
+              const lowerUrl = imageUrl.toLowerCase();
+
+              if (lowerUrl.includes(".png")) {
+                mimeType = "image/png";
+              } else if (lowerUrl.includes(".webp")) {
+                mimeType = "image/webp";
+              } else if (lowerUrl.includes(".gif")) {
+                mimeType = "image/gif";
+              } else {
+                mimeType = "image/jpeg";
+              }
             }
-          );
 
-          const shareWithImage = {
-            ...shareData,
-            files: [imageFile],
-          };
+            const extension =
+              mimeType === "image/png"
+                ? "png"
+                : mimeType === "image/webp"
+                ? "webp"
+                : mimeType === "image/gif"
+                ? "gif"
+                : "jpg";
 
-          if (
-            navigator.canShare(shareWithImage)
-          ) {
-            await navigator.share(
-              shareWithImage
+            const imageFile = new File(
+              [blob],
+              `${product.slug || "product"}.${extension}`,
+              {
+                type: mimeType,
+              }
             );
 
-            return;
+            const shareWithImage = {
+              ...shareData,
+              files: [imageFile],
+            };
+
+            if (navigator.canShare(shareWithImage)) {
+              await navigator.share(shareWithImage);
+              return;
+            }
           }
         }
       } catch (imageError) {
@@ -852,24 +871,27 @@ async function handleShareProduct() {
       }
     }
 
-    if (navigator.share) {
+    if (typeof navigator.share === "function") {
       await navigator.share(shareData);
       return;
     }
 
-    await navigator.clipboard.writeText(url);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
 
-    setCartMessage("Product link copied.");
-    setCartMessageType("success");
+      setCartMessage("Product link copied.");
+      setCartMessageType("success");
+      return;
+    }
+
+    setCartMessage("Unable to share this product.");
+    setCartMessageType("error");
   } catch (error) {
     if (error?.name === "AbortError") {
       return;
     }
 
-    console.error(
-      "Share error:",
-      error
-    );
+    console.error("Share error:", error);
 
     setCartMessage(
       "Unable to share this product."
@@ -877,7 +899,6 @@ async function handleShareProduct() {
     setCartMessageType("error");
   }
 }
-
   function redirectToLogin() {
     if (!product?.id) {
       router.push("/login");
