@@ -784,55 +784,99 @@ function handleAddToCart() {
       router.push("/checkout");
     }, 300);
   }
+async function handleShareProduct() {
+  if (!product) {
+    return;
+  }
 
-  async function handleShareProduct() {
-    if (!product) {
+  const url = window.location.href;
+
+  const shareData = {
+    title: product.name,
+    text: `Check out ${product.name} from ORENTEMIST.`,
+    url,
+  };
+
+  try {
+    const imageUrl = product.image
+      ? getImageUrl(product.image)
+      : null;
+
+    if (
+      imageUrl &&
+      navigator.canShare &&
+      navigator.canShare({ files: [] })
+    ) {
+      try {
+        const response = await fetch(imageUrl);
+
+        if (response.ok) {
+          const blob = await response.blob();
+
+          const extension =
+            blob.type === "image/png"
+              ? "png"
+              : blob.type === "image/webp"
+              ? "webp"
+              : "jpg";
+
+          const imageFile = new File(
+            [blob],
+            `${product.slug || "product"}.${extension}`,
+            {
+              type:
+                blob.type || "image/jpeg",
+            }
+          );
+
+          const shareWithImage = {
+            ...shareData,
+            files: [imageFile],
+          };
+
+          if (
+            navigator.canShare(shareWithImage)
+          ) {
+            await navigator.share(
+              shareWithImage
+            );
+
+            return;
+          }
+        }
+      } catch (imageError) {
+        console.error(
+          "Product image sharing failed:",
+          imageError
+        );
+      }
+    }
+
+    if (navigator.share) {
+      await navigator.share(shareData);
       return;
     }
 
-    const url =
-      window.location.href;
+    await navigator.clipboard.writeText(url);
 
-    const shareData = {
-      title: product.name,
-      text: `Check out ${product.name} from ORENTEMIST.`,
-      url,
-    };
-
-    try {
-      if (navigator.share) {
-        await navigator.share(
-          shareData
-        );
-
-        return;
-      }
-
-      await navigator.clipboard.writeText(
-        url
-      );
-
-      alert(
-        "Product link copied."
-      );
-    } catch (error) {
-      if (
-        error?.name ===
-        "AbortError"
-      ) {
-        return;
-      }
-
-      console.error(
-        "Share error:",
-        error
-      );
-
-      alert(
-        "Unable to share this product."
-      );
+    setCartMessage("Product link copied.");
+    setCartMessageType("success");
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
     }
+
+    console.error(
+      "Share error:",
+      error
+    );
+
+    setCartMessage(
+      "Unable to share this product."
+    );
+    setCartMessageType("error");
   }
+}
 
   function redirectToLogin() {
     if (!product?.id) {
