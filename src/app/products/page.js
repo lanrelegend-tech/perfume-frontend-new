@@ -71,60 +71,6 @@ function getProductStatus(product) {
 }
 
 /* =========================================================
-   SEARCH EVERYTHING
-========================================================= */
-
-function getSearchableText(product) {
-  const fragranceNotes = Array.isArray(
-    product.fragrance_notes
-  )
-    ? product.fragrance_notes.join(" ")
-    : product.fragrance_notes ||
-      product.fragrance_note ||
-      product.notes ||
-      product.top_notes ||
-      product.middle_notes ||
-      product.base_notes ||
-      "";
-
-  const categoryName =
-    product.category_name ||
-    product.category?.name ||
-    product.category?.title ||
-    "";
-
-  const categoryType =
-    product.category_type ||
-    product.category?.type ||
-    "";
-
-  return [
-    product.name,
-    product.brand,
-    product.description,
-
-    /* fragrance information */
-    fragranceNotes,
-    product.top_notes,
-    product.middle_notes,
-    product.base_notes,
-
-    /* category */
-    categoryName,
-    categoryType,
-
-    /* product details */
-    product.size,
-    product.volume,
-    product.product_type,
-    product.type,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-/* =========================================================
    EXTRACT NOTES FOR DISPLAY
 ========================================================= */
 
@@ -178,6 +124,9 @@ export default function ProductsPage() {
   const [currency, setCurrency] = useState("NGN");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [nextProductsUrl, setNextProductsUrl] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     function updateCartCount() {
@@ -249,58 +198,115 @@ export default function ProductsPage() {
   const [searchFocused, setSearchFocused] =
     useState(false);
 
+  function buildProductsUrl() {
+    const params = new URLSearchParams();
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
+
+    if (selectedCategory !== "all") {
+      params.set("category", selectedCategory);
+    }
+
+    const statusMap = {
+      "In Stock": "in_stock",
+      "Low Stock": "low_stock",
+      "Pre-order Available": "preorder",
+      "Sold Out": "sold_out",
+    };
+
+    if (selectedStatus !== "all" && statusMap[selectedStatus]) {
+      params.set("stock_status", statusMap[selectedStatus]);
+    }
+
+    const orderingMap = {
+      featured: "-featured,-created_at",
+      newest: "-created_at",
+      "price-low": "price",
+      "price-high": "-price",
+    };
+
+    if (orderingMap[sortBy]) {
+      params.set("ordering", orderingMap[sortBy]);
+    }
+
+    const query = params.toString();
+
+    return `${API_URL}/products/${query ? `?${query}` : ""}`;
+  }
+
   /* =======================================================
-     LOAD PRODUCTS + CATEGORIES + SETTINGS
+     LOAD PRODUCTS
   ======================================================= */
 
   useEffect(() => {
-    async function loadStore() {
+    const timeout = setTimeout(async () => {
       try {
-        // =====================================================
-        // LOAD ALL PRODUCTS
-        // =====================================================
+        setLoading(true);
 
-        let productsNextUrl = `${API_URL}/products/`;
-        const allProducts = [];
-
-        while (productsNextUrl) {
-          const productsResponse =
-            await fetch(productsNextUrl, {
-              cache: "no-store",
-            });
-
-          if (!productsResponse.ok) {
-            break;
+        const response = await fetch(
+          buildProductsUrl(),
+          {
+            cache: "no-store",
           }
+        );
 
-          const productsData =
-            await productsResponse.json();
-
-          if (Array.isArray(productsData)) {
-            allProducts.push(...productsData);
-            break;
-          }
-
-          if (Array.isArray(productsData?.results)) {
-            allProducts.push(
-              ...productsData.results
-            );
-          }
-
-          productsNextUrl =
-            productsData?.next || null;
+        if (!response.ok) {
+          setProducts([]);
+          setTotalProducts(0);
+          setNextProductsUrl(null);
+          return;
         }
 
-        setProducts(allProducts);
+        const data = await response.json();
 
-        // Stop the main loading screen
-        // once all products have been loaded.
+        const pageProducts = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.results)
+          ? data.results
+          : [];
+
+        setProducts(pageProducts);
+        setTotalProducts(
+          typeof data?.count === "number"
+            ? data.count
+            : pageProducts.length
+        );
+        setNextProductsUrl(
+          Array.isArray(data)
+            ? null
+            : data?.next || null
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load products:",
+          error
+        );
+
+        setProducts([]);
+        setTotalProducts(0);
+        setNextProductsUrl(null);
+      } finally {
         setLoading(false);
+      }
+    }, 250);
 
-        // =====================================================
-        // LOAD CATEGORIES + SETTINGS
-        // =====================================================
+    return () => clearTimeout(timeout);
+  }, [
+    search,
+    selectedCategory,
+    selectedStatus,
+    sortBy,
+  ]);
 
+  /* =======================================================
+     LOAD CATEGORIES + SETTINGS
+  ======================================================= */
+
+  useEffect(() => {
+    async function loadStoreMeta() {
+      try {
         const [
           categoriesResponse,
           settingsResponse,
@@ -382,15 +388,13 @@ export default function ProductsPage() {
         }
       } catch (error) {
         console.error(
-          "Failed to load products:",
+          "Failed to load store metadata:",
           error
         );
-
-        setLoading(false);
       }
     }
 
-    loadStore();
+    loadStoreMeta();
   }, []);
 
   /* =======================================================
@@ -398,85 +402,64 @@ export default function ProductsPage() {
   ======================================================= */
 
   const filteredProducts = useMemo(() => {
-    let result = [...products];
-
-    /* SEARCH EVERYTHING */
-
-    if (search.trim()) {
-      const query = search.trim().toLowerCase();
-
-      result = result.filter((product) =>
-        getSearchableText(product).includes(query)
-      );
-    }
-
-    /* CATEGORY */
-
-    if (selectedCategory !== "all") {
-      result = result.filter((product) => {
-        const productCategoryId =
-          product.category_id ??
-          product.category?.id;
-
-        return (
-          String(productCategoryId) ===
-          String(selectedCategory)
-        );
-      });
-    }
-
-    /* STOCK STATUS */
-
-    if (selectedStatus !== "all") {
-      result = result.filter(
-        (product) =>
-          getProductStatus(product) ===
-          selectedStatus
-      );
-    }
-
-    /* SORT */
-
-    if (sortBy === "price-low") {
-      result.sort(
-        (a, b) =>
-          Number(a.price || 0) -
-          Number(b.price || 0)
-      );
-    }
-
-    if (sortBy === "price-high") {
-      result.sort(
-        (a, b) =>
-          Number(b.price || 0) -
-          Number(a.price || 0)
-      );
-    }
-
-    if (sortBy === "newest") {
-      result.sort(
-        (a, b) =>
-          new Date(b.created_at || 0) -
-          new Date(a.created_at || 0)
-      );
-    }
-
-    if (sortBy === "featured") {
-      result.sort(
-        (a, b) =>
-          Number(Boolean(b.featured)) -
-          Number(Boolean(a.featured))
-      );
-    }
-
-    return result;
+    return products;
   }, [
     products,
-    search,
-    selectedCategory,
-    selectedStatus,
-    sortBy,
   ]);
+
+  async function loadMoreProducts() {
+    if (!nextProductsUrl || loadingMore) {
+      return;
+    }
+
+    try {
+      setLoadingMore(true);
+
+      const response = await fetch(
+        nextProductsUrl,
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const pageProducts = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+        ? data.results
+        : [];
+
+      setProducts((currentProducts) => {
+        const existingIds = new Set(
+          currentProducts.map((product) => product.id)
+        );
+
+        return [
+          ...currentProducts,
+          ...pageProducts.filter(
+            (product) => !existingIds.has(product.id)
+          ),
+        ];
+      });
+
+      setTotalProducts(
+        typeof data?.count === "number"
+          ? data.count
+          : totalProducts
+      );
+      setNextProductsUrl(
+        Array.isArray(data)
+          ? null
+          : data?.next || null
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   /* =======================================================
      CLEAR
@@ -1159,8 +1142,8 @@ export default function ProductsPage() {
               <p className="mt-2 text-sm text-black/50">
                 {loading
                   ? "Loading collection..."
-                  : `${filteredProducts.length} ${
-                      filteredProducts.length ===
+                  : `${totalProducts} ${
+                      totalProducts ===
                       1
                         ? "product"
                         : "products"
@@ -1195,6 +1178,23 @@ export default function ProductsPage() {
               products={filteredProducts}
               currency={currency}
             />
+          )}
+
+          {!loading &&
+            filteredProducts.length > 0 &&
+            nextProductsUrl && (
+            <div className="mt-12 flex justify-center">
+              <button
+                type="button"
+                onClick={loadMoreProducts}
+                disabled={loadingMore}
+                className="min-w-[180px] rounded-full border border-black px-7 py-3.5 text-xs font-medium transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loadingMore
+                  ? "Loading..."
+                  : "Load More"}
+              </button>
+            </div>
           )}
 
         </div>

@@ -116,59 +116,27 @@ const loadData = async () => {
     setLoading(true);
     setError("");
 
-    /* =================================================
-       LOAD PRODUCT — ALL PAGINATED PAGES
-    ================================================= */
-
-    let productsUrl = `${API_URL}/products/`;
-    let foundProduct = null;
-
-    while (productsUrl) {
-      const productsResponse = await fetchWithAdminAuth(
-        productsUrl,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
-
-      if (!productsResponse) {
-        return;
+    const productsResponse = await fetchWithAdminAuth(
+      `${API_URL}/products/${productId}/`,
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
       }
+    );
 
-      if (!productsResponse.ok) {
-        throw new Error(
-          "Failed to load products"
-        );
-      }
-
-      const productsData =
-        await productsResponse.json();
-
-      const productList = Array.isArray(
-        productsData
-      )
-        ? productsData
-        : Array.isArray(
-            productsData?.results
-          )
-        ? productsData.results
-        : [];
-
-      foundProduct = productList.find(
-        (item) =>
-          String(item.id) ===
-          String(productId)
-      );
-
-      if (foundProduct) {
-        break;
-      }
-
-      productsUrl =
-        productsData?.next || null;
+    if (!productsResponse) {
+      return;
     }
+
+    if (!productsResponse.ok) {
+      throw new Error(
+        "Failed to load product"
+      );
+    }
+
+    const foundProduct =
+      await productsResponse.json();
 
     if (!foundProduct) {
       throw new Error(

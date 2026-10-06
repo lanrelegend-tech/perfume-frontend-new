@@ -599,95 +599,51 @@ return;
 return;
     }
 
-    /*
-      =====================================================
-      LOAD ALL ORDERS
-      =====================================================
+    const ordersResponse =
+      await fetch(
+        `${API_URL}/orders/admin/`,
+        {
+          method: "GET",
+          headers,
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
 
-      /orders/admin/ is paginated by Django REST Framework.
-
-      Example:
-
-      {
-        "count": 150,
-        "next": "...?page=2",
-        "previous": null,
-        "results": [...]
-      }
-
-      We keep requesting "next" until Django returns null.
-    */
-    let loadedOrders = [];
-
-    let nextOrdersUrl =
-      `${API_URL}/orders/admin/`;
-
-    while (nextOrdersUrl) {
-      const ordersResponse =
-        await fetch(
-          nextOrdersUrl,
-          {
-            method: "GET",
-            headers,
-            credentials: "include",
-            cache: "no-store",
-          }
-        );
-
-      if (
-        ordersResponse.status === 401 ||
-        ordersResponse.status === 403
-      ) {
-       router.replace(
+    if (
+      ordersResponse.status === 401 ||
+      ordersResponse.status === 403
+    ) {
+     router.replace(
   `/admin/login?next=${encodeURIComponent(
     window.location.pathname
   )}`
 );
 return;
-      }
-
-      if (!ordersResponse.ok) {
-        const data =
-          await ordersResponse
-            .json()
-            .catch(() => ({}));
-
-        throw new Error(
-          data?.detail ||
-            data?.error ||
-            `Orders API returned ${ordersResponse.status}.`
-        );
-      }
-
-      const data =
-        await ordersResponse.json();
-
-      /*
-        Add this page's orders to the
-        complete orders array.
-      */
-      const pageOrders =
-        Array.isArray(data?.results)
-          ? data.results
-          : Array.isArray(data)
-          ? data
-          : [];
-
-      loadedOrders = [
-        ...loadedOrders,
-        ...pageOrders,
-      ];
-
-      /*
-        Django gives us the URL of the
-        next page.
-
-        When there are no more pages:
-        next === null
-      */
-      nextOrdersUrl =
-        data?.next || null;
     }
+
+    if (!ordersResponse.ok) {
+      const data =
+        await ordersResponse
+          .json()
+          .catch(() => ({}));
+
+      throw new Error(
+        data?.detail ||
+          data?.error ||
+          `Orders API returned ${ordersResponse.status}.`
+      );
+    }
+
+    const ordersData =
+      await ordersResponse.json();
+
+    const loadedOrders =
+      Array.isArray(ordersData?.results)
+        ? ordersData.results
+        : Array.isArray(ordersData)
+        ? ordersData
+        : [];
 
     /*
       =====================================================

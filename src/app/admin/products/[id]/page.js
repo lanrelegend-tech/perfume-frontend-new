@@ -376,46 +376,27 @@ useEffect(() => {
       setLoading(true);
       setError("");
 
-      let nextUrl = `${API_URL}/products/`;
-      let foundProduct = null;
-
-      while (nextUrl) {
-        const response = await fetchWithAdminAuth(nextUrl, {
+      const response = await fetchWithAdminAuth(
+        `${API_URL}/products/${params.id}/`,
+        {
           cache: "no-store",
-        });
-
-        if (!response) {
-          return;
         }
+      );
 
-        if (!response.ok) {
-          throw new Error("Failed to load products");
-        }
-
-        const data = await response.json();
-
-        const productList = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.results)
-          ? data.results
-          : [];
-
-        foundProduct = productList.find(
-          (item) =>
-            String(item.id) === String(params.id)
-        );
-
-        if (foundProduct) {
-          break;
-        }
-
-        nextUrl = data?.next || null;
+      if (!response) {
+        return;
       }
 
-      if (!foundProduct) {
+      if (response.status === 404) {
         setError("Product not found.");
         return;
       }
+
+      if (!response.ok) {
+        throw new Error("Failed to load product");
+      }
+
+      const foundProduct = await response.json();
 
       setProduct(foundProduct);
     } catch (err) {
@@ -501,70 +482,26 @@ useEffect(() => {
     try {
       setOrdersLoading(true);
 
-      const endpoints = [
-        `${API_URL}/orders/admin/`,
-        `${API_URL}/orders/`,
-      ];
-
-      let nextUrl = null;
-      let foundResponse = false;
-      const allOrders = [];
-
-      for (const endpoint of endpoints) {
-        try {
-          nextUrl = endpoint;
-
-          while (nextUrl) {
-            const response = await fetchWithAdminAuth(
-              nextUrl,
-              {
-                method: "GET",
-                credentials: "include",
-                cache: "no-store",
-              }
-            );
-
-            if (!response) {
-              foundResponse = false;
-              break;
-            }
-
-            if (!response.ok) {
-              foundResponse = false;
-              break;
-            }
-
-            const data = await response.json();
-
-            foundResponse = true;
-
-            if (Array.isArray(data)) {
-              allOrders.push(...data);
-              nextUrl = null;
-              break;
-            }
-
-            if (Array.isArray(data?.results)) {
-              allOrders.push(...data.results);
-            }
-
-            nextUrl = data?.next || null;
-          }
-
-          if (foundResponse) {
-            break;
-          }
-        } catch {
-          nextUrl = null;
-          foundResponse = false;
-          continue;
+      const response = await fetchWithAdminAuth(
+        `${API_URL}/orders/admin/?product=${params.id}`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
         }
-      }
+      );
 
-      if (!foundResponse) {
+      if (!response || !response.ok) {
         setOrders([]);
         return;
       }
+
+      const data = await response.json();
+      const allOrders = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+        ? data.results
+        : [];
 
       const productOrders =
         allOrders

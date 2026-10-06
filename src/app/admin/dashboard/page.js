@@ -182,78 +182,37 @@ const loadDashboard = async () => {
       ),
     ]);
 
-    /*
-      --------------------------------------------------
-      LOAD ALL ORDERS
-      --------------------------------------------------
-
-      /orders/admin/ is paginated.
-
-      Example:
-
+    const ordersResponse = await fetchWithAdminAuth(
+      `${API_URL}/orders/admin/`,
       {
-        "count": 150,
-        "next": "...?page=2",
-        "previous": null,
-        "results": [...]
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
       }
+    );
 
-      Keep requesting the "next" URL until
-      Django returns null.
-    */
-
-    let allOrders = [];
-
-    let nextOrdersUrl =
-      `${API_URL}/orders/admin/`;
-
-    while (nextOrdersUrl) {
-      const ordersResponse = await fetchWithAdminAuth(
-        nextOrdersUrl,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-        }
-      );
-
-      if (!ordersResponse) {
-        return;
-      }
-
-      if (!ordersResponse.ok) {
-        throw new Error(
-          `Orders request failed: ${ordersResponse.status}`
-        );
-      }
-
-      const ordersData =
-        await ordersResponse.json();
-
-      const pageOrders =
-        Array.isArray(ordersData?.results)
-          ? ordersData.results
-          : Array.isArray(ordersData)
-          ? ordersData
-          : [];
-
-      allOrders = [
-        ...allOrders,
-        ...pageOrders,
-      ];
-
-      /*
-        Django gives us the next page URL.
-
-        When there are no more pages:
-        next = null
-      */
-      nextOrdersUrl =
-        ordersData?.next || null;
+    if (!ordersResponse) {
+      return;
     }
+
+    if (!ordersResponse.ok) {
+      throw new Error(
+        `Orders request failed: ${ordersResponse.status}`
+      );
+    }
+
+    const ordersData =
+      await ordersResponse.json();
+
+    const pageOrders =
+      Array.isArray(ordersData?.results)
+        ? ordersData.results
+        : Array.isArray(ordersData)
+        ? ordersData
+        : [];
 
     /*
       --------------------------------------------------
@@ -261,7 +220,7 @@ const loadDashboard = async () => {
       --------------------------------------------------
     */
 
-    setOrders(allOrders);
+    setOrders(pageOrders);
 
     /*
       --------------------------------------------------
@@ -293,12 +252,8 @@ const loadDashboard = async () => {
       getCount(productsData)
     );
 
-    /*
-      Use the full number of orders that we
-      actually loaded, rather than only page 1.
-    */
     setOrderCount(
-      allOrders.length
+      getCount(ordersData)
     );
 
     setCustomerCount(
