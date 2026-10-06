@@ -288,7 +288,6 @@ function parseCSVLine(line) {
 
   return values;
 }
-
 function parseCSV(text) {
   const lines = [];
   let current = "";
@@ -327,11 +326,45 @@ function parseCSV(text) {
     lines.push(current);
   }
 
-  return lines
-    .filter((line) => line.trim() !== "")
-    .map(parseCSVLine);
-}
+  const cleanedLines = lines.filter(
+    (line) => line.trim() !== ""
+  );
 
+  if (!cleanedLines.length) {
+    return {
+      headers: [],
+      rows: [],
+    };
+  }
+
+  const rawHeaders = parseCSVLine(cleanedLines[0]);
+
+  const headers = rawHeaders.map((header) =>
+    normalizeHeader(
+      String(header || "")
+        .replace(/^\uFEFF/, "")
+        .trim()
+    )
+  );
+
+  const rows = cleanedLines
+    .slice(1)
+    .map((line) => {
+      const values = parseCSVLine(line);
+      const row = {};
+
+      headers.forEach((header, index) => {
+        row[header] = values[index] ?? "";
+      });
+
+      return row;
+    });
+
+  return {
+    headers,
+    rows,
+  };
+}
 function csvEscape(value) {
   const stringValue = String(value ?? "");
 
@@ -368,6 +401,26 @@ function safeFileName(name) {
   return String(name || "file")
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
     .trim();
+}
+
+
+function imageMimeTypeFromName(name) {
+  const extension = String(name || "")
+    .toLowerCase()
+    .split(".")
+    .pop();
+
+  const types = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    avif: "image/avif",
+    bmp: "image/bmp",
+  };
+
+  return types[extension] || "application/octet-stream";
 }
 
 function downloadBlob(blob, fileName) {
@@ -1593,15 +1646,183 @@ useEffect(() => {
     return true;
   }
 
-  function handleZip(file) {
-    if (!validateZip(file)) {
-      return;
+  async function handleZip(file) {
+  if (!validateZip(file)) {
+    return;
+  }
+
+  try {
+    setError("");
+    setMessage(`Reading ZIP: ${file.name}...`);
+
+    const JSZip = (await import("jszip")).default;
+    const zip = await JSZip.loadAsync(file);
+
+    // Find the CSV inside the ZIP
+    const csvEntry = Object.values(zip.files).find(
+      (entry) =>
+        !entry.dir &&
+        entry.name.toLowerCase().endsWith(".csv")
+    );
+
+    if (!csvEntry) {
+      throw new Error(
+        "No CSV file was found inside the ZIP. Please put your CSV and images inside the same ZIP."
+      );
     }
 
+    // Read and parse the CSV
+    const csvText = await csvEntry.async("text");
+    const parsedRows = parseCSV(csvText);
+
+    if (
+       !parsedRows.headers.length ||
+       !parsedRows.rows.length
+) {
+      throw new Error(
+       "The CSV inside the ZIP is empty."
+  );
+}
+    // Find the image column in the CSV
+    const imageColumn =
+      parsedRows.headers?.find((header) =>
+        ["image", "image_name", "image_filename"].includes(
+          String(header).trim().toLowerCase()
+        )
+      ) || "image";
+
+    // Convert CSV rows into our spreadsheet row format
+    const importedRows = parsedRows.rows
+      .map((csvRow) => {
+        const row = createBlankRow();
+
+        COLUMNS.forEach((column) => {
+          if (column.key === "image") {
+            return;
+          }
+
+          if (Object.prototype.hasOwnProperty.call(csvRow, column.key)) {
+            row[column.key] = csvRow[column.key];
+          }
+        });
+
+        // Handle the image filename(s)
+        const imageValue = String(csvRow[imageColumn] || "").trim();
+
+        if (imageValue) {
+          row.imageNames = imageValue
+            .split(/[,;|]/)
+            .map((name) => name.trim())
+            .filter(Boolean)
+            .map((name) => name.split("/").pop().split("\\").pop());
+        }
+
+        row.in_stock = booleanFromValue(csvRow.in_stock, true);
+        row.featured = booleanFromValue(csvRow.featured, false);
+        row.is_preorder = booleanFromValue(csvRow.is_preorder, false);
+
+        return row;
+      })
+      .filter(
+        (row) =>
+          String(row.name || "").trim() ||
+          String(row.brand || "").trim() ||
+          String(row.price || "").trim()
+      );
+
+    if (!importedRows.length) {
+      throw new Error(
+        "The CSV inside the ZIP does not contain any valid product rows."
+      );
+    }
+
+    // Extract images from the ZIP
+    const imageEntries = Object.values(zip.files).filter((entry) => {
+      if (entry.dir) return false;
+
+      const name = entry.name.toLowerCase();
+
+      return /\.(jpg|jpeg|png|webp|gif|avif|bmp)$/i.test(name);
+    });
+
+    const extractedImages = [];
+
+    for (const entry of imageEntries) {
+      const blob = await entry.async("blob");
+
+      const fileName = entry.name
+        .split("/")
+        .pop()
+        .split("\\")
+        .pop();
+
+      const imageFile = new File(
+        [blob],
+        fileName,
+        {
+          type: imageMimeTypeFromName(fileName),
+        }
+      );
+
+      const imageUrl = URL.createObjectURL(imageFile);
+
+      extractedImages.push({
+        file: imageFile,
+        url: imageUrl,
+        name: fileName,
+      });
+    }
+
+    // Match CSV image names to extracted ZIP images
+    const matchedRows = importedRows.map((row) => {
+      const matchedImages = [];
+
+      for (const imageName of row.imageNames || []) {
+        const normalizedImageName = imageName
+          .trim()
+          .toLowerCase();
+
+        const matchedImage = extractedImages.find(
+          (image) =>
+            image.name.trim().toLowerCase() === normalizedImageName
+        );
+
+        if (matchedImage && matchedImages.length < MAX_IMAGES_PER_ROW) {
+          matchedImages.push(matchedImage);
+        }
+      }
+
+      return {
+        ...row,
+        imageFiles: matchedImages.map((image) => image.file),
+        imageUrls: matchedImages.map((image) => image.url),
+        imageNames: matchedImages.map((image) => image.name),
+      };
+    });
+
+    setRows(matchedRows);
+    setImageLibrary(extractedImages);
     setZipFile(file);
-    setError("");
-    setMessage(`ZIP selected: ${file.name}`);
+
+    const matchedImageCount = matchedRows.reduce(
+      (total, row) => total + row.imageFiles.length,
+      0
+    );
+
+    setMessage(
+      `ZIP loaded: ${matchedRows.length} products, ${extractedImages.length} images, ${matchedImageCount} images matched.`
+    );
+  } catch (error) {
+    console.error("ZIP import error:", error);
+
+    setZipFile(null);
+    setError(
+      error?.message ||
+        "Unable to read the ZIP file. Make sure it contains a CSV file and valid product images."
+    );
+    setMessage("");
   }
+}
 
   function handleZipInput(event) {
     const file = event.target.files?.[0];
@@ -1623,111 +1844,109 @@ useEffect(() => {
       handleZip(file);
     }
   }
+async function handleCSVFile(file) {
+  if (!file) return;
 
-  async function handleCSVFile(file) {
-    if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".csv")) {
+    setError("Please upload a CSV file.");
+    return;
+  }
 
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setError("Please upload a CSV file.");
-      return;
+  setLoading(true);
+  setError("");
+  setMessage("");
+
+  try {
+    const text = await file.text();
+
+    const parsedCSV = parseCSV(text);
+
+    if (!parsedCSV.headers.length) {
+      throw new Error("The CSV file is empty.");
     }
 
-    setLoading(true);
-    setError("");
-    setMessage("");
+    const importedRows = parsedCSV.rows
+      .map((csvRow) => {
+        const row = createBlankRow();
 
-    try {
-      const text = await file.text();
-      const matrix = parseCSV(text);
+        COLUMNS.forEach((column) => {
+          if (column.key === "image") {
+            const imageValue =
+              csvRow.image ??
+              csvRow.image_name ??
+              csvRow.image_filename ??
+              "";
 
-      if (!matrix.length) {
-        throw new Error("The CSV file is empty.");
-      }
+            row.imageNames = String(imageValue)
+              .split(/[|;]/)
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .map((item) =>
+                item
+                  .split("/")
+                  .pop()
+                  .split("\\")
+                  .pop()
+              )
+              .slice(0, MAX_IMAGES_PER_ROW);
 
-      const headers = matrix[0].map(normalizeHeader);
+            return;
+          }
 
-      const headerMap = {};
+          if (
+            !Object.prototype.hasOwnProperty.call(
+              csvRow,
+              column.key
+            )
+          ) {
+            return;
+          }
 
-      headers.forEach((header, index) => {
-        headerMap[header] = index;
-      });
+          const value = csvRow[column.key] ?? "";
 
-      const importedRows = matrix
-        .slice(1)
-        .map((values) => {
-          const row = createBlankRow();
-
-          COLUMNS.forEach((column) => {
-            if (column.key === "image") {
-              const index =
-                headerMap.image ??
-                headerMap.image_name ??
-                headerMap.image_filename;
-
-              if (index !== undefined) {
-                row.imageNames = String(
-                  values[index] || ""
-                )
-                  .split(/[|;]/)
-                  .map((item) => item.trim())
-                  .filter(Boolean)
-                  .slice(0, MAX_IMAGES_PER_ROW);
-              }
-
-              return;
-            }
-
-            const index = headerMap[column.key];
-
-            if (index === undefined) {
-              return;
-            }
-
-            const value = values[index] ?? "";
-
-            if (column.type === "boolean") {
-              row[column.key] = booleanFromValue(
-                value,
-                column.key === "in_stock"
-              );
-            } else {
-              row[column.key] = value;
-            }
-          });
-
-          return row;
-        })
-        .filter((row) => {
-          return (
-            row.name.trim() ||
-            row.brand.trim() ||
-            row.price !== ""
-          );
+          if (column.type === "boolean") {
+            row[column.key] = booleanFromValue(
+              value,
+              column.key === "in_stock"
+            );
+          } else {
+            row[column.key] = value;
+          }
         });
 
-      if (!importedRows.length) {
-        throw new Error(
-          "No product rows were found in this CSV."
+        return row;
+      })
+      .filter((row) => {
+        return (
+          String(row.name || "").trim() ||
+          String(row.brand || "").trim() ||
+          String(row.price || "").trim()
         );
-      }
+      });
 
-      setRows(importedRows);
-      setSelectedRows([]);
-
-      setMessage(
-        `Loaded ${importedRows.length} product${
-          importedRows.length === 1 ? "" : "s"
-        } from ${file.name}.`
+    if (!importedRows.length) {
+      throw new Error(
+        "No product rows were found in this CSV."
       );
-    } catch (err) {
-      setError(
-        err.message ||
-          "Could not read the CSV file."
-      );
-    } finally {
-      setLoading(false);
     }
+
+    setRows(importedRows);
+    setSelectedRows([]);
+
+    setMessage(
+      `Loaded ${importedRows.length} product${
+        importedRows.length === 1 ? "" : "s"
+      } from ${file.name}.`
+    );
+  } catch (err) {
+    setError(
+      err?.message ||
+        "Could not read the CSV file."
+    );
+  } finally {
+    setLoading(false);
   }
+}
 
   function handleCSVInput(event) {
     const file = event.target.files?.[0];
