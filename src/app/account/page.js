@@ -82,9 +82,12 @@ export default function AccountPage() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [totalOrderCount, setTotalOrderCount] = useState(0);
+  const [nextOrdersUrl, setNextOrdersUrl] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
 
   const [activeSection, setActiveSection] =
     useState("overview");
@@ -159,10 +162,20 @@ export default function AccountPage() {
 
       if (Array.isArray(ordersData)) {
         setOrders(ordersData);
+        setTotalOrderCount(ordersData.length);
+        setNextOrdersUrl(null);
       } else if (
         Array.isArray(ordersData?.results)
       ) {
         setOrders(ordersData.results);
+        setTotalOrderCount(
+          typeof ordersData.count === "number"
+            ? ordersData.count
+            : ordersData.results.length
+        );
+        setNextOrdersUrl(
+          ordersData.next || null
+        );
       }
     }
 
@@ -179,6 +192,65 @@ export default function AccountPage() {
   } finally {
     setLoading(false);
     setOrdersLoading(false);
+  }
+}
+
+async function loadMoreOrders() {
+  if (!nextOrdersUrl || loadingMoreOrders) {
+    return;
+  }
+
+  try {
+    setLoadingMoreOrders(true);
+
+    const response = await fetch(
+      nextOrdersUrl,
+      {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json();
+    const pageOrders = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.results)
+      ? data.results
+      : [];
+
+    setOrders((currentOrders) => {
+      const existingIds = new Set(
+        currentOrders.map((order) => order.id)
+      );
+
+      return [
+        ...currentOrders,
+        ...pageOrders.filter(
+          (order) => !existingIds.has(order.id)
+        ),
+      ];
+    });
+
+    setTotalOrderCount(
+      typeof data?.count === "number"
+        ? data.count
+        : totalOrderCount
+    );
+    setNextOrdersUrl(
+      Array.isArray(data)
+        ? null
+        : data?.next || null
+    );
+  } finally {
+    setLoadingMoreOrders(false);
   }
 }
 
@@ -298,7 +370,7 @@ async function handleLogout() {
   ========================================================= */
 
   const totalOrders =
-    orders.length;
+    totalOrderCount;
 
 
   const deliveredOrders =
@@ -620,6 +692,19 @@ async function handleLogout() {
                     order={order}
                   />
                 ))}
+
+                {nextOrdersUrl && (
+                  <button
+                    type="button"
+                    onClick={loadMoreOrders}
+                    disabled={loadingMoreOrders}
+                    className="mt-5 w-full rounded-full border border-black px-5 py-3 text-xs font-medium transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loadingMoreOrders
+                      ? "Loading..."
+                      : "Load More Orders"}
+                  </button>
+                )}
 
               </div>
             )}

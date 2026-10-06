@@ -19,8 +19,6 @@ import {
   Plus,
   Minus,
   MoreHorizontal,
-  ChevronLeft,
-  ChevronRight,
   Search,
   X,
 } from "lucide-react";
@@ -44,6 +42,9 @@ function getImageUrl(image) {
 
 export default function InventoryPage() {
   const [products, setProducts] = useState([]);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [nextProductsUrl, setNextProductsUrl] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [categories, setCategories] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,116 @@ export default function InventoryPage() {
   const [stockAmount, setStockAmount] = useState("");
   const [updatingStock, setUpdatingStock] = useState(false);
   const [stockMessage, setStockMessage] = useState("");
+
+  const buildProductsUrl = () => {
+    const params = new URLSearchParams();
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
+
+    const stockStatusMap = {
+      "In Stock": "in_stock",
+      "Low Stock": "low_stock",
+      "Out of Stock": "out_of_stock",
+    };
+
+    if (
+      statusFilter !== "All" &&
+      stockStatusMap[statusFilter]
+    ) {
+      params.set(
+        "stock_status",
+        stockStatusMap[statusFilter]
+      );
+    }
+
+    if (categoryFilter !== "All") {
+      const selectedCategory =
+        categories.find(
+          (category) =>
+            category.name === categoryFilter
+        );
+
+      if (selectedCategory) {
+        params.set(
+          "category",
+          selectedCategory.id
+        );
+      }
+    }
+
+    const query = params.toString();
+
+    return `${API_URL}/products/admin/${query ? `?${query}` : ""}`;
+  };
+
+  const formatProduct = (product, categoryList = categories) => {
+    const stock =
+      Number(
+        product.stock_quantity
+      ) || 0;
+
+    let status = "In Stock";
+
+    if (stock === 0) {
+      status =
+        "Out of Stock";
+    } else if (
+      stock <= 10
+    ) {
+      status =
+        "Low Stock";
+    }
+
+    const categoryId =
+      product.category_id ??
+      product.category?.id ??
+      product.category;
+
+    const category =
+      categoryList.find(
+        (item) =>
+          String(item.id) ===
+          String(categoryId)
+      );
+
+    return {
+      ...product,
+
+      category:
+        category?.name ||
+        product.category?.name ||
+        product.category_name ||
+        "Uncategorized",
+
+      stock,
+
+      stock_quantity:
+        stock,
+
+      status,
+
+      price:
+        Number(
+          product.price
+        ) || 0,
+
+      image:
+        getImageUrl(
+          product.image
+        ),
+
+      sku:
+        product.sku ||
+        `VLR-${String(
+          product.id
+        ).padStart(
+          4,
+          "0"
+        )}`,
+    };
+  };
 
   /*
    * LOAD PRODUCTS + CATEGORIES
@@ -95,88 +206,49 @@ export default function InventoryPage() {
     }
 
     /*
-     * FETCH ALL PAGINATED PAGES
+     * LOAD FIRST PRODUCT PAGE
      */
-    const fetchAllPages = async (
-      initialUrl
-    ) => {
-      const allResults = [];
-      let nextUrl = initialUrl;
-
-      while (nextUrl) {
-        const response = await fetchWithAdminAuth(
-          nextUrl,
-          {
-            method: "GET",
-            credentials: "include",
-            cache: "no-store",
-          }
-        );
-
-        if (!response) {
-          return null;
+    const productsResponse =
+      await fetchWithAdminAuth(
+        buildProductsUrl(),
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
         }
-
-        if (!response.ok) {
-          throw new Error(
-            "Failed to load inventory"
-          );
-        }
-
-        const data =
-          await response.json();
-
-        /*
-         * DRF PAGINATED RESPONSE
-         */
-        if (
-          Array.isArray(
-            data?.results
-          )
-        ) {
-          allResults.push(
-            ...data.results
-          );
-
-          nextUrl =
-            data.next || null;
-        }
-
-        /*
-         * NON-PAGINATED RESPONSE
-         */
-        else if (
-          Array.isArray(data)
-        ) {
-          allResults.push(
-            ...data
-          );
-
-          nextUrl = null;
-        }
-
-        /*
-         * UNKNOWN RESPONSE
-         */
-        else {
-          nextUrl = null;
-        }
-      }
-
-      return allResults;
-    };
-
-    /*
-     * LOAD ALL PRODUCTS
-     */
-    const productList =
-      await fetchAllPages(
-        `${API_URL}/products/admin/`
       );
 
-    if (productList === null) {
+    if (!productsResponse) {
       return;
     }
+
+    if (!productsResponse.ok) {
+      throw new Error(
+        "Failed to load inventory"
+      );
+    }
+
+    const productsData =
+      await productsResponse.json();
+
+    const productList =
+      Array.isArray(productsData)
+        ? productsData
+        : Array.isArray(productsData?.results)
+        ? productsData.results
+        : [];
+
+    setTotalProducts(
+      typeof productsData?.count === "number"
+        ? productsData.count
+        : productList.length
+    );
+
+    setNextProductsUrl(
+      Array.isArray(productsData)
+        ? null
+        : productsData?.next || null
+    );
 
     /*
      * LOAD CATEGORIES
@@ -240,88 +312,16 @@ export default function InventoryPage() {
     /*
      * CATEGORY NAME
      */
-    const getCategoryName = (
-      categoryId
-    ) => {
-      if (
-        categoryId === null ||
-        categoryId === undefined ||
-        categoryId === ""
-      ) {
-        return "Uncategorized";
-      }
-
-      const category =
-        categoryList.find(
-          (item) =>
-            String(item.id) ===
-            String(categoryId)
-        );
-
-      return (
-        category?.name ||
-        "Uncategorized"
-      );
-    };
-
     /*
      * FORMAT PRODUCTS
      */
     const formattedProducts =
       productList.map(
-        (product) => {
-          const stock =
-            Number(
-              product.stock_quantity
-            ) || 0;
-
-          let status = "In Stock";
-
-          if (stock === 0) {
-            status =
-              "Out of Stock";
-          } else if (
-            stock <= 10
-          ) {
-            status =
-              "Low Stock";
-          }
-
-          return {
-            ...product,
-
-            category:
-              getCategoryName(
-                product.category_id
-              ),
-
-            stock,
-
-            stock_quantity:
-              stock,
-
-            status,
-
-            price:
-              Number(
-                product.price
-              ) || 0,
-
-            image:
-              getImageUrl(
-                product.image
-              ),
-
-            sku:
-              product.sku ||
-              `VLR-${String(
-                product.id
-              ).padStart(
-                4,
-                "0"
-              )}`,
-          };
-        }
+        (product) =>
+          formatProduct(
+            product,
+            categoryList
+          )
       );
 
     setProducts(
@@ -352,7 +352,75 @@ export default function InventoryPage() {
 };
 
     loadInventory();
-  }, []);
+  }, [
+    search,
+    statusFilter,
+    categoryFilter,
+  ]);
+
+  const loadMoreProducts = async () => {
+    if (!nextProductsUrl || loadingMore) {
+      return;
+    }
+
+    try {
+      setLoadingMore(true);
+
+      const response = await fetchWithAdminAuth(
+        nextProductsUrl,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
+
+      if (!response || !response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const pageProducts = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+        ? data.results
+        : [];
+
+      const formattedProducts =
+        pageProducts.map((product) =>
+          formatProduct(product)
+        );
+
+      setProducts((currentProducts) => {
+        const existingIds = new Set(
+          currentProducts.map(
+            (product) => product.id
+          )
+        );
+
+        return [
+          ...currentProducts,
+          ...formattedProducts.filter(
+            (product) =>
+              !existingIds.has(product.id)
+          ),
+        ];
+      });
+
+      setTotalProducts(
+        typeof data?.count === "number"
+          ? data.count
+          : totalProducts
+      );
+      setNextProductsUrl(
+        Array.isArray(data)
+          ? null
+          : data?.next || null
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   /*
    * FORMAT CURRENCY
@@ -597,46 +665,7 @@ export default function InventoryPage() {
    * FILTER PRODUCTS
    */
   const filteredProducts =
-    products.filter(
-      (product) => {
-        const searchValue =
-          search.toLowerCase();
-
-        const productName =
-          String(
-            product.name || ""
-          ).toLowerCase();
-
-        const productSku =
-          String(
-            product.sku || ""
-          ).toLowerCase();
-
-        const matchesSearch =
-          productName.includes(
-            searchValue
-          ) ||
-          productSku.includes(
-            searchValue
-          );
-
-        const matchesStatus =
-          statusFilter === "All" ||
-          product.status ===
-            statusFilter;
-
-        const matchesCategory =
-          categoryFilter === "All" ||
-          product.category ===
-            categoryFilter;
-
-        return (
-          matchesSearch &&
-          matchesStatus &&
-          matchesCategory
-        );
-      }
-    );
+    products;
 
   /*
    * INVENTORY STATS
@@ -1252,34 +1281,23 @@ export default function InventoryPage() {
               <p className="text-xs text-black/40">
                 Showing{" "}
                 {filteredProducts.length}{" "}
-                of {products.length}{" "}
+                of {totalProducts}{" "}
                 products
               </p>
 
               <div className="flex items-center gap-2">
-                <button className="rounded-lg border border-black/10 bg-white p-2 text-black/40">
-                  <ChevronLeft
-                    size={17}
-                  />
-                </button>
-
-                <button className="rounded-lg bg-black px-4 py-2 text-sm text-white">
-                  1
-                </button>
-
-                <button className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm">
-                  2
-                </button>
-
-                <button className="rounded-lg border border-black/10 bg-white px-4 py-2 text-sm">
-                  3
-                </button>
-
-                <button className="rounded-lg border border-black/10 bg-white p-2">
-                  <ChevronRight
-                    size={17}
-                  />
-                </button>
+                {nextProductsUrl && (
+                  <button
+                    type="button"
+                    onClick={loadMoreProducts}
+                    disabled={loadingMore}
+                    className="rounded-lg border border-black/10 bg-white px-4 py-2 text-xs font-medium text-black transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loadingMore
+                      ? "Loading..."
+                      : "Load More"}
+                  </button>
+                )}
               </div>
             </div>
           </div>

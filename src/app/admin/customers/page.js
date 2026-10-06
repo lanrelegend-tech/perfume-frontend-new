@@ -17,26 +17,22 @@ import {
   MoreHorizontal,
   Eye,
   ArrowUpRight,
-  ChevronLeft,
-  ChevronRight,
   UserRound,
 } from "lucide-react";
-
-const CUSTOMERS_PER_PAGE = 10;
 
 export default function CustomersPage() {
   const router = useRouter();
 
   const [customers, setCustomers] = useState([]);
-  const [allCustomers, setAllCustomers] = useState([]);
+  const [nextCustomerUrl, setNextCustomerUrl] = useState(null);
+  const [nextGuestUrl, setNextGuestUrl] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const [page, setPage] = useState(1);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -45,121 +41,116 @@ export default function CustomersPage() {
     averageSpend: 0,
   });
 
-const fetchCustomers = async () => {
+const buildCustomerQuery = () => {
+  const params = new URLSearchParams();
+
+  if (search.trim()) {
+    params.append(
+      "search",
+      search.trim()
+    );
+  }
+
+  if (statusFilter === "Active") {
+    params.append("is_active", "true");
+  }
+
+  if (statusFilter === "Inactive") {
+    params.append("is_active", "false");
+  }
+
+  const queryString =
+    params.toString();
+
+  return queryString ? `?${queryString}` : "";
+};
+
+const fetchCustomerPage = async (url) => {
+  const response = await fetchWithAdminAuth(
+    url,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to load customers"
+    );
+  }
+
+  const data = await response.json();
+
+  return {
+    results: Array.isArray(data?.results)
+      ? data.results
+      : Array.isArray(data)
+      ? data
+      : [],
+    count:
+      typeof data?.count === "number"
+        ? data.count
+        : Array.isArray(data)
+        ? data.length
+        : 0,
+    next: Array.isArray(data)
+      ? null
+      : data?.next || null,
+  };
+};
+
+const fetchCustomers = async (append = false) => {
   try {
-    setLoading(true);
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+
     setError("");
 
-    const params = new URLSearchParams();
-
-    if (search.trim()) {
-      params.append(
-        "search",
-        search.trim()
-      );
-    }
-
-    if (statusFilter !== "All") {
-      params.append(
-        "status",
-        statusFilter.toLowerCase()
-      );
-    }
-
     const queryString =
-      params.toString();
+      buildCustomerQuery();
 
     const customerUrl =
-      `${API_URL}/users/admin/customers/` +
-      `${queryString ? `?${queryString}` : ""}`;
+      append && nextCustomerUrl
+        ? nextCustomerUrl
+        : `${API_URL}/users/admin/customers/${queryString}`;
 
     const guestUrl =
-      `${API_URL}/users/admin/guests/`;
-
-    // -------------------------------------------------
-    // FETCH ALL PAGINATED PAGES
-    // -------------------------------------------------
-
-    const fetchAllPages = async (
-      initialUrl
-    ) => {
-      const allResults = [];
-      let nextUrl = initialUrl;
-
-      while (nextUrl) {
-        const response = await fetchWithAdminAuth(
-          nextUrl,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            cache: "no-store",
-          }
-        );
-
-        if (!response) {
-          return null;
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            "Failed to load customers"
-          );
-        }
-
-        const data =
-          await response.json();
-
-        // DRF paginated response
-        if (
-          Array.isArray(
-            data?.results
-          )
-        ) {
-          allResults.push(
-            ...data.results
-          );
-
-          nextUrl =
-            data.next || null;
-        }
-
-        // Non-paginated response
-        else if (
-          Array.isArray(data)
-        ) {
-          allResults.push(
-            ...data
-          );
-
-          nextUrl = null;
-        }
-
-        else {
-          nextUrl = null;
-        }
-      }
-
-      return allResults;
-    };
-
-    // -------------------------------------------------
-    // LOAD CUSTOMERS + GUESTS
-    // -------------------------------------------------
+      append && nextGuestUrl
+        ? nextGuestUrl
+        : `${API_URL}/users/admin/guests/${queryString}`;
 
     const [
       registeredCustomers,
       guestCustomers,
     ] = await Promise.all([
-      fetchAllPages(
-        customerUrl
-      ),
-      fetchAllPages(
-        guestUrl
-      ),
+      append && !nextCustomerUrl
+        ? Promise.resolve({
+            results: [],
+            count: 0,
+            next: null,
+          })
+        : fetchCustomerPage(customerUrl),
+      statusFilter === "Inactive" ||
+      (append && !nextGuestUrl)
+        ? Promise.resolve({
+            results: [],
+            count: 0,
+            next: null,
+          })
+        : fetchCustomerPage(guestUrl),
     ]);
 
     if (
@@ -175,7 +166,7 @@ const fetchCustomers = async () => {
     // -------------------------------------------------
 
     const formattedGuests =
-      guestCustomers.map(
+      guestCustomers.results.map(
         (guest) => ({
           ...guest,
           customer_type:
@@ -188,7 +179,7 @@ const fetchCustomers = async () => {
     // -------------------------------------------------
 
     const formattedCustomers =
-      registeredCustomers.map(
+      registeredCustomers.results.map(
         (customer) => ({
           ...customer,
           customer_type:
@@ -206,13 +197,47 @@ const fetchCustomers = async () => {
       ...formattedGuests,
     ];
 
-    setAllCustomers(
-      combined
+    setCustomers((currentCustomers) => {
+      if (!append) {
+        return combined;
+      }
+
+      const existingIds = new Set(
+        currentCustomers.map(
+          (customer) => customer.id
+        )
+      );
+
+      return [
+        ...currentCustomers,
+        ...combined.filter(
+          (customer) =>
+            !existingIds.has(customer.id)
+        ),
+      ];
+    });
+
+    setNextCustomerUrl(
+      registeredCustomers.next
+    );
+    setNextGuestUrl(
+      guestCustomers.next
     );
 
-    calculateStats(
-      combined
-    );
+    if (append) {
+      setStats((currentStats) => ({
+        ...currentStats,
+      }));
+    } else {
+      calculateStats(
+        {
+          total:
+            registeredCustomers.count +
+            guestCustomers.count,
+        },
+        combined
+      );
+    }
   } catch (err) {
     console.error(
       "CUSTOMERS ERROR:",
@@ -224,10 +249,12 @@ const fetchCustomers = async () => {
     );
   } finally {
     setLoading(false);
+    setLoadingMore(false);
   }
 };
   const calculateStats = (
-    customerList
+    customerSummary,
+    customerList = customers
   ) => {
     const active =
       customerList.filter(
@@ -286,7 +313,7 @@ const fetchCustomers = async () => {
       ).length;
 
     setStats({
-      total: customerList.length,
+      total: customerSummary.total,
       active,
       newThisMonth,
       averageSpend,
@@ -294,15 +321,12 @@ const fetchCustomers = async () => {
   };
 
   useEffect(() => {
-    fetchCustomers();
-  }, [search, statusFilter]);
+    const timeout = setTimeout(() => {
+      fetchCustomers(false);
+    }, 250);
 
-  useEffect(() => {
-    setPage(1);
-  }, [
-    search,
-    statusFilter,
-  ]);
+    return () => clearTimeout(timeout);
+  }, [search, statusFilter]);
 
 
   const getCustomerName = (
@@ -327,93 +351,8 @@ const fetchCustomers = async () => {
     );
   };
   
-  const filteredCustomers =
-    allCustomers.filter(
-      (customer) => {
-        const searchValue =
-          search
-            .toLowerCase()
-            .trim();
-
-        const name =
-          getCustomerName(
-            customer
-          ).toLowerCase();
-
-        const email =
-          (
-            customer.email || ""
-          ).toLowerCase();
-
-        const matchesSearch =
-          !searchValue ||
-          name.includes(
-            searchValue
-          ) ||
-          email.includes(
-            searchValue
-          );
-
-        let matchesStatus =
-          true;
-
-        if (
-          statusFilter ===
-          "Active"
-        ) {
-          matchesStatus =
-            customer.customer_type ===
-              "guest" ||
-            customer.is_active ===
-              true;
-        }
-
-        if (
-          statusFilter ===
-          "Inactive"
-        ) {
-          matchesStatus =
-            customer.customer_type ===
-              "registered" &&
-            customer.is_active ===
-              false;
-        }
-
-        return (
-          matchesSearch &&
-          matchesStatus
-        );
-      }
-    );
-
-  const totalCustomers =
-    filteredCustomers.length;
-
-  const totalPages =
-    Math.max(
-      1,
-      Math.ceil(
-        totalCustomers /
-          CUSTOMERS_PER_PAGE
-      )
-    );
-
-  const safePage =
-    Math.min(
-      page,
-      totalPages
-    );
-
-  const startIndex =
-    (safePage - 1) *
-    CUSTOMERS_PER_PAGE;
-
-  const visibleCustomers =
-    filteredCustomers.slice(
-      startIndex,
-      startIndex +
-        CUSTOMERS_PER_PAGE
-    );
+  const visibleCustomers = customers;
+  const totalCustomers = stats.total;
 
   const formatCurrency = (
     amount
@@ -920,60 +859,27 @@ const fetchCustomers = async () => {
                 <div className="mt-5 flex flex-col items-center justify-between gap-4 sm:flex-row">
                   <p className="text-xs text-black/40">
                     Showing{" "}
-                    {startIndex + 1}–
-                    {Math.min(
-                      startIndex +
-                        CUSTOMERS_PER_PAGE,
-                      totalCustomers
-                    )}{" "}
+                    {visibleCustomers.length}{" "}
                     of{" "}
                     {totalCustomers.toLocaleString()}{" "}
                     customers
                   </p>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      disabled={
-                        safePage === 1
-                      }
-                      onClick={() =>
-                        setPage(
-                          Math.max(
-                            1,
-                            safePage - 1
-                          )
-                        )
-                      }
-                      className="rounded-lg border border-black/10 bg-white p-2 text-black/40 disabled:opacity-30"
-                    >
-                      <ChevronLeft
-                        size={17}
-                      />
-                    </button>
-
-                    <button className="rounded-lg bg-black px-4 py-2 text-sm text-white">
-                      {safePage}
-                    </button>
-
-                    <button
-                      disabled={
-                        safePage >=
-                        totalPages
-                      }
-                      onClick={() =>
-                        setPage(
-                          Math.min(
-                            totalPages,
-                            safePage + 1
-                          )
-                        )
-                      }
-                      className="rounded-lg border border-black/10 bg-white p-2 disabled:opacity-30"
-                    >
-                      <ChevronRight
-                        size={17}
-                      />
-                    </button>
+                    {(nextCustomerUrl || nextGuestUrl) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          fetchCustomers(true)
+                        }
+                        disabled={loadingMore}
+                        className="rounded-lg border border-black/10 bg-white px-4 py-2 text-xs font-medium text-black transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {loadingMore
+                          ? "Loading..."
+                          : "Load More"}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

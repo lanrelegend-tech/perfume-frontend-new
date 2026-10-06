@@ -142,6 +142,8 @@ export default function SearchPage() {
   const inputRef = useRef(null);
 
   const [products, setProducts] = useState([]);
+  const [nextProductsUrl, setNextProductsUrl] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [currency, setCurrency] = useState("NGN");
 
   const [query, setQuery] = useState("");
@@ -252,6 +254,28 @@ export default function SearchPage() {
      LOAD PRODUCTS
   ======================================================= */
 
+  function buildSearchProductsUrl() {
+    const params = new URLSearchParams();
+
+    if (query.trim()) {
+      params.set("search", query.trim());
+    }
+
+    const orderingMap = {
+      "price-low": "price",
+      "price-high": "-price",
+      newest: "-created_at",
+    };
+
+    if (orderingMap[sortBy]) {
+      params.set("ordering", orderingMap[sortBy]);
+    }
+
+    const queryString = params.toString();
+
+    return `${API_URL}/products/${queryString ? `?${queryString}` : ""}`;
+  }
+
   useEffect(() => {
     const controller =
       new AbortController();
@@ -260,44 +284,32 @@ export default function SearchPage() {
       try {
         setLoading(true);
 
-        let nextUrl =
-          `${API_URL}/products/`;
-
-        const allProducts = [];
-
-        while (nextUrl) {
-          const response = await fetch(
-            nextUrl,
-            {
-              cache: "no-store",
-              signal: controller.signal,
-            }
-          );
-
-          if (!response.ok) {
-            break;
+        const response = await fetch(
+          buildSearchProductsUrl(),
+          {
+            cache: "no-store",
+            signal: controller.signal,
           }
+        );
 
+        if (response.ok) {
           const data =
             await response.json();
 
-          if (Array.isArray(data)) {
-            allProducts.push(...data);
-            break;
-          }
+          setProducts(
+            Array.isArray(data)
+              ? data
+              : Array.isArray(data?.results)
+              ? data.results
+              : []
+          );
 
-          if (
-            Array.isArray(data?.results)
-          ) {
-            allProducts.push(
-              ...data.results
-            );
-          }
-
-          nextUrl = data?.next || null;
+          setNextProductsUrl(
+            Array.isArray(data)
+              ? null
+              : data?.next || null
+          );
         }
-
-        setProducts(allProducts);
 
         try {
           const settingsResponse =
@@ -343,7 +355,56 @@ export default function SearchPage() {
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [query, sortBy]);
+
+  async function loadMoreProducts() {
+    if (!nextProductsUrl || loadingMore) {
+      return;
+    }
+
+    try {
+      setLoadingMore(true);
+
+      const response = await fetch(
+        nextProductsUrl,
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const pageProducts = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+        ? data.results
+        : [];
+
+      setProducts((currentProducts) => {
+        const existingIds = new Set(
+          currentProducts.map((product) => product.id)
+        );
+
+        return [
+          ...currentProducts,
+          ...pageProducts.filter(
+            (product) => !existingIds.has(product.id)
+          ),
+        ];
+      });
+
+      setNextProductsUrl(
+        Array.isArray(data)
+          ? null
+          : data?.next || null
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   /* =======================================================
      SEARCH RESULTS
@@ -1135,6 +1196,7 @@ export default function SearchPage() {
                 }
               />
             ) : (
+              <>
               <div className="mt-9 grid grid-cols-2 gap-x-4 gap-y-12 sm:gap-x-6 lg:grid-cols-4">
 
                 {results.map(
@@ -1154,6 +1216,21 @@ export default function SearchPage() {
                 )}
 
               </div>
+              {nextProductsUrl && (
+                <div className="mt-12 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={loadMoreProducts}
+                    disabled={loadingMore}
+                    className="rounded-full border border-black px-7 py-3 text-xs font-medium transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loadingMore
+                      ? "Loading..."
+                      : "Load More"}
+                  </button>
+                </div>
+              )}
+              </>
             )}
 
           </>

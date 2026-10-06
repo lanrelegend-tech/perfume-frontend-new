@@ -32,8 +32,11 @@ export default function CouponsPage() {
   const router = useRouter();
 
   const [coupons, setCoupons] = useState([]);
+  const [totalCoupons, setTotalCoupons] = useState(0);
+  const [nextCouponsUrl, setNextCouponsUrl] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
@@ -76,13 +79,40 @@ export default function CouponsPage() {
   |--------------------------------------------------------------------------
   */
 
-  const fetchCoupons = async () => {
+  const buildCouponsUrl = () => {
+    const params = new URLSearchParams();
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
+
+    const statusMap = {
+      Active: "active",
+      Inactive: "inactive",
+      Expired: "expired",
+    };
+
+    if (statusFilter !== "All" && statusMap[statusFilter]) {
+      params.set("status", statusMap[statusFilter]);
+    }
+
+    const query = params.toString();
+
+    return `${API_URL}/coupons/admin/${query ? `?${query}` : ""}`;
+  };
+
+  const fetchCoupons = async (url = null, append = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
       setError("");
 
       const response = await fetchWithAdminAuth(
-        `${API_URL}/coupons/admin/`,
+        url || buildCouponsUrl(),
         {
           method: "GET",
           credentials: "include",
@@ -128,7 +158,33 @@ export default function CouponsPage() {
         ? data.results
         : [];
 
-      setCoupons(couponList);
+      setCoupons((currentCoupons) => {
+        if (!append) {
+          return couponList;
+        }
+
+        const existingIds = new Set(
+          currentCoupons.map((coupon) => coupon.id)
+        );
+
+        return [
+          ...currentCoupons,
+          ...couponList.filter(
+            (coupon) => !existingIds.has(coupon.id)
+          ),
+        ];
+      });
+
+      setTotalCoupons(
+        typeof data?.count === "number"
+          ? data.count
+          : couponList.length
+      );
+      setNextCouponsUrl(
+        Array.isArray(data)
+          ? null
+          : data?.next || null
+      );
     } catch (err) {
       console.error("COUPON FETCH ERROR:", err);
 
@@ -138,13 +194,17 @@ export default function CouponsPage() {
       );
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchCoupons();
-  }, []);
+    const timeout = setTimeout(() => {
+      fetchCoupons();
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [search, statusFilter]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -287,46 +347,9 @@ export default function CouponsPage() {
   */
 
   const filteredCoupons = useMemo(() => {
-    return coupons.filter((coupon) => {
-      const code = String(
-        coupon.code || ""
-      ).toLowerCase();
-
-      const matchesSearch = code.includes(
-        search.toLowerCase()
-      );
-
-      let status = "Inactive";
-
-      if (coupon.expires_at) {
-        const expired =
-          new Date(
-            coupon.expires_at
-          ).getTime() < currentTime;
-
-        if (expired) {
-          status = "Expired";
-        } else if (coupon.is_active) {
-          status = "Active";
-        }
-      } else if (coupon.is_active) {
-        status = "Active";
-      }
-
-      const matchesStatus =
-        statusFilter === "All" ||
-        status === statusFilter;
-
-      return (
-        matchesSearch &&
-        matchesStatus
-      );
-    });
+    return coupons;
   }, [
     coupons,
-    search,
-    statusFilter,
-    currentTime,
   ]);
 
   /*
@@ -1012,7 +1035,7 @@ export default function CouponsPage() {
             <div className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 title="Total Coupons"
-                value={coupons.length}
+                value={totalCoupons}
                 subtitle="All discount codes"
                 icon={
                   <Ticket size={20} />
@@ -1640,6 +1663,23 @@ export default function CouponsPage() {
                   )}
               </div>
             )}
+            {nextCouponsUrl &&
+              filteredCoupons.length > 0 && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      fetchCoupons(nextCouponsUrl, true)
+                    }
+                    disabled={loadingMore}
+                    className="rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loadingMore
+                      ? "Loading..."
+                      : "Load More"}
+                  </button>
+                </div>
+              )}
           </div>
         </div>
       </main>

@@ -10,6 +10,9 @@ const API_URL =
 
 export default function CollectionPage() {
   const [products, setProducts] = useState([]);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [nextProductsUrl, setNextProductsUrl] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState("All");
 
@@ -29,50 +32,47 @@ export default function CollectionPage() {
     let cancelled = false;
 async function loadCollection() {
   try {
+    setLoading(true);
+    setFeaturedLoading(true);
+
     /*
     --------------------------------------------------------
     STEP 1
-    Load ALL products across every backend page.
+    Load the first backend product page.
     --------------------------------------------------------
     */
 
-    let productsUrl = `${API_URL}/products/`;
-    const allProducts = [];
+    const productParams = new URLSearchParams();
 
-    while (productsUrl) {
-      const productsRes = await fetch(
-        productsUrl,
-        {
-          cache: "no-store",
-        }
-      );
-
-      if (!productsRes.ok) {
-        throw new Error(
-          `Products request failed: ${productsRes.status}`
-        );
-      }
-
-      const productsData =
-        await productsRes.json();
-
-      // Non-paginated response
-      if (Array.isArray(productsData)) {
-        allProducts.push(...productsData);
-        break;
-      }
-
-      // Paginated response
-      if (Array.isArray(productsData?.results)) {
-        allProducts.push(
-          ...productsData.results
-        );
-      }
-
-      // Continue to the next page
-      productsUrl =
-        productsData?.next || null;
+    if (activeCategory !== "All") {
+      productParams.set("category", activeCategory);
     }
+
+    const productsUrl =
+      `${API_URL}/products/` +
+      `${productParams.toString() ? `?${productParams.toString()}` : ""}`;
+
+    const productsRes = await fetch(
+      productsUrl,
+      {
+        cache: "no-store",
+      }
+    );
+
+    if (!productsRes.ok) {
+      throw new Error(
+        `Products request failed: ${productsRes.status}`
+      );
+    }
+
+    const productsData =
+      await productsRes.json();
+
+    const firstProducts = Array.isArray(productsData)
+      ? productsData
+      : Array.isArray(productsData?.results)
+      ? productsData.results
+      : [];
 
     if (cancelled) {
       return;
@@ -84,7 +84,17 @@ async function loadCollection() {
     --------------------------------------------------------
     */
 
-    setProducts(allProducts);
+    setProducts(firstProducts);
+    setTotalProducts(
+      typeof productsData?.count === "number"
+        ? productsData.count
+        : firstProducts.length
+    );
+    setNextProductsUrl(
+      Array.isArray(productsData)
+        ? null
+        : productsData?.next || null
+    );
     setFeaturedLoading(false);
 
     /*
@@ -171,7 +181,61 @@ async function loadCollection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeCategory]);
+
+  async function loadMoreProducts() {
+    if (!nextProductsUrl || loadingMore) {
+      return;
+    }
+
+    try {
+      setLoadingMore(true);
+
+      const response = await fetch(
+        nextProductsUrl,
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const pageProducts = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.results)
+        ? data.results
+        : [];
+
+      setProducts((currentProducts) => {
+        const existingIds = new Set(
+          currentProducts.map((product) => product.id)
+        );
+
+        return [
+          ...currentProducts,
+          ...pageProducts.filter(
+            (product) => !existingIds.has(product.id)
+          ),
+        ];
+      });
+
+      setTotalProducts(
+        typeof data?.count === "number"
+          ? data.count
+          : totalProducts
+      );
+      setNextProductsUrl(
+        Array.isArray(data)
+          ? null
+          : data?.next || null
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   /*
   ============================================================
@@ -279,28 +343,7 @@ async function loadCollection() {
   */
 
   const filteredProducts =
-    activeCategory === "All"
-      ? products
-      : products.filter((product) => {
-          const categoryId =
-            product.category?.id ??
-            product.category_id ??
-            product.category;
-
-          const categoryName =
-            product.category?.name ??
-            product.category_name ??
-            "";
-
-          return (
-            String(categoryId) ===
-              String(activeCategory) ||
-            categoryName.toLowerCase() ===
-              String(
-                activeCategory
-              ).toLowerCase()
-          );
-        });
+    products;
 
   /*
   ============================================================
@@ -846,7 +889,7 @@ async function loadCollection() {
           <span className="text-[10px] uppercase tracking-[0.2em] text-black/40">
             {loading
               ? "..."
-              : `${filteredProducts.length} Products`}
+              : `${totalProducts} Products`}
           </span>
 
         </div>
@@ -997,6 +1040,23 @@ async function loadCollection() {
 
           </div>
 
+        )}
+
+        {!loading &&
+          filteredProducts.length > 0 &&
+          nextProductsUrl && (
+          <div className="mt-14 flex justify-center">
+            <button
+              type="button"
+              onClick={loadMoreProducts}
+              disabled={loadingMore}
+              className="border border-black px-7 py-4 text-[10px] uppercase tracking-[0.2em] transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loadingMore
+                ? "Loading..."
+                : "Load More"}
+            </button>
+          </div>
         )}
 
       </section>

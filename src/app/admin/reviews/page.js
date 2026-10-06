@@ -14,72 +14,101 @@ import {
   Search,
   X,
   AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 
 export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState([]);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [nextReviewsUrl, setNextReviewsUrl] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
 
   const [deleteReview, setDeleteReview] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const reviewsPerPage = 8;
-
   useEffect(() => {
-    fetchReviews();
-  }, []);
+    const timeout = setTimeout(() => {
+      fetchReviews();
+    }, 250);
 
-const fetchReviews = async () => {
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+const buildReviewsUrl = () => {
+  const params = new URLSearchParams();
+
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+
+  const query = params.toString();
+
+  return `${API_URL}/reviews/admin/${query ? `?${query}` : ""}`;
+};
+
+const fetchReviews = async (url = null, append = false) => {
   try {
-    setLoading(true);
-
-    let nextUrl = `${API_URL}/reviews/admin/`;
-    const allReviews = [];
-
-    while (nextUrl) {
-      const response = await fetchWithAdminAuth(
-        nextUrl,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
-
-      if (!response) {
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load reviews"
-        );
-      }
-
-      const data = await response.json();
-
-      // Non-paginated response
-      if (Array.isArray(data)) {
-        allReviews.push(...data);
-        break;
-      }
-
-      // Paginated response
-      if (Array.isArray(data?.results)) {
-        allReviews.push(
-          ...data.results
-        );
-      }
-
-      // Load next backend page
-      nextUrl = data?.next || null;
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
     }
 
-    setReviews(allReviews);
+    const response = await fetchWithAdminAuth(
+      url || buildReviewsUrl(),
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    if (!response) {
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        "Failed to load reviews"
+      );
+    }
+
+    const data = await response.json();
+
+    const pageReviews = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.results)
+        ? data.results
+        : [];
+
+    setReviews((currentReviews) => {
+      if (!append) {
+        return pageReviews;
+      }
+
+      const existingIds = new Set(
+        currentReviews.map((review) => review.id)
+      );
+
+      return [
+        ...currentReviews,
+        ...pageReviews.filter(
+          (review) => !existingIds.has(review.id)
+        ),
+      ];
+    });
+
+    setTotalReviews(
+      typeof data?.count === "number"
+        ? data.count
+        : pageReviews.length
+    );
+    setNextReviewsUrl(
+      Array.isArray(data)
+        ? null
+        : data?.next || null
+    );
   } catch (error) {
     console.error(
       "Error loading reviews:",
@@ -87,6 +116,7 @@ const fetchReviews = async () => {
     );
   } finally {
     setLoading(false);
+    setLoadingMore(false);
   }
 };
   const handleDelete = async () => {
@@ -148,61 +178,8 @@ const fetchReviews = async () => {
     }
   };
 
-  const filteredReviews = reviews.filter(
-    (review) => {
-      const searchText =
-        search.toLowerCase();
-
-      const username =
-        review.username ||
-        review.user?.username ||
-        review.user?.email ||
-        "";
-
-      const productName =
-        review.product_name ||
-        review.product?.name ||
-        "";
-
-      const comment =
-        review.comment || "";
-
-      return (
-        username
-          .toLowerCase()
-          .includes(searchText) ||
-        productName
-          .toLowerCase()
-          .includes(searchText) ||
-        comment
-          .toLowerCase()
-          .includes(searchText)
-      );
-    }
-  );
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(
-      filteredReviews.length /
-        reviewsPerPage
-    )
-  );
-
-  const safePage = Math.min(
-    currentPage,
-    totalPages
-  );
-
-  const startIndex =
-    (safePage - 1) *
-    reviewsPerPage;
-
-  const currentReviews =
-    filteredReviews.slice(
-      startIndex,
-      startIndex + reviewsPerPage
-    );
+  const filteredReviews = reviews;
+  const currentReviews = reviews;
 
   const renderStars = (rating) => {
     return (
@@ -274,7 +251,6 @@ const fetchReviews = async () => {
                   setSearch(
                     e.target.value
                   );
-                  setCurrentPage(1);
                 }}
                 placeholder="Search reviews..."
                 className="h-11 w-full rounded-xl border border-black/10 bg-[#f8f8f7] pl-10 pr-10 text-base outline-none transition focus:border-black sm:text-sm"
@@ -284,7 +260,6 @@ const fetchReviews = async () => {
                 <button
                   onClick={() => {
                     setSearch("");
-                    setCurrentPage(1);
                   }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
                 >
@@ -303,7 +278,7 @@ const fetchReviews = async () => {
               </p>
 
               <p className="mt-2 text-3xl font-semibold">
-                {reviews.length}
+                {totalReviews}
               </p>
             </div>
 
@@ -358,7 +333,7 @@ const fetchReviews = async () => {
               </h2>
 
               <p className="mt-1 text-xs text-gray-400">
-                {filteredReviews.length}{" "}
+                {totalReviews}{" "}
                 review
                 {filteredReviews.length !==
                 1
@@ -602,51 +577,23 @@ const fetchReviews = async () => {
                 0 && (
                 <div className="flex items-center justify-between border-t border-black/10 px-5 py-4">
                   <p className="text-xs text-gray-400">
-                    Page {safePage} of{" "}
-                    {totalPages}
+                    Showing {filteredReviews.length} of{" "}
+                    {totalReviews}
                   </p>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      disabled={
-                        safePage === 1
-                      }
-                      onClick={() =>
-                        setCurrentPage(
-                          (page) =>
-                            Math.max(
-                              1,
-                              page - 1
-                            )
-                        )
-                      }
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                      <ChevronLeft
-                        size={16}
-                      />
-                    </button>
-
-                    <button
-                      disabled={
-                        safePage ===
-                        totalPages
-                      }
-                      onClick={() =>
-                        setCurrentPage(
-                          (page) =>
-                            Math.min(
-                              totalPages,
-                              page + 1
-                            )
-                        )
-                      }
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                      <ChevronRight
-                        size={16}
-                      />
-                    </button>
+                    {nextReviewsUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          fetchReviews(nextReviewsUrl, true)
+                        }
+                        disabled={loadingMore}
+                        className="rounded-lg border border-black/10 px-4 py-2 text-xs font-medium text-black transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {loadingMore ? "Loading..." : "Load More"}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

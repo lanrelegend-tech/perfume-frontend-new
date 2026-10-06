@@ -83,6 +83,9 @@ export default function ProductsPage() {
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [nextProductsUrl, setNextProductsUrl] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -91,62 +94,117 @@ export default function ProductsPage() {
   const [categoryError, setCategoryError] = useState("");
 
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
   const [status, setStatus] = useState("All");
   const [preorderFilter, setPreorderFilter] = useState("All");
   const [openMenu, setOpenMenu] = useState(null);
-useEffect(() => {
-  const fetchProducts = async () => {
+
+  const buildProductsUrl = () => {
+    const params = new URLSearchParams();
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
+
+    const statusMap = {
+      "In Stock": "in_stock",
+      "Low Stock": "low_stock",
+      "Out of Stock": "out_of_stock",
+    };
+
+    if (status !== "All" && statusMap[status]) {
+      params.set("stock_status", statusMap[status]);
+    }
+
+    if (preorderFilter === "Pre-orders") {
+      params.set("is_preorder", "true");
+    }
+
+    if (preorderFilter === "Regular") {
+      params.set("is_preorder", "false");
+    }
+
+    const query = params.toString();
+
+    return `${process.env.NEXT_PUBLIC_API_URL}/products/admin/${
+      query ? `?${query}` : ""
+    }`;
+  };
+
+  const fetchProducts = async (url = null, append = false) => {
     try {
-      setLoading(true);
-      setError("");
-
-      let url = `${process.env.NEXT_PUBLIC_API_URL}/products/admin/`;
-      const allProducts = [];
-
-      while (url) {
-        const response = await fetchWithAdminAuth(url, {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        if (!response) {
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error("Failed to load products");
-        }
-
-        const data = await response.json();
-
-        // Backend returned a plain array
-        if (Array.isArray(data)) {
-          allProducts.push(...data);
-          break;
-        }
-
-        // Backend returned a paginated response
-        if (Array.isArray(data.results)) {
-          allProducts.push(...data.results);
-        }
-
-        // Continue through every DRF page
-        url = data.next || null;
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
       }
 
-      setProducts(allProducts);
+      setError("");
+
+      const response = await fetchWithAdminAuth(url || buildProductsUrl(), {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      if (!response) {
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to load products");
+      }
+
+      const data = await response.json();
+
+      const pageProducts = Array.isArray(data)
+        ? data
+        : Array.isArray(data.results)
+          ? data.results
+          : [];
+
+      setProducts((currentProducts) => {
+        if (!append) {
+          return pageProducts;
+        }
+
+        const existingIds = new Set(
+          currentProducts.map((product) => product.id)
+        );
+
+        return [
+          ...currentProducts,
+          ...pageProducts.filter(
+            (product) => !existingIds.has(product.id)
+          ),
+        ];
+      });
+
+      setTotalProducts(
+        typeof data?.count === "number"
+          ? data.count
+          : pageProducts.length
+      );
+      setNextProductsUrl(
+        Array.isArray(data)
+          ? null
+          : data?.next || null
+      );
     } catch (err) {
       console.error("Products fetch error:", err);
       setError("Unable to load products.");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
-  fetchProducts();
-}, [router]);
+useEffect(() => {
+  const timeout = setTimeout(() => {
+    fetchProducts();
+  }, 250);
+
+  return () => clearTimeout(timeout);
+}, [router, search, status, preorderFilter]);
    
   useEffect(() => {
     const fetchCategories = async () => {
@@ -193,40 +251,7 @@ useEffect(() => {
     fetchCategories();
   }, []);
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name
-      ?.toLowerCase()
-      .includes(search.toLowerCase());
-
-    const productCategoryName = getCategoryName(
-      product.category_id,
-      categories
-    );
-
-    const matchesCategory =
-      category === "All" || productCategoryName === category;
-
-    const matchesStatus =
-  status === "All" ||
-  getProductStatus(
-    product.stock_quantity,
-    product.in_stock
-  ) === status;
-
-const matchesPreorder =
-  preorderFilter === "All" ||
-  (preorderFilter === "Pre-orders" && product.is_preorder === true) ||
-  (preorderFilter === "Regular" && product.is_preorder !== true);
-
-return (
-  matchesSearch &&
-  matchesCategory &&
-  matchesStatus &&
-  matchesPreorder
-);
-
-
-  });
+  const filteredProducts = products;
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("en-NG", {
@@ -348,7 +373,7 @@ return (
 
               <MiniCard
                 label="Total Products"
-                value={products.length}
+                value={totalProducts}
               />
 
               <MiniCard
@@ -793,27 +818,24 @@ return (
                   </span>{" "}
                   of{" "}
                   <span className="font-medium text-black">
-                    {products.length}
+                    {totalProducts}
                   </span>{" "}
                   products
                 </p>
 
                 <div className="flex items-center gap-2">
-
-                  <button className="rounded-lg border border-black/10 p-2 disabled:opacity-30">
-                    <ChevronRight
-                      className="rotate-180"
-                      size={16}
-                    />
-                  </button>
-
-                  <span className="rounded-lg bg-black px-3 py-2 text-xs text-white">
-                    1
-                  </span>
-
-                  <button className="rounded-lg border border-black/10 p-2">
-                    <ChevronRight size={16} />
-                  </button>
+                  {nextProductsUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        fetchProducts(nextProductsUrl, true)
+                      }
+                      disabled={loadingMore}
+                      className="rounded-lg border border-black/10 px-4 py-2 text-xs font-medium text-black transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {loadingMore ? "Loading..." : "Load More"}
+                    </button>
+                  )}
 
                 </div>
 

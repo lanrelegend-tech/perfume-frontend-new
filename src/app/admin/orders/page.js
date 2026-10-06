@@ -26,9 +26,12 @@ export default function OrdersPage() {
   const router = useRouter();
 
   const [orders, setOrders] = useState([]);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [nextOrdersUrl, setNextOrdersUrl] = useState(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [openMenu, setOpenMenu] = useState(null);
   const [markingPickupId, setMarkingPickupId] = useState(null);
@@ -120,76 +123,94 @@ export default function OrdersPage() {
       orderStatus,
     };
   };
-/*
- * Load ALL real orders from Django.
- * The API is paginated, so keep following "next"
- * until every order has been loaded.
- */
-const fetchOrders = async () => {
+const buildOrdersUrl = () => {
+  const params = new URLSearchParams();
+
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+
+  if (status !== "All") {
+    params.set(
+      "status",
+      status.toLowerCase()
+    );
+  }
+
+  const query = params.toString();
+
+  return `${API_URL}/orders/admin/${query ? `?${query}` : ""}`;
+};
+
+const fetchOrders = async (url = null, append = false) => {
   try {
-    setLoading(true);
-    setError("");
-
-    let allOrders = [];
-    let nextUrl = `${API_URL}/orders/admin/`;
-
-    while (nextUrl) {
-      const response = await fetchWithAdminAuth(
-        nextUrl,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
-
-      if (!response) {
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          `Orders API returned ${response.status}`
-        );
-      }
-
-      const data =
-        await response.json();
-
-      /*
-       * DRF pagination returns:
-       *
-       * {
-       *   count: 150,
-       *   next: "...?page=2",
-       *   previous: null,
-       *   results: [...]
-       * }
-       */
-
-      const pageOrders =
-        Array.isArray(data.results)
-          ? data.results
-          : Array.isArray(data)
-          ? data
-          : [];
-
-      allOrders = [
-        ...allOrders,
-        ...pageOrders,
-      ];
-
-      /*
-       * Continue to the next page until
-       * Django returns next: null.
-       */
-      nextUrl = data.next || null;
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
     }
 
-    const formattedOrders =
-      allOrders.map(formatOrder);
+    setError("");
 
-    setOrders(formattedOrders);
+    const response = await fetchWithAdminAuth(
+      url || buildOrdersUrl(),
+      {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      }
+    );
+
+    if (!response) {
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Orders API returned ${response.status}`
+      );
+    }
+
+    const data =
+      await response.json();
+
+    const pageOrders =
+      Array.isArray(data.results)
+        ? data.results
+        : Array.isArray(data)
+        ? data
+        : [];
+
+    const formattedOrders =
+      pageOrders.map(formatOrder);
+
+    setOrders((currentOrders) => {
+      if (!append) {
+        return formattedOrders;
+      }
+
+      const existingIds = new Set(
+        currentOrders.map((order) => order.id)
+      );
+
+      return [
+        ...currentOrders,
+        ...formattedOrders.filter(
+          (order) => !existingIds.has(order.id)
+        ),
+      ];
+    });
+
+    setTotalOrders(
+      typeof data?.count === "number"
+        ? data.count
+        : formattedOrders.length
+    );
+    setNextOrdersUrl(
+      Array.isArray(data)
+        ? null
+        : data?.next || null
+    );
 
   } catch (err) {
     console.error(
@@ -203,11 +224,16 @@ const fetchOrders = async () => {
 
   } finally {
     setLoading(false);
+    setLoadingMore(false);
   }
 };
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    const timeout = setTimeout(() => {
+      fetchOrders();
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [search, status]);
 
   /*
    * Normalize status values.
@@ -260,65 +286,14 @@ const fetchOrders = async () => {
    * Search + status filtering.
    */
   const filteredOrders = useMemo(() => {
-    const searchValue =
-      search.toLowerCase().trim();
-
-    return orders.filter((order) => {
-      const orderNumber =
-        String(
-          order.orderNumber || ""
-        ).toLowerCase();
-
-      const customer =
-        String(
-          order.customerName || ""
-        ).toLowerCase();
-
-      const email =
-        String(
-          order.email || ""
-        ).toLowerCase();
-
-      const matchesSearch =
-        !searchValue ||
-        orderNumber.includes(
-          searchValue
-        ) ||
-        customer.includes(
-          searchValue
-        ) ||
-        email.includes(
-          searchValue
-        );
-
-      const currentStatus =
-        normalizeStatus(
-          order.orderStatus
-        );
-
-      let matchesStatus = true;
-
-      if (status !== "All") {
-        const selectedStatus =
-          normalizeStatus(status);
-
-        matchesStatus =
-          currentStatus ===
-          selectedStatus;
-      }
-
-      return (
-        matchesSearch &&
-        matchesStatus
-      );
-    });
-  }, [orders, search, status]);
+    return orders;
+  }, [orders]);
 
   /*
    * Statistics from REAL orders.
    */
   const statistics = useMemo(() => {
-    const total = orders.length;
+    const total = totalOrders;
 
     const pending =
       orders.filter(
@@ -350,7 +325,7 @@ const fetchOrders = async () => {
       processing,
       delivered,
     };
-  }, [orders]);
+  }, [orders, totalOrders]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat(
@@ -1019,10 +994,22 @@ const fetchOrders = async () => {
                       </span>{" "}
                       of{" "}
                       <span className="font-medium text-black">
-                        {orders.length}
+                        {totalOrders}
                       </span>{" "}
                       orders
                     </p>
+                    {nextOrdersUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          fetchOrders(nextOrdersUrl, true)
+                        }
+                        disabled={loadingMore}
+                        className="rounded-lg border border-black/10 px-4 py-2 text-xs font-medium text-black transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {loadingMore ? "Loading..." : "Load More"}
+                      </button>
+                    )}
                   </div>
                 </>
               )}
