@@ -1,9 +1,14 @@
 "use client";
 
 import AdminSidebar from "@/components/AdminSidebar";
+import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+  redirectToAdminLogin,
+} from "@/lib/adminAuth";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Boxes,
   Bell,
@@ -19,10 +24,6 @@ import {
   Search,
   X,
 } from "lucide-react";
-
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || ""
-).replace(/\/$/, "");
 
 function getImageUrl(image) {
   if (!image) return "/placeholder-product.jpg";
@@ -42,8 +43,6 @@ function getImageUrl(image) {
 }
 
 export default function InventoryPage() {
-  const router = useRouter();
-
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
 
@@ -65,49 +64,6 @@ export default function InventoryPage() {
   const [stockMessage, setStockMessage] = useState("");
 
   /*
-   * AUTH REDIRECT
-   */
-  const redirectToLogin = () => {
-  const returnUrl =
-    window.location.pathname +
-    window.location.search +
-    window.location.hash;
-
-  window.location.href = `/admin/login?next=${encodeURIComponent(
-    returnUrl
-  )}`;
-};
-  /*
-   * CSRF TOKEN
-   */
-  const getCsrfToken = async () => {
-    const response = await fetch(
-      `${API_URL}/auth/csrf/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        "Unable to initialize secure session."
-      );
-    }
-
-    const data = await response.json();
-
-    if (!data?.csrfToken) {
-      throw new Error(
-        "Unable to get security token."
-      );
-    }
-
-    return data.csrfToken;
-  };
-
-  /*
    * LOAD PRODUCTS + CATEGORIES
    */
   useEffect(() => {
@@ -119,7 +75,7 @@ export default function InventoryPage() {
     /*
      * VERIFY CURRENT COOKIE SESSION
      */
-    const meResponse = await fetch(
+    const meResponse = await fetchWithAdminAuth(
       `${API_URL}/users/me/`,
       {
         method: "GET",
@@ -128,11 +84,7 @@ export default function InventoryPage() {
       }
     );
 
-    if (
-      meResponse.status === 401 ||
-      meResponse.status === 403
-    ) {
-      redirectToLogin();
+    if (!meResponse) {
       return;
     }
 
@@ -152,7 +104,7 @@ export default function InventoryPage() {
       let nextUrl = initialUrl;
 
       while (nextUrl) {
-        const response = await fetch(
+        const response = await fetchWithAdminAuth(
           nextUrl,
           {
             method: "GET",
@@ -161,11 +113,7 @@ export default function InventoryPage() {
           }
         );
 
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          redirectToLogin();
+        if (!response) {
           return null;
         }
 
@@ -237,7 +185,7 @@ export default function InventoryPage() {
 
     try {
       const categoriesResponse =
-        await fetch(
+        await fetchWithAdminAuth(
           `${API_URL}/products/categories/`,
           {
             method: "GET",
@@ -246,11 +194,7 @@ export default function InventoryPage() {
           }
         );
 
-      if (
-        categoriesResponse.status === 401 ||
-        categoriesResponse.status === 403
-      ) {
-        redirectToLogin();
+      if (!categoriesResponse) {
         return;
       }
 
@@ -394,7 +338,7 @@ export default function InventoryPage() {
         "session"
       )
     ) {
-      redirectToLogin();
+      redirectToAdminLogin();
       return;
     }
 
@@ -408,7 +352,7 @@ export default function InventoryPage() {
 };
 
     loadInventory();
-  }, [router]);
+  }, []);
 
   /*
    * FORMAT CURRENCY
@@ -513,7 +457,7 @@ export default function InventoryPage() {
        * SEND UPDATED STOCK
        */
       const response =
-        await fetch(
+        await fetchWithAdminAuth(
           `${API_URL}/products/admin/${stockProduct.id}/`,
           {
             method: "PATCH",
@@ -538,11 +482,7 @@ export default function InventoryPage() {
       /*
        * AUTH ERROR
        */
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        redirectToLogin();
+      if (!response) {
         return;
       }
 

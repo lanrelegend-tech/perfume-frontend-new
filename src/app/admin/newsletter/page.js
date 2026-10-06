@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminSidebar from "@/components/AdminSidebar";
 import {
+  API_URL,
+  fetchWithAdminAuth,
+  redirectToAdminLogin,
+} from "@/lib/adminAuth";
+import {
   Search,
   Mail,
   Users,
@@ -21,10 +26,6 @@ import {
   CheckCircle2,
   Plus,
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
 
 export default function NewsletterPage() {
   const router = useRouter();
@@ -63,11 +64,7 @@ const authHeaders = () => ({
     }, 5000);
   };
   const handleUnauthorized = () => {
-  router.replace(
-    `/admin/login?next=${encodeURIComponent(
-      window.location.pathname
-    )}`
-  );
+  redirectToAdminLogin();
 };
   
 const fetchSubscribers = async () => {
@@ -78,12 +75,16 @@ const fetchSubscribers = async () => {
     const allSubscribers = [];
 
     while (url) {
-      const response = await fetch(url, {
+      const response = await fetchWithAdminAuth(url, {
         method: "GET",
         credentials: "include",
         headers: authHeaders(),
         cache: "no-store",
       });
+
+      if (!response) {
+        return;
+      }
 
       if (
         response.status === 401 ||
@@ -140,12 +141,16 @@ const fetchCampaigns = async () => {
     const allCampaigns = [];
 
     while (url) {
-      const response = await fetch(url, {
+      const response = await fetchWithAdminAuth(url, {
         method: "GET",
         credentials: "include",
         headers: authHeaders(),
         cache: "no-store",
       });
+
+      if (!response) {
+        return;
+      }
 
       if (
         response.status === 401 ||
@@ -198,6 +203,7 @@ const fetchCampaigns = async () => {
 };
   useEffect(() => {
     fetchSubscribers();
+      fetchCampaigns();
   }, []);
 
   useEffect(() => {

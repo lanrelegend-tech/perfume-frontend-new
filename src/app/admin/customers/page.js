@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
 import { useRouter } from "next/navigation";
 import {
+  API_URL,
+  fetchWithAdminAuth,
+} from "@/lib/adminAuth";
+import {
   BarChart3,
   Users,
   Search,
@@ -17,10 +21,6 @@ import {
   ChevronRight,
   UserRound,
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
 
 const CUSTOMERS_PER_PAGE = 10;
 
@@ -87,7 +87,7 @@ const fetchCustomers = async () => {
       let nextUrl = initialUrl;
 
       while (nextUrl) {
-        const response = await fetch(
+        const response = await fetchWithAdminAuth(
           nextUrl,
           {
             method: "GET",
@@ -100,13 +100,7 @@ const fetchCustomers = async () => {
           }
         );
 
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          router.push(
-            "/admin/login"
-          );
+        if (!response) {
           return null;
         }
 

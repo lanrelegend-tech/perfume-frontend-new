@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
+  fetchWithAdminAuth,
+  getCsrfToken,
+} from "@/lib/adminAuth";
+import {
   ArrowLeft,
   Check,
   ImagePlus,
@@ -120,7 +124,7 @@ const loadData = async () => {
     let foundProduct = null;
 
     while (productsUrl) {
-      const productsResponse = await fetch(
+      const productsResponse = await fetchWithAdminAuth(
         productsUrl,
         {
           method: "GET",
@@ -128,6 +132,10 @@ const loadData = async () => {
           cache: "no-store",
         }
       );
+
+      if (!productsResponse) {
+        return;
+      }
 
       if (!productsResponse.ok) {
         throw new Error(
@@ -289,7 +297,7 @@ const loadData = async () => {
 
     while (categoriesUrl) {
       const categoriesResponse =
-        await fetch(
+        await fetchWithAdminAuth(
           categoriesUrl,
           {
             method: "GET",
@@ -297,6 +305,10 @@ const loadData = async () => {
             cache: "no-store",
           }
         );
+
+      if (!categoriesResponse) {
+        return;
+      }
 
       if (!categoriesResponse.ok) {
         break;
@@ -573,27 +585,7 @@ const loadData = async () => {
       setSaved(false);
       setError("");
 
-    const csrfResponse = await fetch(
-  `${API_URL}/auth/csrf/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
-
-   const csrfData = await csrfResponse
-  .json()
-  .catch(() => ({}));
-
-if (
-  !csrfResponse.ok ||
-  !csrfData?.csrfToken
-) {
-  throw new Error(
-    "Unable to initialize secure request. Please refresh and try again."
-  );
-}
+    const csrfToken = await getCsrfToken();
 
       
 
@@ -703,15 +695,14 @@ if (
          UPDATE PRODUCT
       ================================================= */
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/products/admin/${productId}/`,
         {
           method: "PATCH",
           headers: {
   "Content-Type":
     "application/json",
-  "X-CSRFToken":
-    csrfData.csrfToken,
+  "X-CSRFToken": csrfToken,
 },
 credentials: "include",
          
@@ -721,15 +712,7 @@ credentials: "include",
         }
       );
 
-      if (
-  response.status === 401 ||
-  response.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+      if (!response) {
   return;
 }
 
@@ -800,28 +783,19 @@ credentials: "include",
         );
 
         const mainImageResponse =
-          await fetch(
+          await fetchWithAdminAuth(
             `${API_URL}/products/admin/${productId}/`,
             {
               method: "PATCH",
               credentials: "include",
 headers: {
-  "X-CSRFToken":
-    csrfData.csrfToken,
+  "X-CSRFToken": csrfToken,
 },
              
               body: mainImageFormData,
             }
           );
-if (
-  mainImageResponse.status === 401 ||
-  mainImageResponse.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+if (!mainImageResponse) {
   return;
 }
 
@@ -842,27 +816,18 @@ if (
         promotedMainImageId !== null
       ) {
         const promoteResponse =
-          await fetch(
+          await fetchWithAdminAuth(
             `${API_URL}/products/admin/images/${promotedMainImageId}/`,
             {
   method: "POST",
   credentials: "include",
   headers: {
-    "X-CSRFToken":
-      csrfData.csrfToken,
+    "X-CSRFToken": csrfToken,
   },
 }
           );
 
-       if (
-  promoteResponse.status === 401 ||
-  promoteResponse.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+       if (!promoteResponse) {
   return;
 }
 
@@ -887,27 +852,18 @@ if (
             deletedImageIds
         ) {
           const deleteResponse =
-            await fetch(
+            await fetchWithAdminAuth(
               `${API_URL}/products/admin/images/${imageId}/`,
               {
                 method: "DELETE",
                credentials: "include",
 headers: {
-  "X-CSRFToken":
-    csrfData.csrfToken,
+  "X-CSRFToken": csrfToken,
 },
               }
             );
 
-         if (
-  deleteResponse.status === 401 ||
-  deleteResponse.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+         if (!deleteResponse) {
   return;
 }
 
@@ -958,28 +914,19 @@ headers: {
         );
 
         const imageResponse =
-          await fetch(
+          await fetchWithAdminAuth(
             `${API_URL}/products/admin/images/bulk/`,
             {
               method: "POST",
              credentials: "include",
 headers: {
-  "X-CSRFToken":
-    csrfData.csrfToken,
+  "X-CSRFToken": csrfToken,
 },
               body: imageFormData,
             }
           );
 
-       if (
-  imageResponse.status === 401 ||
-  imageResponse.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+       if (!imageResponse) {
   return;
 }
 

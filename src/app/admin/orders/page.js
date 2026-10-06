@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
 import { useRouter } from "next/navigation";
 import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+} from "@/lib/adminAuth";
+import {
   Search,
   Bell,
   MessageCircle,
@@ -17,10 +22,6 @@ import {
   ShoppingBag,
 } from "lucide-react";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
-
 export default function OrdersPage() {
   const router = useRouter();
 
@@ -31,54 +32,6 @@ export default function OrdersPage() {
   const [error, setError] = useState("");
   const [openMenu, setOpenMenu] = useState(null);
   const [markingPickupId, setMarkingPickupId] = useState(null);
-
-  const getCsrfToken = async () => {
-    const response = await fetch(
-      `${API_URL}/auth/csrf/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    const data =
-      await response.json().catch(() => ({}));
-
-    if (!response.ok || !data.csrfToken) {
-      throw new Error(
-        "Unable to get security token."
-      );
-    }
-
-    return data.csrfToken;
-  };
-
-  const checkAuthentication = async () => {
-    const response = await fetch(
-      `${API_URL}/users/me/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    if (
-      response.status === 401 ||
-      response.status === 403
-    ) {
-      return false;
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        "Unable to verify login session."
-      );
-    }
-
-    return true;
-  };
 
   /*
    * Convert the backend order into the
@@ -177,23 +130,11 @@ const fetchOrders = async () => {
     setLoading(true);
     setError("");
 
-    const authenticated =
-      await checkAuthentication();
-
-    if (!authenticated) {
-      router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-      return;
-    }
-
     let allOrders = [];
     let nextUrl = `${API_URL}/orders/admin/`;
 
     while (nextUrl) {
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         nextUrl,
         {
           method: "GET",
@@ -202,15 +143,7 @@ const fetchOrders = async () => {
         }
       );
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+      if (!response) {
         return;
       }
 
@@ -483,7 +416,7 @@ const fetchOrders = async () => {
       setError("");
 
       const csrfToken = await getCsrfToken();
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/orders/admin/${order.id}/`,
         {
           method: "PATCH",
@@ -496,15 +429,7 @@ const fetchOrders = async () => {
         }
       );
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+      if (!response) {
         return;
       }
 

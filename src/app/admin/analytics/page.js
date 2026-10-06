@@ -22,10 +22,12 @@ import {
   Tag,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import {
+  API_URL,
+  fetchWithAdminAuth,
+} from "@/lib/adminAuth";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
+
 
 /* =========================================================
    HELPERS
@@ -60,50 +62,6 @@ const formatCompactCurrency = (value) => {
    AUTH HELPERS
 ========================================================= */
 
-const getCsrfToken = async () => {
-  try {
-    const response = await fetch(
-      `${API_URL}/auth/csrf/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-
-    return data?.csrfToken || null;
-  } catch (error) {
-    console.error(
-      "CSRF token error:",
-      error
-    );
-
-    return null;
-  }
-};
-
-const getAuthenticatedHeaders = () => ({
-  "Content-Type": "application/json",
-});
-
-const getUnsafeHeaders = async () => {
-  const csrfToken = await getCsrfToken();
-
-  return {
-    "Content-Type": "application/json",
-    ...(csrfToken
-      ? {
-          "X-CSRFToken": csrfToken,
-        }
-      : {}),
-  };
-};
 
 /* =========================================================
    DATA HELPERS
@@ -521,25 +479,15 @@ async function loadAnalytics() {
       First verify that the current session is still valid.
       Authentication comes from the HttpOnly access cookie.
     */
-    const meResponse = await fetch(
+    const meResponse = await fetchWithAdminAuth(
       `${API_URL}/users/me/`,
       {
         method: "GET",
-        credentials: "include",
-        cache: "no-store",
       }
     );
 
-    if (
-      meResponse.status === 401 ||
-      meResponse.status === 403
-    ) {
-      router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-return;
+    if (!meResponse) {
+      return;
     }
 
     if (!meResponse.ok) {
@@ -547,9 +495,6 @@ return;
         "Unable to verify your admin session."
       );
     }
-
-    const headers =
-      getAuthenticatedHeaders();
 
     /*
       Load customers and dashboard normally.
@@ -560,43 +505,23 @@ return;
       customersResponse,
       dashboardResponse,
     ] = await Promise.all([
-      fetch(
+      fetchWithAdminAuth(
         `${API_URL}/users/admin/customers/`,
         {
           method: "GET",
-          headers,
-          credentials: "include",
-          cache: "no-store",
         }
       ),
 
-      fetch(
+      fetchWithAdminAuth(
         `${API_URL}/orders/admin/dashboard/`,
         {
           method: "GET",
-          headers,
-          credentials: "include",
-          cache: "no-store",
         }
       ),
     ]);
 
-    /*
-      If authentication expires, send the admin
-      back to the login page.
-    */
-    if (
-      customersResponse.status === 401 ||
-      customersResponse.status === 403 ||
-      dashboardResponse.status === 401 ||
-      dashboardResponse.status === 403
-    ) {
-      router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-return;
+    if (!customersResponse || !dashboardResponse) {
+      return;
     }
 
     /*
@@ -624,26 +549,15 @@ return;
 
     while (nextOrdersUrl) {
       const ordersResponse =
-        await fetch(
+        await fetchWithAdminAuth(
           nextOrdersUrl,
           {
             method: "GET",
-            headers,
-            credentials: "include",
-            cache: "no-store",
           }
         );
 
-      if (
-        ordersResponse.status === 401 ||
-        ordersResponse.status === 403
-      ) {
-       router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-return;
+      if (!ordersResponse) {
+        return;
       }
 
       if (!ordersResponse.ok) {

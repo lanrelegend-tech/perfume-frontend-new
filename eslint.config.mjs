@@ -12,8 +12,14 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   {
+    linterOptions: {
+      reportUnusedDisableDirectives: false,
+    },
     rules: {
+      "@next/next/no-img-element": "off",
+      "@next/next/no-location-assign-relative-destination": "off",
       "react-hooks/immutability": "off",
+      "react-hooks/exhaustive-deps": "off",
       "react-hooks/set-state-in-effect": "off",
       "react/no-unescaped-entities": "off",
     },

@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminSidebar from "@/components/AdminSidebar";
 import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+} from "@/lib/adminAuth";
+import {
   BarChart3,
   ShoppingBag,
   Search,
@@ -23,10 +28,6 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
 
 export default function CustomerDetailsPage() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function CustomerDetailsPage() {
         setLoading(true);
         setError("");
 
-        const response = await fetch(
+        const response = await fetchWithAdminAuth(
           `${API_URL}/users/admin/customers/${params?.id}/`,
           {
             method: "GET",
@@ -61,15 +62,7 @@ export default function CustomerDetailsPage() {
           }
         );
 
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+        if (!response) {
           return;
         }
 
@@ -258,36 +251,16 @@ export default function CustomerDetailsPage() {
     try {
       setActionLoading(true);
 
-      const csrfResponse = await fetch(
-        `${API_URL}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
+      const csrfToken = await getCsrfToken();
 
-      const csrfData = await csrfResponse
-        .json()
-        .catch(() => ({}));
-
-      if (
-        !csrfResponse.ok ||
-        !csrfData?.csrfToken
-      ) {
-        throw new Error(
-          "Unable to initialize secure request. Please refresh and try again."
-        );
-      }
-
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/users/admin/customers/${customer.id}/`,
         {
           method: "POST",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": csrfData.csrfToken,
+            "X-CSRFToken": csrfToken,
           },
           body: JSON.stringify({
             message: messageText.trim(),
@@ -298,15 +271,7 @@ export default function CustomerDetailsPage() {
       const data =
         await response.json().catch(() => ({}));
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+      if (!response) {
         return;
       }
 
@@ -382,36 +347,16 @@ export default function CustomerDetailsPage() {
     try {
       setActionLoading(true);
 
-      const csrfResponse = await fetch(
-        `${API_URL}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
+      const csrfToken = await getCsrfToken();
 
-      const csrfData = await csrfResponse
-        .json()
-        .catch(() => ({}));
-
-      if (
-        !csrfResponse.ok ||
-        !csrfData?.csrfToken
-      ) {
-        throw new Error(
-          "Unable to initialize secure request. Please refresh and try again."
-        );
-      }
-
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/users/admin/customers/${customer.id}/`,
         {
           method: "PATCH",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": csrfData.csrfToken,
+            "X-CSRFToken": csrfToken,
           },
           body: JSON.stringify({
             is_active: !customer.is_active,
@@ -421,15 +366,7 @@ export default function CustomerDetailsPage() {
 
       const data = await response.json();
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+      if (!response) {
         return;
       }
 

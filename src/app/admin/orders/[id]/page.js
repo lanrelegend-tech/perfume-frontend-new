@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
 import { useParams, useRouter } from "next/navigation";
 import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+} from "@/lib/adminAuth";
+import {
   Search,
   Bell,
   MessageCircle,
@@ -19,10 +24,6 @@ import {
   Save,
   AlertTriangle,
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
 
 export default function OrderDetailsPage() {
   const router = useRouter();
@@ -65,7 +66,7 @@ export default function OrderDetailsPage() {
       }
 
       setError("");
-const authResponse = await fetch(
+const authResponse = await fetchWithAdminAuth(
   `${API_URL}/users/me/`,
   {
     method: "GET",
@@ -74,18 +75,7 @@ const authResponse = await fetch(
   }
 );
 
-if (
-  authResponse.status === 401 ||
-  authResponse.status === 403
-) {
-  if (redirectOnAuth) {
-    router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-  }
-
+if (!authResponse) {
   return null;
 }
 
@@ -95,7 +85,7 @@ if (!authResponse.ok) {
   );
 }
 
-const response = await fetch(
+const response = await fetchWithAdminAuth(
   `${API_URL}/orders/admin/${orderId}/`,
   {
     method: "GET",
@@ -104,15 +94,7 @@ const response = await fetch(
   }
 );
 
-if (response.status === 401) {
-  if (redirectOnAuth) {
-    router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-  }
-
+if (!response) {
   return null;
 }
       if (response.status === 403) {
@@ -439,38 +421,16 @@ const getStatusLabel = (
       setUpdating(true);
       setError("");
 
-      const csrfResponse = await fetch(
-  `${API_URL}/auth/csrf/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
+      const csrfToken = await getCsrfToken();
 
-const csrfData =
-  await csrfResponse
-    .json()
-    .catch(() => ({}));
-
-if (
-  !csrfResponse.ok ||
-  !csrfData.csrfToken
-) {
-  throw new Error(
-    "Unable to get security token."
-  );
-}
-
-const response = await fetch(
+const response = await fetchWithAdminAuth(
   `${API_URL}/orders/admin/${order.id}/`,
   {
     method: "PATCH",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      "X-CSRFToken":
-        csrfData.csrfToken,
+      "X-CSRFToken": csrfToken,
     },
     body: JSON.stringify({
       status: newStatus,
@@ -483,16 +443,7 @@ const response = await fetch(
 );
 
 
-if (
-  response.status === 401 ||
-  response.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-
+if (!response) {
   return;
 }
 
@@ -556,30 +507,9 @@ if (
         setSavingShipping(true);
         setError("");
 
-        const csrfResponse = await fetch(
-  `${API_URL}/auth/csrf/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
+        const csrfToken = await getCsrfToken();
 
-const csrfData =
-  await csrfResponse
-    .json()
-    .catch(() => ({}));
-
-if (
-  !csrfResponse.ok ||
-  !csrfData.csrfToken
-) {
-  throw new Error(
-    "Unable to get security token."
-  );
-}
-
-const response = await fetch(
+const response = await fetchWithAdminAuth(
   `${API_URL}/orders/admin/${order.id}/`,
   {
     method: "PATCH",
@@ -587,8 +517,7 @@ const response = await fetch(
     headers: {
       "Content-Type":
         "application/json",
-      "X-CSRFToken":
-        csrfData.csrfToken,
+      "X-CSRFToken": csrfToken,
     },
     body: JSON.stringify({
       courier:
@@ -599,16 +528,7 @@ const response = await fetch(
   }
 );
 
-if (
-  response.status === 401 ||
-  response.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-
+if (!response) {
   return;
 }
 

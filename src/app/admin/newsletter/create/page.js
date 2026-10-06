@@ -9,6 +9,12 @@ import {
 import { useRouter } from "next/navigation";
 
 import AdminSidebar from "@/components/AdminSidebar";
+import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+  redirectToAdminLogin,
+} from "@/lib/adminAuth";
 
 import {
   ArrowLeft,
@@ -32,10 +38,6 @@ import {
   Ban,
   RefreshCw,
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
 
 export default function CreateNewsletterCampaignPage() {
   const router = useRouter();
@@ -127,11 +129,7 @@ export default function CreateNewsletterCampaignPage() {
   "Content-Type": "application/json",
 });
   const handleUnauthorized = () => {
-  router.replace(
-    `/admin/login?next=${encodeURIComponent(
-      window.location.pathname
-    )}`
-  );
+  redirectToAdminLogin();
 };
 
   const showNotice = (
@@ -157,12 +155,16 @@ const fetchSubscribers = async () => {
     const allSubscribers = [];
 
     while (url) {
-      const response = await fetch(url, {
+      const response = await fetchWithAdminAuth(url, {
         method: "GET",
         credentials: "include",
         headers: authHeaders(),
         cache: "no-store",
       });
+
+      if (!response) {
+        return;
+      }
 
       if (
         response.status === 401 ||
@@ -403,38 +405,16 @@ const fetchSubscribers = async () => {
     try {
       setAudienceLoading(true);
 
-      const csrfResponse = await fetch(
-        `${API_URL}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
+      const csrfToken = await getCsrfToken();
 
-      const csrfData =
-        await csrfResponse
-          .json()
-          .catch(() => ({}));
-
-      if (
-        !csrfResponse.ok ||
-        !csrfData?.csrfToken
-      ) {
-        throw new Error(
-          "Unable to initialize secure request."
-        );
-      }
-
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/newsletter/audience/preview/`,
         {
           method: "POST",
           credentials: "include",
           headers: {
             ...authHeaders(),
-            "X-CSRFToken":
-              csrfData.csrfToken,
+            "X-CSRFToken": csrfToken,
           },
           body: JSON.stringify(
             getAudiencePayload()
@@ -443,11 +423,7 @@ const fetchSubscribers = async () => {
       );
 
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        handleUnauthorized();
+      if (!response) {
         return;
       }
 
@@ -650,7 +626,7 @@ const fetchSubscribers = async () => {
       showNotice(
         "error",
         "Image too large",
-        "Please choose a JPG, PNG, GIF, or BMP image smaller than 2MB."
+        "Please choose a JPG, PNG, GIF, BMP, or WEBP image smaller than 2MB."
       );
 
       event.target.value = "";
@@ -686,41 +662,24 @@ const fetchSubscribers = async () => {
         file
       );
 
-      const csrfResponse = await fetch(
-  `${API_URL}/auth/csrf/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
-
-const csrfData = await csrfResponse
-  .json()
-  .catch(() => ({}));
-
-if (
-  !csrfResponse.ok ||
-  !csrfData?.csrfToken
-) {
-  throw new Error(
-    "Unable to initialize secure upload."
-  );
-}
+      const csrfToken = await getCsrfToken();
 
       const response =
-        await fetch(
+        await fetchWithAdminAuth(
           `${API_URL}/newsletter/upload-image/`,
           {
             method: "POST",
             credentials: "include",
-headers: {
-  "X-CSRFToken": csrfData.csrfToken,
-},
-           
+            headers: {
+              "X-CSRFToken": csrfToken,
+            },
             body: formData,
           }
         );
+
+      if (!response) {
+        return;
+      }
 
       if (
         response.status === 401 ||
@@ -1149,38 +1108,16 @@ headers: {
       };
     };
 const createCampaign = async () => {
-  const csrfResponse = await fetch(
-    `${API_URL}/auth/csrf/`,
-    {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-    }
-  );
+  const csrfToken = await getCsrfToken();
 
-  const csrfData =
-    await csrfResponse
-      .json()
-      .catch(() => ({}));
-
-  if (
-    !csrfResponse.ok ||
-    !csrfData?.csrfToken
-  ) {
-    throw new Error(
-      "Unable to initialize secure request."
-    );
-  }
-
-  const response = await fetch(
+  const response = await fetchWithAdminAuth(
     `${API_URL}/newsletter/campaigns/`,
     {
       method: "POST",
       credentials: "include",
       headers: {
         ...authHeaders(),
-        "X-CSRFToken":
-          csrfData.csrfToken,
+        "X-CSRFToken": csrfToken,
       },
       body: JSON.stringify(
         buildCampaignPayload()
@@ -1188,11 +1125,7 @@ const createCampaign = async () => {
     }
   );
 
-  if (
-    response.status === 401 ||
-    response.status === 403
-  ) {
-    handleUnauthorized();
+  if (!response) {
     return null;
   }
 
@@ -1284,45 +1217,21 @@ const createCampaign = async () => {
             "Campaign was created but no campaign ID was returned."
           );
         }
-        const csrfResponse = await fetch(
-  `${API_URL}/auth/csrf/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
+        const csrfToken = await getCsrfToken();
 
-const csrfData = await csrfResponse
-  .json()
-  .catch(() => ({}));
-
-if (
-  !csrfResponse.ok ||
-  !csrfData?.csrfToken
-) {
-  throw new Error(
-    "Unable to initialize secure send."
-  );
-}
-
-       const response = await fetch(
+       const response = await fetchWithAdminAuth(
   `${API_URL}/newsletter/campaigns/${campaignId}/send/`,
   {
     method: "POST",
     credentials: "include",
     headers: {
       ...authHeaders(),
-      "X-CSRFToken": csrfData.csrfToken,
+      "X-CSRFToken": csrfToken,
     },
   }
 );
 
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          handleUnauthorized();
+        if (!response) {
           return;
         }
 
@@ -1436,37 +1345,17 @@ if (
       try {
         setTestLoading(true);
 
-       const csrfResponse = await fetch(
-  `${API_URL}/auth/csrf/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
-
-const csrfData = await csrfResponse
-  .json()
-  .catch(() => ({}));
-
-if (
-  !csrfResponse.ok ||
-  !csrfData?.csrfToken
-) {
-  throw new Error(
-    "Unable to initialize secure test request."
-  );
-}
+        const csrfToken = await getCsrfToken();
 
         const response =
-          await fetch(
+          await fetchWithAdminAuth(
             `${API_URL}/newsletter/campaigns/test/`,
             {
               method: "POST",
               credentials: "include",
 headers: {
   "Content-Type": "application/json",
-  "X-CSRFToken": csrfData.csrfToken,
+  "X-CSRFToken": csrfToken,
 },
               
               body: JSON.stringify({
@@ -1505,11 +1394,7 @@ headers: {
             }
           );
 
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          handleUnauthorized();
+        if (!response) {
           return;
         }
 
@@ -2309,7 +2194,7 @@ headers: {
 
                         <input
                           type="file"
-                          accept="image/jpeg,image/png,image/gif,image/bmp"
+                          accept="image/jpeg,image/png,image/gif,image/bmp,image/webp"
                           onChange={(
                             event
                           ) =>
@@ -2344,7 +2229,7 @@ headers: {
                         </p>
 
                         <p className="mt-1 max-w-sm text-xs leading-5 text-black/40">
-                          JPG, PNG, GIF or BMP · maximum 2MB.
+                          JPG, PNG, GIF, BMP or WEBP · maximum 2MB.
                         </p>
 
                       </label>
@@ -2406,7 +2291,7 @@ headers: {
 
                         <input
                           type="file"
-                          accept="image/jpeg,image/png,image/gif,image/bmp"
+                          accept="image/jpeg,image/png,image/gif,image/bmp,image/webp"
                           onChange={(
                             event
                           ) =>
@@ -2441,7 +2326,7 @@ headers: {
                         </p>
 
                         <p className="mt-1 max-w-sm text-xs leading-5 text-black/40">
-                          JPG, PNG, GIF or BMP · maximum 2MB.
+                          JPG, PNG, GIF, BMP or WEBP · maximum 2MB.
                         </p>
 
                       </label>

@@ -4,6 +4,7 @@ import PWARegister from "@/components/PWARegister";
 import NewsletterPopup from "@/components/NewsletterPopup";
 import CookieConsent from "@/components/CookieConsent";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import MaintenanceGate from "@/components/MaintenanceGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -130,10 +131,12 @@ export default function RootLayout({ children }) {
     >
       <body className="min-h-full flex flex-col">
         <PWARegister />
-        {children}
-         <NewsletterPopup />
-           <CookieConsent />
-             <WhatsAppButton />
+        <MaintenanceGate>
+          {children}
+          <NewsletterPopup />
+          <CookieConsent />
+          <WhatsAppButton />
+        </MaintenanceGate>
       </body>
     </html>
   );

@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
+  fetchWithAdminAuth,
+  getCsrfToken,
+} from "@/lib/adminAuth";
+import {
   ArrowLeft,
   Edit,
   Package,
@@ -376,9 +380,13 @@ useEffect(() => {
       let foundProduct = null;
 
       while (nextUrl) {
-        const response = await fetch(nextUrl, {
-  cache: "no-store",
-});
+        const response = await fetchWithAdminAuth(nextUrl, {
+          cache: "no-store",
+        });
+
+        if (!response) {
+          return;
+        }
 
         if (!response.ok) {
           throw new Error("Failed to load products");
@@ -440,9 +448,13 @@ useEffect(() => {
         `${API_URL}/products/categories/`;
 
       while (nextUrl) {
-        const response = await fetch(nextUrl, {
-  cache: "no-store",
-});
+        const response = await fetchWithAdminAuth(nextUrl, {
+          cache: "no-store",
+        });
+
+        if (!response) {
+          return;
+        }
 
         if (!response.ok) {
           return;
@@ -503,7 +515,7 @@ useEffect(() => {
           nextUrl = endpoint;
 
           while (nextUrl) {
-            const response = await fetch(
+            const response = await fetchWithAdminAuth(
               nextUrl,
               {
                 method: "GET",
@@ -512,10 +524,7 @@ useEffect(() => {
               }
             );
 
-            if (
-              response.status === 401 ||
-              response.status === 403
-            ) {
+            if (!response) {
               foundResponse = false;
               break;
             }
@@ -739,50 +748,22 @@ useEffect(() => {
     if (!confirmed) return;
 
     try {
-  const csrfResponse = await fetch(
-    `${API_URL}/auth/csrf/`,
-    {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-    }
-  );
-
-  const csrfData = await csrfResponse
-    .json()
-    .catch(() => ({}));
-
-  if (
-    !csrfResponse.ok ||
-    !csrfData?.csrfToken
-  ) {
-    throw new Error(
-      "Unable to initialize secure request. Please refresh and try again."
-    );
-  }
-
-  const response = await fetch(
-        `${API_URL}/products/admin/${product.id}/`,
-       {
-  method: "DELETE",
-  credentials: "include",
-  headers: {
-    "X-CSRFToken": csrfData.csrfToken,
-  },
-}
-      );
-
-     if (
-  response.status === 401 ||
-  response.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-  return;
-}
+	  const csrfToken = await getCsrfToken();
+	
+	  const response = await fetchWithAdminAuth(
+	        `${API_URL}/products/admin/${product.id}/`,
+	       {
+	  method: "DELETE",
+	  credentials: "include",
+	  headers: {
+	    "X-CSRFToken": csrfToken,
+	  },
+	}
+	      );
+	
+	     if (!response) {
+	  return;
+	}
       if (!response.ok) {
         throw new Error(
           "Failed to delete product"

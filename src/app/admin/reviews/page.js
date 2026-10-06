@@ -1,8 +1,12 @@
 "use client";
 
 import AdminSidebar from "@/components/AdminSidebar";
+import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+} from "@/lib/adminAuth";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Star,
   Trash2,
@@ -14,13 +18,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
-
 export default function AdminReviewsPage() {
-  const router = useRouter();
-
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -35,73 +33,15 @@ export default function AdminReviewsPage() {
     fetchReviews();
   }, []);
 
-  const getCsrfToken = async () => {
-    const response = await fetch(
-      `${API_URL}/auth/csrf/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok || !data.csrfToken) {
-      throw new Error(
-        "Unable to get security token."
-      );
-    }
-
-    return data.csrfToken;
-  };
-
-  const checkAuthentication = async () => {
-    const response = await fetch(
-      `${API_URL}/users/me/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    if (
-      response.status === 401 ||
-      response.status === 403
-    ) {
-      return false;
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        "Unable to verify login session."
-      );
-    }
-
-    return true;
-  };
 const fetchReviews = async () => {
   try {
     setLoading(true);
-
-    const authenticated =
-      await checkAuthentication();
-
-    if (!authenticated) {
-      router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-      return;
-    }
 
     let nextUrl = `${API_URL}/reviews/admin/`;
     const allReviews = [];
 
     while (nextUrl) {
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         nextUrl,
         {
           method: "GET",
@@ -110,15 +50,7 @@ const fetchReviews = async () => {
         }
       );
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+      if (!response) {
         return;
       }
 
@@ -166,7 +98,7 @@ const fetchReviews = async () => {
       const csrfToken =
         await getCsrfToken();
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/reviews/admin/${deleteReview.id}/`,
         {
           method: "DELETE",
@@ -177,15 +109,7 @@ const fetchReviews = async () => {
         }
       );
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+      if (!response) {
         return;
       }
 

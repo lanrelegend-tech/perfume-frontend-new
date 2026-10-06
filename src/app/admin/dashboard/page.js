@@ -4,6 +4,11 @@ import AdminSidebar from "@/components/AdminSidebar";
 import {
   enableAdminPush,
 } from "@/lib/adminPush";
+import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+} from "@/lib/adminAuth";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -22,10 +27,6 @@ import {
   ChevronRight,
   RefreshCw,
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -54,33 +55,13 @@ const [pushMessage, setPushMessage] =
 
 const logout = async () => {
   try {
-    const csrfResponse = await fetch(
-      `${API_URL}/auth/csrf/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    const csrfData = await csrfResponse
-      .json()
-      .catch(() => ({}));
-
-    if (
-      !csrfResponse.ok ||
-      !csrfData?.csrfToken
-    ) {
-      throw new Error(
-        "Unable to initialize secure logout."
-      );
-    }
+    const csrfToken = await getCsrfToken();
 
     await fetch(`${API_URL}/auth/logout/`, {
       method: "POST",
       credentials: "include",
       headers: {
-        "X-CSRFToken": csrfData.csrfToken,
+        "X-CSRFToken": csrfToken,
       },
     });
   } catch (err) {
@@ -128,7 +109,7 @@ return;
   };
 
   const fetchApi = async (url) => {
-  const response = await fetch(url, {
+  const response = await fetchWithAdminAuth(url, {
     method: "GET",
     credentials: "include",
     headers: {
@@ -137,10 +118,7 @@ return;
     cache: "no-store",
   });
 
-  if (
-    response.status === 401 ||
-    response.status === 403
-  ) {
+  if (!response) {
     throw new Error("AUTH_ERROR");
   }
 
@@ -169,7 +147,7 @@ const loadDashboard = async () => {
       --------------------------------------------------
     */
 
-    const meResponse = await fetch(
+    const meResponse = await fetchWithAdminAuth(
       `${API_URL}/users/me/`,
       {
         method: "GET",
@@ -178,16 +156,7 @@ const loadDashboard = async () => {
       }
     );
 
-    if (
-      meResponse.status === 401 ||
-      meResponse.status === 403
-    ) {
-      router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-return;
+    if (!meResponse) {
       return;
     }
 
@@ -239,7 +208,7 @@ return;
       `${API_URL}/orders/admin/`;
 
     while (nextOrdersUrl) {
-      const ordersResponse = await fetch(
+      const ordersResponse = await fetchWithAdminAuth(
         nextOrdersUrl,
         {
           method: "GET",
@@ -251,16 +220,7 @@ return;
         }
       );
 
-      if (
-        ordersResponse.status === 401 ||
-        ordersResponse.status === 403
-      ) {
-        router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-return;
+      if (!ordersResponse) {
         return;
       }
 
@@ -517,35 +477,22 @@ return;
       setMarkingPickupId(order.id);
       setError("");
 
-      const csrfResponse = await fetch(
-        `${API_URL}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
-      const csrfData = await csrfResponse.json();
+      const csrfToken = await getCsrfToken();
 
-      if (!csrfResponse.ok || !csrfData?.csrfToken) {
-        throw new Error("Unable to get security token.");
-      }
-
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/orders/admin/${order.id}/`,
         {
           method: "PATCH",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": csrfData.csrfToken,
+            "X-CSRFToken": csrfToken,
           },
           body: JSON.stringify({ status: "shipped" }),
         }
       );
 
-      if (response.status === 401 || response.status === 403) {
-        logout();
+      if (!response) {
         return;
       }
 

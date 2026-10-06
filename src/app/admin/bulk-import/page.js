@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  fetchWithAdminAuth,
+  getCsrfToken,
+  redirectToAdminLogin,
+} from "@/lib/adminAuth";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://api.orentemist.online/api";
@@ -441,16 +446,7 @@ export default function BulkImportPage() {
         .includes(query)
     );
   }, [rows, search]);
- const redirectToLogin = () => {
-  const returnUrl =
-    window.location.pathname +
-    window.location.search +
-    window.location.hash;
-
-  window.location.href = `/admin/login?next=${encodeURIComponent(
-    returnUrl
-  )}`;
-};
+	 const redirectToLogin = redirectToAdminLogin;
   const populatedRows = useMemo(
     () => rows.filter((row) => row.name.trim()),
     [rows]
@@ -501,7 +497,7 @@ export default function BulkImportPage() {
 useEffect(() => {
   async function loadCategories() {
     try {
-      const response = await fetch(
+	      const response = await fetchWithAdminAuth(
         `${API_URL}/products/categories/`,
         {
           credentials: "include",
@@ -509,13 +505,9 @@ useEffect(() => {
         }
       );
 
-      if (
-  response.status === 401 ||
-  response.status === 403
-) {
-  redirectToLogin();
-         return;
-}
+	      if (!response) {
+	         return;
+	}
 
       if (!response.ok) {
           throw new Error("Unable to load categories.");
@@ -2092,42 +2084,27 @@ useEffect(() => {
     // CSRF
     // ------------------------------------------------------------
 
-    const csrfResponse = await fetch(
-      `${API_URL}/auth/csrf/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    const csrfData = await csrfResponse
-      .json()
-      .catch(() => ({}));
-
-    if (
-  csrfResponse.status === 401 ||
-  csrfResponse.status === 403
-) {
-      redirectToLogin();
-      return;
-}
+	    const csrfToken = await getCsrfToken();
 
     // ------------------------------------------------------------
     // SEND IMPORT
     // ------------------------------------------------------------
 
-    const response = await fetch(
-      `${API_URL}/products/admin/bulk-import/`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "X-CSRFToken": csrfData.csrfToken,
-        },
-        body: formData,
-      }
-    );
+	    const response = await fetchWithAdminAuth(
+	      `${API_URL}/products/admin/bulk-import/`,
+	      {
+	        method: "POST",
+	        credentials: "include",
+	        headers: {
+	          "X-CSRFToken": csrfToken,
+	        },
+	        body: formData,
+	      }
+	    );
+	
+	    if (!response) {
+	      return;
+	    }
 
     setProgress(80);
 
@@ -2139,15 +2116,7 @@ useEffect(() => {
       data = null;
     }
 
-    if (!response.ok) {
-      if (
-    response.status === 401 ||
-    response.status === 403
-  ) {
-    redirectToLogin();
-        return;
-  }
-
+	    if (!response.ok) {
       throw new Error(
     data?.detail ||
       data?.error ||
@@ -3434,4 +3403,3 @@ useEffect(() => {
     </div>
   );
 }
-

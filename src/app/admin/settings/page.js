@@ -22,9 +22,12 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
+import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+  redirectToAdminLogin,
+} from "@/lib/adminAuth";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("store");
@@ -105,37 +108,12 @@ export default function SettingsPage() {
   // AUTH
   // ==================================================
 
-  const getCsrfToken = async () => {
-    const response = await fetch(
-      `${API_URL}/auth/csrf/`,
-      {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      }
-    );
-
-    const data = await response
-      .json()
-      .catch(() => ({}));
-
-    if (!response.ok || !data.csrfToken) {
-      throw new Error(
-        "Unable to get security token."
-      );
-    }
-
-    return data.csrfToken;
-  };
-
   const handleUnauthorized = (response) => {
     if (
       response.status === 401 ||
       response.status === 403
     ) {
-      if (typeof window !== "undefined") {
-        window.location.href = "/admin/login";
-      }
+      redirectToAdminLogin();
 
       return true;
     }
@@ -191,7 +169,7 @@ export default function SettingsPage() {
       setSettingsLoading(true);
       setSettingsError("");
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/settings/admin/`,
         {
           method: "GET",
@@ -200,7 +178,7 @@ export default function SettingsPage() {
         }
       );
 
-      if (handleUnauthorized(response)) {
+      if (!response || handleUnauthorized(response)) {
         return;
       }
 
@@ -255,7 +233,9 @@ export default function SettingsPage() {
   // SAVE STORE SETTINGS
   // ==================================================
 
-  const saveSettings = async () => {
+  const saveSettings = async (
+    nextMaintenanceMode = maintenanceMode
+  ) => {
     setSettingsError("");
     setSettingsSuccess("");
 
@@ -298,13 +278,13 @@ export default function SettingsPage() {
           freeShippingThreshold === ""
             ? null
             : freeShippingThreshold,
-        maintenance_mode: maintenanceMode,
+        maintenance_mode: nextMaintenanceMode,
         instagram_url: instagramUrl.trim(),
         facebook_url: facebookUrl.trim(),
         tiktok_url: tiktokUrl.trim(),
       };
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/settings/admin/`,
         {
           method: "PATCH",
@@ -317,7 +297,7 @@ export default function SettingsPage() {
         }
       );
 
-      if (handleUnauthorized(response)) {
+      if (!response || handleUnauthorized(response)) {
         return;
       }
 
@@ -361,6 +341,7 @@ export default function SettingsPage() {
       setTimeout(() => {
         setSettingsSuccess("");
       }, 3000);
+      return true;
     } catch (error) {
       console.error(
         "Settings save error:",
@@ -371,8 +352,23 @@ export default function SettingsPage() {
         error.message ||
           "Failed to save store settings."
       );
+
+      return false;
     } finally {
       setSettingsSaving(false);
+    }
+  };
+
+  const toggleMaintenanceMode = async () => {
+    const nextValue = !maintenanceMode;
+    const previousValue = maintenanceMode;
+
+    setMaintenanceMode(nextValue);
+
+    const saved = await saveSettings(nextValue);
+
+    if (!saved) {
+      setMaintenanceMode(previousValue);
     }
   };
 
@@ -388,7 +384,7 @@ const loadShippingRates = async () => {
     const allShippingRates = [];
 
     while (nextUrl) {
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         nextUrl,
         {
           method: "GET",
@@ -397,7 +393,7 @@ const loadShippingRates = async () => {
         }
       );
 
-      if (handleUnauthorized(response)) {
+      if (!response || handleUnauthorized(response)) {
         return;
       }
 
@@ -546,7 +542,7 @@ const loadShippingRates = async () => {
         is_active: true,
       };
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/shipping/`,
         {
           method: "POST",
@@ -559,7 +555,7 @@ const loadShippingRates = async () => {
         }
       );
 
-      if (handleUnauthorized(response)) {
+      if (!response || handleUnauthorized(response)) {
         return;
       }
 
@@ -712,7 +708,7 @@ const loadShippingRates = async () => {
           shipping.is_active,
       };
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/shipping/${shipping.id}/`,
         {
           method: "PATCH",
@@ -725,7 +721,7 @@ const loadShippingRates = async () => {
         }
       );
 
-      if (handleUnauthorized(response)) {
+      if (!response || handleUnauthorized(response)) {
         return;
       }
 
@@ -786,7 +782,7 @@ const loadShippingRates = async () => {
 
       const csrfToken = await getCsrfToken();
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/shipping/${shipping.id}/`,
         {
           method: "PATCH",
@@ -802,7 +798,7 @@ const loadShippingRates = async () => {
         }
       );
 
-      if (handleUnauthorized(response)) {
+      if (!response || handleUnauthorized(response)) {
         return;
       }
 
@@ -874,7 +870,7 @@ const loadShippingRates = async () => {
 
       const csrfToken = await getCsrfToken();
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/shipping/${shipping.id}/`,
         {
           method: "DELETE",
@@ -885,7 +881,7 @@ const loadShippingRates = async () => {
         }
       );
 
-      if (handleUnauthorized(response)) {
+      if (!response || handleUnauthorized(response)) {
         return;
       }
 
@@ -1302,7 +1298,7 @@ const loadShippingRates = async () => {
 
                     <button
                       type="button"
-                      onClick={saveSettings}
+                      onClick={() => saveSettings()}
                       disabled={settingsSaving}
                       className="flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -1438,7 +1434,7 @@ const loadShippingRates = async () => {
 
                     <button
                       type="button"
-                      onClick={saveSettings}
+                      onClick={() => saveSettings()}
                       disabled={settingsSaving}
                       className="flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -2251,12 +2247,9 @@ const loadShippingRates = async () => {
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setMaintenanceMode(
-                          !maintenanceMode
-                        )
-                      }
-                      className="flex w-full items-center justify-between rounded-xl border border-gray-200 p-4 text-left transition hover:border-black"
+                      onClick={toggleMaintenanceMode}
+                      disabled={settingsSaving}
+                      className="flex w-full items-center justify-between rounded-xl border border-gray-200 p-4 text-left transition hover:border-black disabled:cursor-not-allowed disabled:opacity-60"
                     >
 
                       <div>
@@ -2298,7 +2291,7 @@ const loadShippingRates = async () => {
 
                     <button
                       type="button"
-                      onClick={saveSettings}
+                      onClick={() => saveSettings()}
                       disabled={settingsSaving}
                       className="flex items-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >

@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
 import { useRouter } from "next/navigation";
 import {
+  API_URL,
+  fetchWithAdminAuth,
+  getCsrfToken,
+  redirectToAdminLogin,
+} from "@/lib/adminAuth";
+import {
   Search,
   Bell,
   MessageCircle,
@@ -21,10 +27,6 @@ import {
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://perfume-backend-sbvd.onrender.com/api";
 
 export default function CouponsPage() {
   const router = useRouter();
@@ -66,11 +68,7 @@ export default function CouponsPage() {
   */
 
   const handleUnauthorized = () => {
-  router.replace(
-    `/admin/login?next=${encodeURIComponent(
-      window.location.pathname
-    )}`
-  );
+  redirectToAdminLogin();
 };
   /*
   |--------------------------------------------------------------------------
@@ -83,7 +81,7 @@ export default function CouponsPage() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/coupons/admin/`,
         {
           method: "GET",
@@ -92,11 +90,7 @@ export default function CouponsPage() {
         }
       );
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        handleUnauthorized();
+      if (!response) {
         return;
       }
 
@@ -519,27 +513,7 @@ export default function CouponsPage() {
     try {
       setSaving(true);
 
-      const csrfResponse = await fetch(
-        `${API_URL}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
-
-      const csrfData = await csrfResponse
-        .json()
-        .catch(() => ({}));
-
-      if (
-        !csrfResponse.ok ||
-        !csrfData?.csrfToken
-      ) {
-        throw new Error(
-          "Unable to initialize secure request. Please refresh and try again."
-        );
-      }
+      const csrfToken = await getCsrfToken();
 
       /*
         Convert the date input into an ISO datetime
@@ -568,21 +542,17 @@ export default function CouponsPage() {
         ? "PATCH"
         : "POST";
 
-      const response = await fetch(url, {
+      const response = await fetchWithAdminAuth(url, {
         method,
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRFToken": csrfData.csrfToken,
+          "X-CSRFToken": csrfToken,
         },
         body: JSON.stringify(payload),
       });
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        handleUnauthorized();
+      if (!response) {
         return;
       }
 
@@ -669,44 +639,20 @@ export default function CouponsPage() {
       setError("");
       setSuccess("");
 
-      const csrfResponse = await fetch(
-        `${API_URL}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
+      const csrfToken = await getCsrfToken();
 
-      const csrfData = await csrfResponse
-        .json()
-        .catch(() => ({}));
-
-      if (
-        !csrfResponse.ok ||
-        !csrfData?.csrfToken
-      ) {
-        throw new Error(
-          "Unable to initialize secure request. Please refresh and try again."
-        );
-      }
-
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/coupons/admin/${id}/`,
         {
           method: "DELETE",
           credentials: "include",
           headers: {
-            "X-CSRFToken": csrfData.csrfToken,
+            "X-CSRFToken": csrfToken,
           },
         }
       );
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        handleUnauthorized();
+      if (!response) {
         return;
       }
 
@@ -766,36 +712,16 @@ export default function CouponsPage() {
       setError("");
       setSuccess("");
 
-      const csrfResponse = await fetch(
-        `${API_URL}/auth/csrf/`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        }
-      );
+      const csrfToken = await getCsrfToken();
 
-      const csrfData = await csrfResponse
-        .json()
-        .catch(() => ({}));
-
-      if (
-        !csrfResponse.ok ||
-        !csrfData?.csrfToken
-      ) {
-        throw new Error(
-          "Unable to initialize secure request. Please refresh and try again."
-        );
-      }
-
-      const response = await fetch(
+      const response = await fetchWithAdminAuth(
         `${API_URL}/coupons/admin/${coupon.id}/`,
         {
           method: "PATCH",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            "X-CSRFToken": csrfData.csrfToken,
+            "X-CSRFToken": csrfToken,
           },
           body: JSON.stringify({
             is_active:
@@ -804,11 +730,7 @@ export default function CouponsPage() {
         }
       );
 
-      if (
-        response.status === 401 ||
-        response.status === 403
-      ) {
-        handleUnauthorized();
+      if (!response) {
         return;
       }
 

@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  fetchWithAdminAuth,
+  getCsrfToken,
+} from "@/lib/adminAuth";
+import {
   ArrowLeft,
   Check,
   ImagePlus,
@@ -54,11 +58,15 @@ export default function AddProductPage() {
     const allCategories = [];
 
     while (url) {
-      const response = await fetch(url, {
+      const response = await fetchWithAdminAuth(url, {
         method: "GET",
         credentials: "include",
         cache: "no-store",
       });
+
+      if (!response) {
+        return;
+      }
 
       const data = await response
         .json()
@@ -473,59 +481,28 @@ export default function AddProductPage() {
       // ------------------------------------------------
       // CREATE PRODUCT
       // ------------------------------------------------
-      const csrfResponse = await fetch(
-  `${API_URL}/auth/csrf/`,
-  {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  }
-);
+      const csrfToken = await getCsrfToken();
 
-const csrfData = await csrfResponse
-  .json()
-  .catch(() => ({}));
-
-if (
-  !csrfResponse.ok ||
-  !csrfData?.csrfToken
-) {
-  setError(
-    "Unable to initialize secure request. Please refresh and try again."
-  );
-  return;
-}
-
-const response = await fetch(
+const response = await fetchWithAdminAuth(
   `${API_URL}/products/admin/`,
   {
     method: "POST",
     credentials: "include",
     headers: {
-      "X-CSRFToken": csrfData.csrfToken,
+      "X-CSRFToken": csrfToken,
     },
     body: formData,
   }
 );
 
+      if (!response) {
+        return;
+      }
+
       const data = await response
         .json()
         .catch(() => ({}));
 
-      // ------------------------------------------------
-      // AUTH ERROR
-      // ------------------------------------------------
-      if (
-  response.status === 401 ||
-  response.status === 403
-) {
-  router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
-  return;
-}
       // ------------------------------------------------
       // API ERROR
       // ------------------------------------------------
@@ -560,17 +537,21 @@ const response = await fetch(
           }
         });
 
-      const imageResponse = await fetch(
+      const imageResponse = await fetchWithAdminAuth(
   `${API_URL}/products/admin/images/bulk/`,
   {
     method: "POST",
     credentials: "include",
     headers: {
-      "X-CSRFToken": csrfData.csrfToken,
+      "X-CSRFToken": csrfToken,
     },
     body: imageFormData,
   }
 );
+
+        if (!imageResponse) {
+          return;
+        }
 
         const imageData =
           await imageResponse

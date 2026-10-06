@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
 import { useRouter } from "next/navigation";
 import {
+  fetchWithAdminAuth,
+} from "@/lib/adminAuth";
+import {
   Package,
   Tag,
   Boxes,
@@ -102,21 +105,13 @@ useEffect(() => {
       const allProducts = [];
 
       while (url) {
-        const response = await fetch(url, {
+        const response = await fetchWithAdminAuth(url, {
           method: "GET",
           credentials: "include",
           cache: "no-store",
         });
 
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          router.replace(
-  `/admin/login?next=${encodeURIComponent(
-    window.location.pathname
-  )}`
-);
+        if (!response) {
           return;
         }
 
@@ -159,7 +154,7 @@ useEffect(() => {
         setCategoriesLoading(true);
         setCategoryError("");
 
-        const response = await fetch(
+        const response = await fetchWithAdminAuth(
           `${process.env.NEXT_PUBLIC_API_URL}/products/categories/`,
           {
             method: "GET",
@@ -169,6 +164,10 @@ useEffect(() => {
              cache: "no-store",
           }
         );
+
+        if (!response) {
+          return;
+        }
 
         if (!response.ok) {
           throw new Error("Failed to load categories");
