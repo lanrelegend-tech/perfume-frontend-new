@@ -31,9 +31,8 @@ import {
 export default function AdminDashboard() {
   const router = useRouter();
 
-  const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [customers, setCustomers] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
 
   const [productCount, setProductCount] = useState(0);
   const [orderCount, setOrderCount] = useState(0);
@@ -76,62 +75,6 @@ return;
   }
 };
 
-  // ==================================================
-  // API HELPERS
-  // ==================================================
-
-  const getResults = (data) => {
-    if (Array.isArray(data)) {
-      return data;
-    }
-
-    if (Array.isArray(data?.results)) {
-      return data.results;
-    }
-
-    return [];
-  };
-
-  const getCount = (data) => {
-    if (Array.isArray(data)) {
-      return data.length;
-    }
-
-    if (typeof data?.count === "number") {
-      return data.count;
-    }
-
-    if (Array.isArray(data?.results)) {
-      return data.results.length;
-    }
-
-    return 0;
-  };
-
-  const fetchApi = async (url) => {
-  const response = await fetchWithAdminAuth(url, {
-    method: "GET",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
-
-  if (!response) {
-    throw new Error("AUTH_ERROR");
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      `Request failed: ${response.status}`
-    );
-  }
-
-  return response.json();
-};
-  
-
 // ==================================================
 // LOAD DASHBOARD
 // ==================================================
@@ -166,24 +109,8 @@ const loadDashboard = async () => {
       );
     }
 
-    /*
-      --------------------------------------------------
-      LOAD PRODUCTS + CUSTOMERS
-      --------------------------------------------------
-    */
-
-    const [
-      productsData,
-      customersData,
-    ] = await Promise.all([
-      fetchApi(`${API_URL}/products/`),
-      fetchApi(
-        `${API_URL}/users/admin/customers/`
-      ),
-    ]);
-
-    const ordersResponse = await fetchWithAdminAuth(
-      `${API_URL}/orders/admin/`,
+    const dashboardResponse = await fetchWithAdminAuth(
+      `${API_URL}/orders/admin/dashboard/`,
       {
         method: "GET",
         credentials: "include",
@@ -194,70 +121,45 @@ const loadDashboard = async () => {
       }
     );
 
-    if (!ordersResponse) {
+    if (!dashboardResponse) {
       return;
     }
 
-    if (!ordersResponse.ok) {
+    if (!dashboardResponse.ok) {
       throw new Error(
-        `Orders request failed: ${ordersResponse.status}`
+        `Dashboard request failed: ${dashboardResponse.status}`
       );
     }
 
-    const ordersData =
-      await ordersResponse.json();
+    const dashboardData =
+      await dashboardResponse.json();
 
-    const pageOrders =
-      Array.isArray(ordersData?.results)
-        ? ordersData.results
-        : Array.isArray(ordersData)
-        ? ordersData
-        : [];
-
-    /*
-      --------------------------------------------------
-      STORE ORDERS
-      --------------------------------------------------
-    */
-
-    setOrders(pageOrders);
-
-    /*
-      --------------------------------------------------
-      STORE PRODUCTS
-      --------------------------------------------------
-    */
-
-    setProducts(
-      getResults(productsData)
+    setDashboard(dashboardData);
+    setOrders(
+      Array.isArray(dashboardData?.recent_orders)
+        ? dashboardData.recent_orders
+        : []
     );
-
-    /*
-      --------------------------------------------------
-      STORE CUSTOMERS
-      --------------------------------------------------
-    */
-
-    setCustomers(
-      getResults(customersData)
-    );
-
-    /*
-      --------------------------------------------------
-      STORE REAL API COUNTS
-      --------------------------------------------------
-    */
-
     setProductCount(
-      getCount(productsData)
+      Number(
+        dashboardData?.statistics?.total_products ??
+          dashboardData?.total_products ??
+          0
+      )
     );
-
     setOrderCount(
-      getCount(ordersData)
+      Number(
+        dashboardData?.statistics?.total_orders ??
+          dashboardData?.total_orders ??
+          0
+      )
     );
-
     setCustomerCount(
-      getCount(customersData)
+      Number(
+        dashboardData?.statistics?.total_customers ??
+          dashboardData?.total_customers ??
+          0
+      )
     );
 
   } catch (err) {
@@ -476,6 +378,9 @@ const loadDashboard = async () => {
   // DASHBOARD COUNTS
   // ==================================================
 
+  const dashboardStats =
+    dashboard?.statistics || dashboard || {};
+
   const totalProducts = productCount;
 
   const totalCustomers = customerCount;
@@ -486,185 +391,112 @@ const loadDashboard = async () => {
   // PAID ORDERS
   // ==================================================
 
-  const paidOrders = useMemo(() => {
-    return orders.filter(isPaidOrder);
-  }, [orders]);
+  const paidOrders = [];
 
   // ==================================================
   // REVENUE
   // ==================================================
 
-  const revenue = useMemo(() => {
-    return paidOrders.reduce((total, order) => {
-      return total + getOrderAmount(order);
-    }, 0);
-  }, [paidOrders]);
+  const revenue = Number(
+    dashboardStats.total_sales ??
+      dashboardStats.gross_sales ??
+      0
+  );
 
   // ==================================================
   // DELIVERY FEES
   // ==================================================
 
-  const deliveryFees = useMemo(() => {
-    return paidOrders.reduce((total, order) => {
-      return total + getDeliveryFee(order);
-    }, 0);
-  }, [paidOrders]);
+  const deliveryFees = Number(
+    dashboardStats.delivery_fees || 0
+  );
 
   // ==================================================
   // NET SALES
   // ==================================================
 
-  const netSales = Math.max(
-    0,
-    revenue - deliveryFees
+  const netSales = Number(
+    dashboardStats.net_sales ??
+      Math.max(0, revenue - deliveryFees)
   );
 
   // ==================================================
   // PENDING ORDERS
   // ==================================================
 
-  const pendingOrders = useMemo(() => {
-    return orders.filter((order) => {
-      const status = getOrderStatus(order);
-
-      return (
-        status === "pending" ||
-        status === "confirmed" ||
-        status === "processing"
-      );
-    }).length;
-  }, [orders]);
+  const pendingOrders =
+    Number(dashboardStats.pending_orders || 0) +
+    Number(dashboardStats.confirmed_orders || 0) +
+    Number(dashboardStats.processing_orders || 0);
 
   // ==================================================
   // SHIPPED ORDERS
   // ==================================================
 
-  const shippedOrders = useMemo(() => {
-    return orders.filter((order) => {
-      return (
-        getOrderStatus(order) === "shipped"
-      );
-    }).length;
-  }, [orders]);
+  const shippedOrders = Number(
+    dashboardStats.shipped_orders || 0
+  );
 
   // ==================================================
   // DELIVERED ORDERS
   // ==================================================
 
-  const deliveredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      return (
-        getOrderStatus(order) === "delivered"
-      );
-    }).length;
-  }, [orders]);
+  const deliveredOrders = Number(
+    dashboardStats.delivered_orders || 0
+  );
+
+  const cancelledOrders = Number(
+    dashboardStats.cancelled_orders || 0
+  );
 
   // ==================================================
   // TOP PRODUCTS
   // ==================================================
 
-  const topProducts = useMemo(() => {
-    const productMap = {};
-
-    orders.forEach((order) => {
-      if (!isPaidOrder(order)) return;
-
-      const items = getOrderItems(order);
-
-      items.forEach((item) => {
-        const productId =
-          getItemProductId(item) ||
-          `name-${getItemName(item)}`;
-
-        if (!productMap[productId]) {
-          productMap[productId] = {
-            id: productId,
-            name: getItemName(item),
-            image: getItemImage(item),
-            quantity: 0,
-            sales: 0,
-          };
-        }
-
-        productMap[productId].quantity +=
-          getItemQuantity(item);
-
-        productMap[productId].sales += Number(
-          item?.subtotal || 0
-        );
-      });
-    });
-
-    return Object.values(productMap)
-      .sort(
-        (a, b) =>
-          b.quantity - a.quantity
-      )
-      .slice(0, 5);
-  }, [orders]);
+  const topProducts = (
+    dashboard?.top_products || []
+  ).map((product) => ({
+    id:
+      product.product_id ||
+      product.product_name,
+    name:
+      product.product_name ||
+      product.name ||
+      "Product",
+    image: product.image || null,
+    quantity:
+      product.units_sold ||
+      product.quantity ||
+      0,
+    sales: Number(
+      product.revenue || product.sales || 0
+    ),
+  }));
 
   // ==================================================
   // REVENUE CHART
   // ==================================================
 
-  const revenueChart = useMemo(() => {
-    const days = [];
+  const revenueChart = (
+    dashboard?.sales_chart || []
+  ).slice(-7).map((item) => {
+    const date = item.date
+      ? new Date(item.date)
+      : null;
 
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-
-      date.setHours(0, 0, 0, 0);
-
-      date.setDate(
-        date.getDate() - i
-      );
-
-      days.push({
-        date,
-        label: date.toLocaleDateString(
-          "en-US",
-          {
-            weekday: "short",
-          }
-        ),
-        amount: 0,
-      });
-    }
-
-    paidOrders.forEach((order) => {
-      const orderDateValue =
-        getOrderDate(order);
-
-      if (!orderDateValue) return;
-
-      const orderDate =
-        new Date(orderDateValue);
-
-      if (
-        Number.isNaN(
-          orderDate.getTime()
-        )
-      ) {
-        return;
-      }
-
-      days.forEach((day) => {
-        if (
-          orderDate.getFullYear() ===
-            day.date.getFullYear() &&
-          orderDate.getMonth() ===
-            day.date.getMonth() &&
-          orderDate.getDate() ===
-            day.date.getDate()
-        ) {
-          day.amount +=
-            getOrderAmount(order);
-        }
-      });
-    });
-
-    return days;
-  }, [paidOrders]);
+    return {
+      date,
+      label:
+        date &&
+        !Number.isNaN(date.getTime())
+          ? date.toLocaleDateString(
+              "en-US",
+              { weekday: "short" }
+            )
+          : "",
+      amount: Number(item.total || 0),
+    };
+  });
 
   const maxChartValue = Math.max(
     ...revenueChart.map(
@@ -677,21 +509,7 @@ const loadDashboard = async () => {
   // RECENT ORDERS
   // ==================================================
 
-  const recentOrders = useMemo(() => {
-    return [...orders]
-      .sort((a, b) => {
-        const dateA = new Date(
-          getOrderDate(a) || 0
-        ).getTime();
-
-        const dateB = new Date(
-          getOrderDate(b) || 0
-        ).getTime();
-
-        return dateB - dateA;
-      })
-      .slice(0, 5);
-  }, [orders]);
+  const recentOrders = orders.slice(0, 5);
 
 
 
@@ -892,7 +710,7 @@ const loadDashboard = async () => {
             icon={
               <DollarSign size={19} />
             }
-            description={`${paidOrders.length} paid orders`}
+            description={`${totalOrders} total orders`}
           />
 
           <StatCard
@@ -1051,38 +869,23 @@ const loadDashboard = async () => {
 
               <StatusRow
                 label="Pending"
-                value={
-                  orders.filter(
-                    (order) =>
-                      getOrderStatus(
-                        order
-                      ) === "pending"
-                  ).length
-                }
+                value={Number(
+                  dashboardStats.pending_orders || 0
+                )}
               />
 
               <StatusRow
                 label="Confirmed"
-                value={
-                  orders.filter(
-                    (order) =>
-                      getOrderStatus(
-                        order
-                      ) === "confirmed"
-                  ).length
-                }
+                value={Number(
+                  dashboardStats.confirmed_orders || 0
+                )}
               />
 
               <StatusRow
                 label="Processing"
-                value={
-                  orders.filter(
-                    (order) =>
-                      getOrderStatus(
-                        order
-                      ) === "processing"
-                  ).length
-                }
+                value={Number(
+                  dashboardStats.processing_orders || 0
+                )}
               />
 
               <StatusRow
@@ -1101,14 +904,7 @@ const loadDashboard = async () => {
 
               <StatusRow
                 label="Cancelled"
-                value={
-                  orders.filter(
-                    (order) =>
-                      getOrderStatus(
-                        order
-                      ) === "cancelled"
-                  ).length
-                }
+                value={cancelledOrders}
               />
 
             </div>
@@ -1261,7 +1057,7 @@ const loadDashboard = async () => {
                 }
                 label="Paid Orders"
                 value={
-                  paidOrders.length
+                  totalOrders
                 }
               />
 

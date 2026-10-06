@@ -490,9 +490,6 @@ export default function AnalyticsPage() {
   const [orders, setOrders] =
     useState([]);
 
-  const [customers, setCustomers] =
-    useState([]);
-
   const [dashboard, setDashboard] =
     useState(null);
 
@@ -551,25 +548,7 @@ return;
     const headers =
       getAuthenticatedHeaders();
 
-    /*
-      Load customers and dashboard normally.
-      Orders are handled separately below because
-      the orders endpoint is paginated.
-    */
-    const [
-      customersResponse,
-      dashboardResponse,
-    ] = await Promise.all([
-      fetch(
-        `${API_URL}/users/admin/customers/`,
-        {
-          method: "GET",
-          headers,
-          credentials: "include",
-          cache: "no-store",
-        }
-      ),
-
+    const dashboardResponse =
       fetch(
         `${API_URL}/orders/admin/dashboard/`,
         {
@@ -578,18 +557,18 @@ return;
           credentials: "include",
           cache: "no-store",
         }
-      ),
-    ]);
+      );
+
+    const resolvedDashboardResponse =
+      await dashboardResponse;
 
     /*
       If authentication expires, send the admin
       back to the login page.
     */
     if (
-      customersResponse.status === 401 ||
-      customersResponse.status === 403 ||
-      dashboardResponse.status === 401 ||
-      dashboardResponse.status === 403
+      resolvedDashboardResponse.status === 401 ||
+      resolvedDashboardResponse.status === 403
     ) {
       router.replace(
   `/admin/login?next=${encodeURIComponent(
@@ -647,32 +626,6 @@ return;
 
     /*
       =====================================================
-      CUSTOMERS
-      =====================================================
-    */
-
-    let loadedCustomers = [];
-
-    if (customersResponse.ok) {
-      const data =
-        await customersResponse.json();
-
-      loadedCustomers =
-        getResults(data);
-    } else {
-      const data =
-        await customersResponse
-          .json()
-          .catch(() => ({}));
-
-      throw new Error(
-        data?.detail ||
-          data?.error ||
-          "Unable to load admin customers."
-      );
-    }
-
-    /*
       =====================================================
       DASHBOARD
       =====================================================
@@ -680,12 +633,12 @@ return;
 
     let loadedDashboard = null;
 
-    if (dashboardResponse.ok) {
+    if (resolvedDashboardResponse.ok) {
       loadedDashboard =
-        await dashboardResponse.json();
+        await resolvedDashboardResponse.json();
     } else {
       const data =
-        await dashboardResponse
+        await resolvedDashboardResponse
           .json()
           .catch(() => ({}));
 
@@ -704,10 +657,6 @@ return;
 
     setOrders(
       loadedOrders
-    );
-
-    setCustomers(
-      loadedCustomers
     );
 
     setDashboard(
@@ -781,93 +730,75 @@ return;
       );
     }, [periodOrders]);
 
+  const dashboardStats =
+    dashboard?.statistics || dashboard || {};
+
   /* =======================================================
      TOTAL REVENUE
   ======================================================= */
 
-  const totalRevenue =
-    useMemo(() => {
-      return completedOrders.reduce(
-        (total, order) =>
-          total +
-          getOrderAmount(order),
-        0
-      );
-    }, [completedOrders]);
+  const totalRevenue = Number(
+    dashboardStats.total_sales ??
+      dashboardStats.gross_sales ??
+      0
+  );
 
   /* =======================================================
      TOTAL ORDERS
   ======================================================= */
 
-  const totalOrders =
-  periodOrders.length;
+  const totalOrders = Number(
+    dashboardStats.paid_orders ??
+      dashboard?.paid_orders ??
+      dashboardStats.total_orders ??
+      0
+  );
 
   /* =======================================================
      ITEMS SOLD
   ======================================================= */
 
   const totalItemsSold =
-    useMemo(() => {
-      return completedOrders.reduce(
-        (total, order) => {
-          const items =
-            Array.isArray(
-              order?.items
-            )
-              ? order.items
-              : [];
-
-          return (
-            total +
-            items.reduce(
-              (sum, item) =>
-                sum +
-                getItemQuantity(
-                  item
-                ),
-              0
-            )
-          );
-        },
+    Number(
+      dashboardStats.total_items_sold ??
+        dashboard?.total_items_sold ??
         0
-      );
-    }, [completedOrders]);
+    ) ||
+    (dashboard?.top_products || []).reduce(
+      (total, product) =>
+        total +
+        Number(
+          product.units_sold ||
+            product.sales ||
+            0
+        ),
+      0
+    );
 
   /* =======================================================
      DELIVERY FEES
   ======================================================= */
 
-  const totalDeliveryFees =
-    useMemo(() => {
-      return completedOrders.reduce(
-        (total, order) =>
-          total +
-          getDeliveryFee(order),
-        0
-      );
-    }, [completedOrders]);
+  const totalDeliveryFees = Number(
+    dashboardStats.delivery_fees || 0
+  );
 
-  const netSales = Math.max(
-    0,
-    totalRevenue -
-      totalDeliveryFees
+  const netSales = Number(
+    dashboardStats.net_sales ??
+      Math.max(
+        0,
+        totalRevenue -
+          totalDeliveryFees
+      )
   );
 
   /* =======================================================
      TOTAL DISCOUNTS
   ======================================================= */
 
-  const totalDiscounts =
-    useMemo(() => {
-      return completedOrders.reduce(
-        (total, order) =>
-          total +
-          getDiscountInfo(
-            order
-          ).amount,
-        0
-      );
-    }, [completedOrders]);
+  const totalDiscounts = Number(
+    dashboard?.coupon_analytics?.total_discounts || 0
+  );
 
   /* =======================================================
      CUSTOMERS
@@ -875,14 +806,10 @@ return;
 
   const totalCustomers =
     useMemo(() => {
-      if (
-        customers.length > 0
-      ) {
-        return customers.length;
-      }
-
       if (dashboard) {
         return Number(
+          dashboard?.statistics?.total_customers ??
+            dashboard?.total_customers ??
           dashboard?.total_customers ??
             dashboard?.customers ??
             dashboard?.customer_count ??
@@ -891,17 +818,22 @@ return;
       }
 
       return 0;
-    }, [customers, dashboard]);
+    }, [dashboard]);
 
   /* =======================================================
      AVERAGE ORDER VALUE
   ======================================================= */
 
   const averageOrderValue =
-    totalOrders > 0
+    Number(
+      dashboardStats.average_order_value ??
+        dashboard?.average_order_value ??
+        0
+    ) ||
+    (totalOrders > 0
       ? totalRevenue /
         totalOrders
-      : 0;
+      : 0);
 
  /* =======================================================
    DELIVERY STATUS
@@ -909,48 +841,23 @@ return;
 
 const deliveryStats =
   useMemo(() => {
-    const stats = {
-      pending: 0,
-      processing: 0,
-      shipped: 0,
-      delivered: 0,
+    return {
+      pending: Number(
+        dashboardStats.confirmed_orders ||
+          dashboardStats.pending_orders ||
+          0
+      ),
+      processing: Number(
+        dashboardStats.processing_orders || 0
+      ),
+      shipped: Number(
+        dashboardStats.shipped_orders || 0
+      ),
+      delivered: Number(
+        dashboardStats.delivered_orders || 0
+      ),
     };
-
-    periodOrders.forEach((order) => {
-      const paymentStatus = String(
-        order?.payment_status || ""
-      ).toLowerCase();
-
-      const status =
-        getOrderStatus(order);
-
-      // Unpaid / abandoned checkout orders
-      // are not part of delivery tracking.
-      if (paymentStatus !== "paid") {
-        return;
-      }
-
-      // A paid order starts as "confirmed".
-      // This is the pending-fulfilment stage.
-      if (status === "confirmed") {
-        stats.pending += 1;
-      } else if (
-        status === "processing"
-      ) {
-        stats.processing += 1;
-      } else if (
-        status === "shipped"
-      ) {
-        stats.shipped += 1;
-      } else if (
-        status === "delivered"
-      ) {
-        stats.delivered += 1;
-      }
-    });
-
-    return stats;
-  }, [periodOrders]);
+  }, [dashboardStats]);
 
   /* =======================================================
      REVENUE CHART
@@ -958,6 +865,40 @@ const deliveryStats =
 
   const chartData =
     useMemo(() => {
+      if (
+        Array.isArray(dashboard?.sales_chart) &&
+        dashboard.sales_chart.length > 0
+      ) {
+        return dashboard.sales_chart.map(
+          (item) => {
+            const date = item.date
+              ? new Date(item.date)
+              : null;
+
+            return {
+              key: String(item.date || ""),
+              label:
+                date &&
+                !Number.isNaN(date.getTime())
+                  ? date.toLocaleDateString(
+                      "en-NG",
+                      {
+                        day: "numeric",
+                        month: "short",
+                      }
+                    )
+                  : String(item.date || ""),
+              revenue: Number(
+                item.total || 0
+              ),
+              orders: Number(
+                item.orders || 0
+              ),
+            };
+          }
+        );
+      }
+
       const now =
         new Date();
 
@@ -1148,7 +1089,7 @@ const deliveryStats =
       );
 
       return result;
-    }, [completedOrders, range]);
+    }, [completedOrders, range, dashboard]);
 
   const maxRevenue =
     Math.max(
@@ -1164,72 +1105,25 @@ const deliveryStats =
   ======================================================= */
 
   const topProducts =
-    useMemo(() => {
-      const productMap =
-        {};
-
-      completedOrders.forEach(
-        (order) => {
-          const items =
-            Array.isArray(
-              order?.items
-            )
-              ? order.items
-              : [];
-
-          items.forEach(
-            (item) => {
-              const name =
-                getProductName(
-                  item
-                );
-
-              if (
-                !productMap[
-                  name
-                ]
-              ) {
-                productMap[
-                  name
-                ] = {
-                  name,
-                  category:
-                    getProductCategory(
-                      item
-                    ),
-                  sales: 0,
-                  revenue: 0,
-                };
-              }
-
-              productMap[
-                name
-              ].sales +=
-                getItemQuantity(
-                  item
-                );
-
-              productMap[
-                name
-              ].revenue +=
-                getItemSubtotal(
-                  item
-                );
-            }
-          );
-        }
-      );
-
-      return Object.values(
-        productMap
-      )
-        .sort(
-          (a, b) =>
-            b.revenue -
-            a.revenue
-        )
-        .slice(0, 5);
-    }, [completedOrders]);
+    (dashboard?.top_products || []).map(
+      (product) => ({
+        name:
+          product.product_name ||
+          product.name ||
+          "Product",
+        category:
+          product.brand ||
+          product.category ||
+          "Fragrance",
+        sales:
+          product.units_sold ||
+          product.sales ||
+          0,
+        revenue: Number(
+          product.revenue || 0
+        ),
+      })
+    );
 
   /* =======================================================
      CATEGORY DATA
@@ -1237,6 +1131,30 @@ const deliveryStats =
 
   const categoryData =
     useMemo(() => {
+      if (
+        Array.isArray(
+          dashboard?.category_data
+        ) &&
+        dashboard.category_data.length > 0
+      ) {
+        return dashboard.category_data.map(
+          (category) => ({
+            name:
+              category.name ||
+              "Uncategorized",
+            revenue: Number(
+              category.revenue || 0
+            ),
+            sales: Number(
+              category.sales || 0
+            ),
+            percentage: Number(
+              category.percentage || 0
+            ),
+          })
+        );
+      }
+
       const categoryMap =
         {};
 
@@ -1312,7 +1230,7 @@ const deliveryStats =
             a.revenue
         )
         .slice(0, 6);
-    }, [completedOrders]);
+    }, [completedOrders, dashboard]);
 
   /* =======================================================
      RECENT SALES
@@ -1320,6 +1238,72 @@ const deliveryStats =
 
   const recentSales =
     useMemo(() => {
+      if (
+        Array.isArray(
+          dashboard?.recent_sales
+        ) &&
+        dashboard.recent_sales.length > 0
+      ) {
+        return dashboard.recent_sales.map(
+          (sale) => {
+            const date = sale.date
+              ? new Date(sale.date)
+              : null;
+
+            const discountAmount = Number(
+              sale.discount || 0
+            );
+
+            return {
+              id:
+                sale.id ||
+                "#N/A",
+              customer:
+                sale.customer ||
+                "Customer",
+              product:
+                sale.product ||
+                "Order",
+              amount: Number(
+                sale.amount || 0
+              ),
+              discount:
+                sale.discount_label ||
+                (discountAmount > 0
+                  ? formatCurrency(
+                      discountAmount
+                    )
+                  : "None"),
+              coupon:
+                sale.coupon || "",
+              delivery: Number(
+                sale.delivery || 0
+              ),
+              status:
+                sale.status ||
+                "N/A",
+              date:
+                date &&
+                !Number.isNaN(
+                  date.getTime()
+                )
+                  ? date.toLocaleDateString(
+                      "en-NG",
+                      {
+                        day:
+                          "numeric",
+                        month:
+                          "short",
+                        year:
+                          "numeric",
+                      }
+                    )
+                  : "N/A",
+            };
+          }
+        );
+      }
+
       return [...completedOrders]
         .sort((a, b) => {
           const dateA =
@@ -1430,7 +1414,7 @@ const deliveryStats =
               : "N/A",
           };
         });
-    }, [completedOrders]);
+    }, [completedOrders, dashboard]);
 
   /* =======================================================
      NEW VS RETURNING
@@ -1438,6 +1422,27 @@ const deliveryStats =
 
   const newVsReturning =
     useMemo(() => {
+      if (
+        Array.isArray(
+          dashboard?.customer_mix
+        ) &&
+        dashboard.customer_mix.length > 0
+      ) {
+        return dashboard.customer_mix.map(
+          (item) => ({
+            label:
+              item.label ||
+              "Customers",
+            value: Number(
+              item.value || 0
+            ),
+            percentage: Number(
+              item.percentage || 0
+            ),
+          })
+        );
+      }
+
       const uniqueCustomers =
         {};
 
@@ -1523,7 +1528,7 @@ const deliveryStats =
               : 0,
         },
       ];
-    }, [completedOrders]);
+    }, [completedOrders, dashboard]);
 
   const totalCategoryRevenue =
     categoryData.reduce(
