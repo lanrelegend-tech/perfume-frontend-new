@@ -287,7 +287,7 @@ fetch(`${API_URL}/products/categories/`, {
 
 
   return (
-    <main className="min-h-screen bg-[#faf9f6] pb-20 text-black md:pb-0">
+  <main className="min-h-screen bg-[#faf9f6] pb-0 text-black">
 
       {/* ================= NAVBAR ================= */}
 
@@ -983,15 +983,38 @@ fetch(`${API_URL}/products/categories/`, {
             </div>
           )}
 
-          {/* ================= COPYRIGHT ================= */}
+          {/* ================= COPYRIGHT & DEVELOPER ================= */}
 
-          <div className="mt-10 border-t border-white/10 pt-7 text-xs text-white/30">
+<div className="mt-10 flex flex-col gap-3 border-t border-white/10 pt-7 text-xs text-white/30 sm:flex-row sm:items-center sm:justify-between">
 
-            <p>
-              © {new Date().getFullYear()} {storeName}. All rights reserved.
-            </p>
+  <p>
+    © {new Date().getFullYear()} {storeName}. All rights reserved.
+  </p>
 
-          </div>
+  <p>
+    Designed & Developed by{" "}
+    <a
+      href="https://jamiu.vercel.app"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-white/60 transition hover:text-white"
+    >
+      Legend X
+    </a>
+    <span className="text-white/30">·</span>
+
+<a
+  href="https://jamiu.vercel.app"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-flex items-center gap-1 text-white/50 underline underline-offset-4 transition hover:text-white"
+>
+  Click here
+  <span aria-hidden="true">↗</span>
+</a>
+  </p>
+
+</div>
 
         </div>
 

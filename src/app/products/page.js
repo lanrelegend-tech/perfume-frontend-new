@@ -1296,10 +1296,36 @@ export default function ProductsPage() {
 
           </div>
 
-          <div className="mt-14 border-t border-white/10 pt-7 text-xs text-white/30">
-            © {new Date().getFullYear()} ORENTEMIST. All rights reserved.
-          </div>
+<div className="mt-10 flex flex-col gap-3 border-t border-white/10 pt-7 text-xs text-white/30 sm:flex-row sm:items-center sm:justify-between">
 
+  <p>
+    © {new Date().getFullYear()} ORENTEMIST. All rights reserved.
+  </p>
+
+  <p>
+    Designed & Developed by{" "}
+    <a
+      href="https://jamiu.vercel.app"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-white/60 transition hover:text-white"
+    >
+      Legend X
+    </a>
+    <span className="text-white/30">·</span>
+
+<a
+  href="https://jamiu.vercel.app"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-flex items-center gap-1 text-white/50 underline underline-offset-4 transition hover:text-white"
+>
+  Click here
+  <span aria-hidden="true">↗</span>
+</a>
+  </p>
+
+</div>
         </div>
 
       </footer>
