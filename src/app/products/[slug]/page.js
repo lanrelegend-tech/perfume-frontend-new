@@ -12,7 +12,6 @@ const API_URL = (
 
 const MIN_REVIEW_LENGTH = 5;
 const MAX_REVIEW_LENGTH = 1000;
-
 function getImageUrl(image) {
   if (!image) return "/placeholder-product.jpg";
 
@@ -27,7 +26,9 @@ function getImageUrl(image) {
     ? image
     : `/${image}`;
 
-  return `${API_URL}${imagePath}`;
+  const apiOrigin = API_URL.replace(/\/api\/?$/, "");
+
+  return `${apiOrigin}${imagePath}`;
 }
 
 function formatPrice(amount) {
