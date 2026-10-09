@@ -70,6 +70,10 @@ export default function ProductDetailsPage() {
 
   const [loading, setLoading] = useState(true);
   const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsLoadingMore, setReviewsLoadingMore] =
+    useState(false);
+  const [nextReviewsUrl, setNextReviewsUrl] = useState(null);
+  const [totalReviews, setTotalReviews] = useState(0);
 
   const [cartCount, setCartCount] = useState(0);
 
@@ -206,41 +210,58 @@ const [cartMessageType, setCartMessageType] = useState("");
 
     return data.csrfToken;
   }
+async function fetchReviewsPage(url) {
+  const response = await fetch(url, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      "Failed to load reviews"
+    );
+  }
+
+  const data = await response.json();
+
+  if (Array.isArray(data)) {
+    return {
+      reviews: data,
+      next: null,
+      count: data.length,
+    };
+  }
+
+  const pageReviews = Array.isArray(
+    data?.results
+  )
+    ? data.results
+    : [];
+
+  return {
+    reviews: pageReviews,
+    next: data?.next || null,
+    count:
+      typeof data?.count === "number"
+        ? data.count
+        : pageReviews.length,
+  };
+}
+
 async function loadReviews(productId) {
   try {
     setReviewsLoading(true);
+    setNextReviewsUrl(null);
 
-    let nextUrl =
+    const firstPageUrl =
       `${API_URL}/reviews/product/${productId}/`;
 
-    const allReviews = [];
+    const page = await fetchReviewsPage(
+      firstPageUrl
+    );
 
-    while (nextUrl) {
-      const response = await fetch(nextUrl, {
-  cache: "no-store",
-});
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load reviews"
-        );
-      }
-
-      const data = await response.json();
-
-      if (Array.isArray(data)) {
-        allReviews.push(...data);
-        break;
-      }
-
-      if (Array.isArray(data?.results)) {
-        allReviews.push(...data.results);
-      }
-
-      nextUrl = data?.next || null;
-    }
-
-    setReviews(allReviews);
+    setReviews(page.reviews);
+    setNextReviewsUrl(page.next);
+    setTotalReviews(page.count);
   } catch (error) {
     console.error(
       "Reviews error:",
@@ -248,8 +269,53 @@ async function loadReviews(productId) {
     );
 
     setReviews([]);
+    setNextReviewsUrl(null);
+    setTotalReviews(0);
   } finally {
     setReviewsLoading(false);
+  }
+}
+
+async function loadMoreReviews() {
+  if (
+    !nextReviewsUrl ||
+    reviewsLoadingMore
+  ) {
+    return;
+  }
+
+  try {
+    setReviewsLoadingMore(true);
+
+    const page = await fetchReviewsPage(
+      nextReviewsUrl
+    );
+
+    setReviews((currentReviews) => {
+      const existingIds = new Set(
+        currentReviews.map(
+          (review) => review.id
+        )
+      );
+
+      return [
+        ...currentReviews,
+        ...page.reviews.filter(
+          (review) =>
+            !existingIds.has(review.id)
+        ),
+      ];
+    });
+
+    setNextReviewsUrl(page.next);
+    setTotalReviews(page.count);
+  } catch (error) {
+    console.error(
+      "More reviews error:",
+      error
+    );
+  } finally {
+    setReviewsLoadingMore(false);
   }
 }
 async function checkPurchaseStatus(productId) {
@@ -1381,6 +1447,7 @@ async function handleShareProduct() {
     );
 
   const reviewCount =
+    totalReviews ||
     Number(product.review_count) ||
     reviews.length;
 
@@ -2550,6 +2617,21 @@ async function handleShareProduct() {
                         </article>
                       );
                     }
+                  )}
+
+                  {nextReviewsUrl && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={loadMoreReviews}
+                        disabled={reviewsLoadingMore}
+                        className="w-full rounded-full border border-black/15 bg-white px-6 py-3 text-sm font-medium transition hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:border-black/10 disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        {reviewsLoadingMore
+                          ? "Loading reviews..."
+                          : "Show more reviews"}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
