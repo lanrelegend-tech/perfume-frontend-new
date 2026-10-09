@@ -1,9 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import PWARegister from "@/components/PWARegister";
-import NewsletterPopup from "@/components/NewsletterPopup";
-import CookieConsent from "@/components/CookieConsent";
-import WhatsAppButton from "@/components/WhatsAppButton";
+import PublicSiteWidgets from "@/components/PublicSiteWidgets";
 import MaintenanceGate from "@/components/MaintenanceGate";
 
 const geistSans = Geist({
@@ -133,9 +131,7 @@ export default function RootLayout({ children }) {
         <PWARegister />
         <MaintenanceGate>
           {children}
-          <NewsletterPopup />
-          <CookieConsent />
-          <WhatsAppButton />
+          <PublicSiteWidgets />
         </MaintenanceGate>
       </body>
     </html>
