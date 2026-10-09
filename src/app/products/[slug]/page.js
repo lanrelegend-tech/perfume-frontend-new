@@ -785,6 +785,7 @@ function handleAddToCart() {
       router.push("/checkout");
     }, 300);
   }
+
 async function handleShareProduct() {
   if (!product) {
     return;
@@ -792,20 +793,23 @@ async function handleShareProduct() {
 
   const url = window.location.href;
 
-  const shareData = {
-    title: product.name,
-    text: `Check out ${product.name} from ORENTEMIST.\n\n${url}`,
-    url,
-  };
+  const shareText = `Check out ${product.name} from ORENTEMIST.`;
 
   try {
     if (typeof navigator.share === "function") {
-      await navigator.share(shareData);
+      await navigator.share({
+        title: product.name,
+        text: shareText,
+        url: url,
+      });
+
       return;
     }
 
     if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(
+        `${shareText}\n\n${url}`
+      );
 
       setCartMessage("Product link copied.");
       setCartMessageType("success");
@@ -821,9 +825,7 @@ async function handleShareProduct() {
 
     console.error("Share error:", error);
 
-    setCartMessage(
-      "Unable to share this product."
-    );
+    setCartMessage("Unable to share this product.");
     setCartMessageType("error");
   }
 }
