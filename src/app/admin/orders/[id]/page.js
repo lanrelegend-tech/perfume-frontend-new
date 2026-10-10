@@ -2217,6 +2217,15 @@ function OrderStatus({ status }) {
 
     refunded:
       "bg-gray-100 text-gray-700",
+
+    refund_pending:
+      "bg-amber-50 text-amber-700",
+
+    refund_processing:
+      "bg-blue-50 text-blue-700",
+
+    refund_failed:
+      "bg-red-50 text-red-700",
   };
 
   return (

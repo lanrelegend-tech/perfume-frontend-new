@@ -261,6 +261,9 @@ const fetchOrders = async (url = null, append = false) => {
       canceled: "Cancelled",
       paid: "Paid",
       failed: "Failed",
+      refund_pending: "Refund Pending",
+      refund_processing: "Refund Processing",
+      refund_failed: "Refund Failed",
       refunded: "Refunded",
     };
 
@@ -1088,6 +1091,15 @@ function OrderStatus({ status }) {
       "bg-red-50 text-red-700",
 
     Failed:
+      "bg-red-50 text-red-700",
+
+    "Refund Pending":
+      "bg-amber-50 text-amber-700",
+
+    "Refund Processing":
+      "bg-blue-50 text-blue-700",
+
+    "Refund Failed":
       "bg-red-50 text-red-700",
 
     Refunded:
