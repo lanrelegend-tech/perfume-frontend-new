@@ -8,6 +8,7 @@ function OrderSuccessContent() {
   const searchParams = useSearchParams();
 
   const orderId = searchParams.get("order");
+  const order_number = searchParams.get("order_number");
   const reference = searchParams.get("reference");
   const reviewRequired = searchParams.get("review") === "1";
 
@@ -36,7 +37,7 @@ function OrderSuccessContent() {
             </p>
 
             <p className="mt-1 text-lg font-semibold text-black">
-              #{orderId}
+              #{order_number}
             </p>
           </div>
         )}
