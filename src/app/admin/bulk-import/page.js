@@ -142,12 +142,24 @@ async function clearBulkDraft() {
 }
 
 const COLUMNS = [
-  { key: "image", label: "Image", width: 120, type: "image" },
+  {
+    key: "image",
+    label: "Image",
+    width: 120,
+    type: "image",
+    required: true,
+  },
   { key: "name", label: "Name", width: 220, type: "text", required: true },
   { key: "brand", label: "Brand", width: 160, type: "text" },
   { key: "price", label: "Price", width: 120, type: "number", required: true },
   { key: "size", label: "Size", width: 110, type: "text" },
-  { key: "category", label: "Category", width: 150, type: "select" },
+  {
+    key: "category",
+    label: "Category",
+    width: 150,
+    type: "select",
+    required: true,
+  },
   {
     key: "description",
     label: "Description",
@@ -165,6 +177,7 @@ const COLUMNS = [
     label: "Stock",
     width: 100,
     type: "number",
+    required: true,
   },
   {
     key: "in_stock",
@@ -215,6 +228,16 @@ const CSV_HEADERS = [
   "preorder_release_date",
 ];
 
+const CSV_ALIASES = {
+  image: [
+    "image",
+    "image_files",
+    "image_name",
+    "image_filename",
+  ],
+  stock_quantity: ["stock_quantity", "stock"],
+};
+
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -245,6 +268,58 @@ function createBlankRow() {
 
 function createRows(count = 10) {
   return Array.from({ length: count }, () => createBlankRow());
+}
+
+function hasText(value) {
+  return String(value || "").trim() !== "";
+}
+
+function rowHasImages(row, zipFile = null) {
+  const hasAttachedImages =
+    (Array.isArray(row.imageFiles) &&
+      row.imageFiles.length > 0) ||
+    Boolean(row.imageFile);
+
+  const hasZipImageReferences =
+    Boolean(zipFile) &&
+    Array.isArray(row.imageNames) &&
+    row.imageNames.some(hasText);
+
+  return hasAttachedImages || hasZipImageReferences;
+}
+
+function rowHasImportData(row) {
+  return (
+    hasText(row.name) ||
+    hasText(row.price) ||
+    hasText(row.category) ||
+    hasText(row.stock_quantity) ||
+    hasText(row.brand) ||
+    hasText(row.description) ||
+    hasText(row.fragrance_notes) ||
+    (Array.isArray(row.imageNames) &&
+      row.imageNames.some(hasText)) ||
+    (Array.isArray(row.imageFiles) &&
+      row.imageFiles.length > 0) ||
+    Boolean(row.imageFile)
+  );
+}
+
+function getCSVValue(csvRow, key, fallback = "") {
+  const keys = CSV_ALIASES[key] || [key];
+
+  for (const csvKey of keys) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        csvRow,
+        csvKey
+      )
+    ) {
+      return csvRow[csvKey] ?? fallback;
+    }
+  }
+
+  return fallback;
 }
 
 function normalizeHeader(value) {
@@ -501,7 +576,7 @@ export default function BulkImportPage() {
   }, [rows, search]);
 	 const redirectToLogin = redirectToAdminLogin;
   const populatedRows = useMemo(
-    () => rows.filter((row) => row.name.trim()),
+    () => rows.filter(rowHasImportData),
     [rows]
   );
 
@@ -509,20 +584,31 @@ export default function BulkImportPage() {
     const errors = {};
 
     rows.forEach((row) => {
-      if (!row.name.trim()) {
+      if (!rowHasImportData(row)) {
         return;
       }
 
       const rowErrors = [];
 
+      if (!hasText(row.name)) {
+        rowErrors.push("Name is required");
+      }
+
+      if (!rowHasImages(row, zipFile)) {
+        rowErrors.push("Image is required");
+      }
+
       if (!row.price || Number.isNaN(Number(row.price))) {
         rowErrors.push("Price is required");
       }
 
-      if (
-        row.stock_quantity !== "" &&
-        Number.isNaN(Number(row.stock_quantity))
-      ) {
+      if (!hasText(row.category)) {
+        rowErrors.push("Category is required");
+      }
+
+      if (!hasText(row.stock_quantity)) {
+        rowErrors.push("Stock is required");
+      } else if (Number.isNaN(Number(row.stock_quantity))) {
         rowErrors.push("Stock must be a number");
       }
 
@@ -530,7 +616,7 @@ export default function BulkImportPage() {
     });
 
     return errors;
-  }, [rows]);
+  }, [rows, zipFile]);
 
   const invalidRows = useMemo(
     () =>
@@ -1676,17 +1762,23 @@ useEffect(() => {
     const parsedRows = parseCSV(csvText);
 
     if (
-       !parsedRows.headers.length ||
-       !parsedRows.rows.length
-) {
+      !parsedRows.headers.length ||
+      !parsedRows.rows.length
+    ) {
       throw new Error(
-       "The CSV inside the ZIP is empty."
-  );
-}
+        "The CSV inside the ZIP is empty."
+      );
+    }
+
     // Find the image column in the CSV
     const imageColumn =
       parsedRows.headers?.find((header) =>
-        ["image", "image_name", "image_filename"].includes(
+        [
+          "image",
+          "image_files",
+          "image_name",
+          "image_filename",
+        ].includes(
           String(header).trim().toLowerCase()
         )
       ) || "image";
@@ -1701,8 +1793,10 @@ useEffect(() => {
             return;
           }
 
-          if (Object.prototype.hasOwnProperty.call(csvRow, column.key)) {
-            row[column.key] = csvRow[column.key];
+          const value = getCSVValue(csvRow, column.key, null);
+
+          if (value !== null) {
+            row[column.key] = value;
           }
         });
 
@@ -1723,12 +1817,7 @@ useEffect(() => {
 
         return row;
       })
-      .filter(
-        (row) =>
-          String(row.name || "").trim() ||
-          String(row.brand || "").trim() ||
-          String(row.price || "").trim()
-      );
+      .filter(rowHasImportData);
 
     if (!importedRows.length) {
       throw new Error(
@@ -1871,14 +1960,14 @@ async function handleCSVFile(file) {
 
         COLUMNS.forEach((column) => {
           if (column.key === "image") {
-            const imageValue =
-              csvRow.image ??
-              csvRow.image_name ??
-              csvRow.image_filename ??
-              "";
+            const imageValue = getCSVValue(
+              csvRow,
+              "image",
+              ""
+            );
 
             row.imageNames = String(imageValue)
-              .split(/[|;]/)
+              .split(/[,;|]/)
               .map((item) => item.trim())
               .filter(Boolean)
               .map((item) =>
@@ -1893,16 +1982,11 @@ async function handleCSVFile(file) {
             return;
           }
 
-          if (
-            !Object.prototype.hasOwnProperty.call(
-              csvRow,
-              column.key
-            )
-          ) {
+          const value = getCSVValue(csvRow, column.key, null);
+
+          if (value === null) {
             return;
           }
-
-          const value = csvRow[column.key] ?? "";
 
           if (column.type === "boolean") {
             row[column.key] = booleanFromValue(
@@ -1916,13 +2000,7 @@ async function handleCSVFile(file) {
 
         return row;
       })
-      .filter((row) => {
-        return (
-          String(row.name || "").trim() ||
-          String(row.brand || "").trim() ||
-          String(row.price || "").trim()
-        );
-      });
+      .filter(rowHasImportData);
 
     if (!importedRows.length) {
       throw new Error(
@@ -3489,8 +3567,8 @@ async function handleCSVFile(file) {
             </div>
 
             <div className="mt-1 text-xs text-red-700/70">
-              Product Name and Price are required.
-              Stock must be a number when provided.
+              Image, Product Name, Price, Category,
+              and Stock are required.
             </div>
           </div>
         )}
