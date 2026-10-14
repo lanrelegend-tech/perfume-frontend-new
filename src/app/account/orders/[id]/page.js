@@ -992,6 +992,24 @@ const isPickup =
   )}
 
 </section>
+{String(order?.notes || "").trim() && (
+
+  <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8">
+    <div className="border-b border-neutral-100 pb-6">
+      <h2 className="text-2xl font-bold tracking-tight text-black">
+        Your Order Note
+      </h2>
+  <p className="mt-2 text-sm leading-6 text-neutral-600">
+    The note you added when placing this order.
+  </p>
+</div>
+<div className="mt-6 rounded-xl bg-neutral-50 p-5 sm:p-6">
+  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-neutral-700">
+    {order.notes}
+  </p>
+</div>
+  </section>
+)}
           </div>
 
           <aside className="space-y-6">

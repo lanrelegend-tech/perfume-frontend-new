@@ -1288,6 +1288,28 @@ if (!response) {
 
                   </section>
                 )}
+                {/* CUSTOMER ORDER NOTE */}
+
+{String(order?.notes || "").trim() && (
+
+  <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
+<div className="flex items-start gap-3">
+  <div className="min-w-0 flex-1">
+    <h2 className="font-semibold text-amber-900">
+      Customer Order Note
+    </h2>
+    <p className="mt-1 text-xs leading-5 text-amber-700">
+      Message provided by the customer during checkout.
+    </p>
+  </div>
+</div>
+<div className="mt-4 rounded-xl border border-amber-200 bg-white p-4">
+  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-black/80">
+    {order.notes}
+  </p>
+</div>
+  </section>
+)}
 
                 {/* PRODUCTS */}
 

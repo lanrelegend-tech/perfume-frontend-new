@@ -116,6 +116,8 @@ export default function CheckoutPage() {
     country: "Nigeria",
   });
 
+  const [orderNotes, setOrderNotes] = useState("");
+
   const [couponCode, setCouponCode] = useState("");
 
   const [appliedCoupon, setAppliedCoupon] =
@@ -699,6 +701,7 @@ export default function CheckoutPage() {
        */
       const orderData = {
         customer: form,
+        notes: orderNotes.trim(),
 
         delivery_method:
           deliveryMethod,
@@ -734,6 +737,7 @@ export default function CheckoutPage() {
         has_preorder_items:
           hasPreorderItems,
       };
+      
 
       /*
        * GET CSRF TOKEN
@@ -1799,6 +1803,51 @@ export default function CheckoutPage() {
 
               </div>
             </section>
+
+
+
+
+
+            {/* MESSAGE TO ADMIN */}
+<section className="rounded-3xl border border-black/10 bg-white p-5 sm:p-7">
+  <div className="mb-5">
+    <h2 className="text-xl font-semibold">
+      Message to admin{" "}
+      <span className="text-sm font-normal text-gray-400">
+        (optional)
+      </span>
+    </h2>
+
+    <p className="mt-1 text-sm text-gray-500">
+      Add any special instructions for your order.
+    </p>
+  </div>
+
+  <label
+    htmlFor="orderNotes"
+    className="mb-2 block text-xs font-medium"
+  >
+    Your message
+  </label>
+
+  <textarea
+    id="orderNotes"
+    name="orderNotes"
+    value={orderNotes}
+    onChange={(event) => setOrderNotes(event.target.value)}
+    rows={4}
+    maxLength={2000}
+    placeholder="Add any instructions for your order..."
+    className="w-full resize-y rounded-xl border border-black/10 bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-black"
+  />
+
+  <p className="mt-2 text-right text-xs text-gray-400">
+    {orderNotes.length}/2000
+  </p>
+</section>
+
+
+
 
             {/* PREORDER INFORMATION */}
             {hasPreorderItems && (
